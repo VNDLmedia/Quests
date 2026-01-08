@@ -15,11 +15,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
 import { BRAND, COLORS, SHADOWS } from '../theme';
+import { usePlayer, useAchievements } from '../game/hooks';
+import { StreakBanner, AchievementBadge } from '../components';
+import { LEVEL_CONFIG } from '../game/config/rewards';
 
 const ClubPassScreen = () => {
   const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState('wallet');
   const [showQR, setShowQR] = useState(false);
+  
+  // Game Hooks
+  const { 
+    xp, level, loginStreak, displayName, username,
+    levelProgress, levelTitle, xpForNextLevel, xpInCurrentLevel,
+    hasClaimedDailyReward, claimDailyReward
+  } = usePlayer();
+  
+  const { 
+    unlockedAchievements, 
+    nearlyUnlocked, 
+    stats: achievementStats,
+    byCategory 
+  } = useAchievements();
   
   // Interactive States
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -31,15 +48,15 @@ const ClubPassScreen = () => {
   const shadowWidth = cardWidth - 30;
 
   const member = {
-    name: 'Max Mustermann',
-    id: 'PULSE-8821',
-    points: 1250,
-    level: 'Insider',
-    nextLevel: 'Elite',
-    nextPoints: 1500,
+    name: displayName || username || 'PULSE Member',
+    id: `PULSE-${username?.slice(0, 4)?.toUpperCase() || '8821'}`,
+    points: xp,
+    level: levelTitle?.title || 'Newcomer',
+    nextLevel: 'Next Level',
+    nextPoints: xpForNextLevel,
   };
 
-  const progress = (member.points / member.nextPoints) * 100;
+  const progress = levelProgress;
 
   const myRewards = [
     { id: 1, title: 'Free Coffee', place: 'Starbucks', expires: '2d left', color: '#166534', icon: 'cafe', code: 'STAR-FREE-99' },
@@ -119,9 +136,18 @@ const ClubPassScreen = () => {
           </View>
         </View>
 
+        {/* Streak Banner */}
+        <View style={styles.streakSection}>
+          <StreakBanner
+            streak={loginStreak}
+            hasClaimedToday={hasClaimedDailyReward}
+            onClaim={claimDailyReward}
+          />
+        </View>
+
         {/* Tabs */}
         <View style={styles.tabs}>
-          {['wallet', 'rewards', 'friends'].map((t) => (
+          {['wallet', 'rewards', 'achievements', 'friends'].map((t) => (
             <TouchableOpacity key={t} style={[styles.tab, activeTab === t && styles.tabActive]} onPress={() => setActiveTab(t)}>
               <Text style={[styles.tabText, activeTab === t && styles.tabTextActive]}>{t.charAt(0).toUpperCase() + t.slice(1)}</Text>
             </TouchableOpacity>
@@ -194,6 +220,97 @@ const ClubPassScreen = () => {
                   <Text style={styles.expireText}>{r.expires}</Text>
                 </View>
               </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {activeTab === 'achievements' && (
+          <View style={styles.tabContent}>
+            {/* Achievement Stats */}
+            <View style={styles.achievementStats}>
+              <View style={styles.achievementStatItem}>
+                <Text style={styles.achievementStatValue}>{achievementStats.totalUnlocked}</Text>
+                <Text style={styles.achievementStatLabel}>Unlocked</Text>
+              </View>
+              <View style={styles.achievementStatDivider} />
+              <View style={styles.achievementStatItem}>
+                <Text style={styles.achievementStatValue}>{achievementStats.completionPercent}%</Text>
+                <Text style={styles.achievementStatLabel}>Complete</Text>
+              </View>
+              <View style={styles.achievementStatDivider} />
+              <View style={styles.achievementStatItem}>
+                <Text style={styles.achievementStatValue}>{achievementStats.totalXPEarned}</Text>
+                <Text style={styles.achievementStatLabel}>XP Earned</Text>
+              </View>
+            </View>
+
+            {/* Nearly Unlocked */}
+            {nearlyUnlocked.length > 0 && (
+              <View style={styles.achievementSection}>
+                <Text style={styles.sectionTitle}>Almost There!</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.badgeRow}>
+                    {nearlyUnlocked.map((a) => (
+                      <AchievementBadge
+                        key={a.key}
+                        achievement={a}
+                        unlocked={false}
+                        progress={a.currentProgress}
+                        size="medium"
+                      />
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Unlocked Achievements */}
+            <View style={styles.achievementSection}>
+              <Text style={styles.sectionTitle}>Unlocked ({unlockedAchievements.length})</Text>
+              {unlockedAchievements.length === 0 ? (
+                <View style={styles.emptyAchievements}>
+                  <Ionicons name="trophy-outline" size={48} color={COLORS.text.muted} />
+                  <Text style={styles.emptyText}>No achievements yet</Text>
+                  <Text style={styles.emptySubtext}>Complete quests to earn badges!</Text>
+                </View>
+              ) : (
+                <View style={styles.badgeGrid}>
+                  {unlockedAchievements.map((a) => (
+                    <AchievementBadge
+                      key={a.key}
+                      achievement={a}
+                      unlocked={true}
+                      size="medium"
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* By Category */}
+            {Object.values(byCategory).map((category) => (
+              <View key={category.id} style={styles.achievementSection}>
+                <View style={styles.categoryHeader}>
+                  <View style={[styles.categoryIcon, { backgroundColor: category.color + '20' }]}>
+                    <Ionicons name={category.icon} size={16} color={category.color} />
+                  </View>
+                  <Text style={styles.categoryTitle}>{category.name}</Text>
+                  <Text style={styles.categoryCount}>
+                    {category.unlockedCount}/{category.totalCount}
+                  </Text>
+                </View>
+                <View style={styles.categoryProgress}>
+                  <View 
+                    style={[
+                      styles.categoryProgressFill, 
+                      { 
+                        width: `${(category.unlockedCount / category.totalCount) * 100}%`,
+                        backgroundColor: category.color 
+                      }
+                    ]} 
+                  />
+                </View>
+              </View>
             ))}
           </View>
         )}
@@ -402,6 +519,31 @@ const styles = StyleSheet.create({
   codeLabel: { fontSize: 12, fontWeight: '700', color: COLORS.text.muted, letterSpacing: 1, marginBottom: 8 },
   codeText: { fontSize: 28, fontWeight: '800', letterSpacing: 2 },
   loadingContainer: { alignItems: 'center', marginBottom: 20 },
+  
+  // Streak Section
+  streakSection: { paddingHorizontal: 24, marginBottom: 24, maxWidth: 600, alignSelf: 'center', width: '100%' },
+  
+  // Achievement Styles
+  achievementStats: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 20, ...SHADOWS.sm },
+  achievementStatItem: { flex: 1, alignItems: 'center' },
+  achievementStatValue: { fontSize: 24, fontWeight: '800', color: COLORS.text.primary },
+  achievementStatLabel: { fontSize: 11, color: COLORS.text.muted, marginTop: 4 },
+  achievementStatDivider: { width: 1, backgroundColor: COLORS.surfaceAlt, marginVertical: 4 },
+  
+  achievementSection: { marginBottom: 24 },
+  badgeRow: { flexDirection: 'row', gap: 16, paddingVertical: 8 },
+  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  
+  emptyAchievements: { alignItems: 'center', paddingVertical: 40, backgroundColor: '#FFF', borderRadius: 16 },
+  emptyText: { fontSize: 16, fontWeight: '600', color: COLORS.text.primary, marginTop: 12 },
+  emptySubtext: { fontSize: 13, color: COLORS.text.muted, marginTop: 4 },
+  
+  categoryHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  categoryIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  categoryTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.text.primary },
+  categoryCount: { fontSize: 12, fontWeight: '600', color: COLORS.text.muted },
+  categoryProgress: { height: 4, backgroundColor: COLORS.surfaceAlt, borderRadius: 2, overflow: 'hidden' },
+  categoryProgressFill: { height: '100%', borderRadius: 2 },
 });
 
 export default ClubPassScreen;

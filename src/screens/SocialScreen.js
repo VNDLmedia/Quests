@@ -1,0 +1,674 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// PULSE - Social Screen
+// ═══════════════════════════════════════════════════════════════════════════
+
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+  StatusBar,
+  Modal,
+  TextInput,
+  FlatList,
+  RefreshControl,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import QRCode from 'react-native-qrcode-svg';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { COLORS, SHADOWS } from '../theme';
+import { useGame } from '../game/GameProvider';
+import { useLeaderboard } from '../game/hooks';
+import LiveLeaderboard from '../components/LiveLeaderboard';
+import ChallengeCard from '../components/ChallengeCard';
+import ActivityFeed from '../components/ActivityFeed';
+
+const SocialScreen = () => {
+  const { 
+    player, 
+    friends, 
+    activeChallenges, 
+    activityFeed,
+    incomingFriendRequests,
+    addFriend,
+    createChallenge,
+    fetchChallenges,
+  } = useGame();
+  
+  const { 
+    friendsLeaderboard, 
+    myFriendsRank, 
+    refresh: refreshLeaderboard,
+    isOnline 
+  } = useLeaderboard();
+
+  const [activeTab, setActiveTab] = useState('leaderboard');
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  const [permission, requestPermission] = useCameraPermissions();
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      refreshLeaderboard(),
+      fetchChallenges(),
+    ]);
+    setIsRefreshing(false);
+  };
+
+  const handleBarCodeScanned = async ({ data }) => {
+    setShowScanModal(false);
+    // Data should be a user ID like "PULSE-XXXX"
+    if (data.startsWith('PULSE-')) {
+      const userId = data;
+      const result = await addFriend(userId);
+      if (!result.error) {
+        alert('Friend request sent!');
+      }
+    }
+  };
+
+  const startScan = async () => {
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) return;
+    }
+    setShowScanModal(true);
+  };
+
+  const handleCreateChallenge = (friendId) => {
+    setSelectedFriend(friendId);
+    setShowChallengeModal(true);
+  };
+
+  const pendingChallenges = activeChallenges.filter(c => 
+    c.status === 'pending' && c.opponent_id === player.id
+  );
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Social</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerBtn} onPress={() => setShowQRModal(true)}>
+            <Ionicons name="qr-code" size={22} color={COLORS.text.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerBtn} onPress={startScan}>
+            <Ionicons name="scan" size={22} color={COLORS.text.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabs}>
+        {[
+          { key: 'leaderboard', label: 'Leaderboard', icon: 'podium' },
+          { key: 'challenges', label: 'Challenges', icon: 'flash', badge: pendingChallenges.length },
+          { key: 'activity', label: 'Activity', icon: 'pulse' },
+        ].map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Ionicons 
+              name={tab.icon} 
+              size={18} 
+              color={activeTab === tab.key ? COLORS.primary : COLORS.text.muted} 
+            />
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+              {tab.label}
+            </Text>
+            {tab.badge > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{tab.badge}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {/* Leaderboard Tab */}
+        {activeTab === 'leaderboard' && (
+          <View style={styles.section}>
+            {/* My Rank Card */}
+            <LinearGradient
+              colors={COLORS.gradients.primary}
+              style={styles.rankCard}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.rankLeft}>
+                <Text style={styles.rankLabel}>Your Rank</Text>
+                <Text style={styles.rankNumber}>#{myFriendsRank || '-'}</Text>
+              </View>
+              <View style={styles.rankRight}>
+                <Text style={styles.rankXP}>{player.xp} XP</Text>
+                <Text style={styles.rankLevel}>Level {player.level}</Text>
+              </View>
+            </LinearGradient>
+
+            {/* Friends Leaderboard */}
+            <LiveLeaderboard
+              data={friendsLeaderboard}
+              myRank={myFriendsRank}
+              friendsOnly={true}
+              onRefresh={refreshLeaderboard}
+              isLoading={isRefreshing}
+              title="Friends Ranking"
+            />
+
+            {/* Friends List */}
+            <View style={styles.friendsSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Friends ({friends.length})</Text>
+                <TouchableOpacity onPress={startScan}>
+                  <Text style={styles.sectionAction}>+ Add</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {friends.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="people-outline" size={48} color={COLORS.text.muted} />
+                  <Text style={styles.emptyText}>No friends yet</Text>
+                  <Text style={styles.emptySubtext}>Scan a QR code to add friends</Text>
+                </View>
+              ) : (
+                friends.map((friend) => (
+                  <View key={friend.id} style={styles.friendItem}>
+                    <View style={styles.friendAvatar}>
+                      <Text style={styles.friendInitial}>
+                        {friend.display_name?.charAt(0) || friend.username?.charAt(0)}
+                      </Text>
+                    </View>
+                    <View style={styles.friendInfo}>
+                      <Text style={styles.friendName}>
+                        {friend.display_name || friend.username}
+                      </Text>
+                      <Text style={styles.friendLevel}>Level {friend.level || 1}</Text>
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.challengeBtn}
+                      onPress={() => handleCreateChallenge(friend.id)}
+                    >
+                      <Ionicons name="flash" size={18} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Challenges Tab */}
+        {activeTab === 'challenges' && (
+          <View style={styles.section}>
+            {/* Pending Challenges */}
+            {pendingChallenges.length > 0 && (
+              <View style={styles.challengeSection}>
+                <Text style={styles.sectionTitle}>New Challenges</Text>
+                {pendingChallenges.map((challenge) => (
+                  <ChallengeCard
+                    key={challenge.id}
+                    challenge={challenge}
+                    currentUserId={player.id}
+                    onAccept={() => {}}
+                    onDecline={() => {}}
+                  />
+                ))}
+              </View>
+            )}
+
+            {/* Active Challenges */}
+            <View style={styles.challengeSection}>
+              <Text style={styles.sectionTitle}>Active Challenges</Text>
+              {activeChallenges.filter(c => c.status === 'active').length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="flash-outline" size={48} color={COLORS.text.muted} />
+                  <Text style={styles.emptyText}>No active challenges</Text>
+                  <Text style={styles.emptySubtext}>Challenge a friend to compete!</Text>
+                </View>
+              ) : (
+                activeChallenges
+                  .filter(c => c.status === 'active')
+                  .map((challenge) => (
+                    <ChallengeCard
+                      key={challenge.id}
+                      challenge={challenge}
+                      currentUserId={player.id}
+                    />
+                  ))
+              )}
+            </View>
+
+            {/* Challenge Button */}
+            {friends.length > 0 && (
+              <TouchableOpacity style={styles.newChallengeBtn}>
+                <LinearGradient
+                  colors={['#EF4444', '#DC2626']}
+                  style={styles.newChallengeBtnGrad}
+                >
+                  <Ionicons name="flash" size={20} color="#FFF" />
+                  <Text style={styles.newChallengeBtnText}>Create Challenge</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Activity Tab */}
+        {activeTab === 'activity' && (
+          <View style={styles.section}>
+            <ActivityFeed
+              activities={activityFeed}
+              maxItems={20}
+              showHeader={false}
+            />
+          </View>
+        )}
+      </ScrollView>
+
+      {/* QR Code Modal */}
+      <Modal visible={showQRModal} animationType="slide">
+        <View style={styles.qrModal}>
+          <TouchableOpacity 
+            style={styles.modalClose} 
+            onPress={() => setShowQRModal(false)}
+          >
+            <Ionicons name="close" size={28} color={COLORS.text.primary} />
+          </TouchableOpacity>
+          
+          <Text style={styles.qrTitle}>Your Code</Text>
+          <Text style={styles.qrSubtitle}>Let friends scan this to add you</Text>
+          
+          <View style={styles.qrContainer}>
+            <QRCode 
+              value={`PULSE-${player.id || 'GUEST'}`} 
+              size={200}
+              color="#000"
+              backgroundColor="#FFF"
+            />
+          </View>
+          
+          <Text style={styles.qrId}>PULSE-{player.id?.slice(0, 8) || 'GUEST'}</Text>
+        </View>
+      </Modal>
+
+      {/* Scan Modal */}
+      <Modal visible={showScanModal} animationType="slide">
+        <View style={styles.scanModal}>
+          <CameraView
+            style={styles.camera}
+            onBarcodeScanned={handleBarCodeScanned}
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          >
+            <View style={styles.scanOverlay}>
+              <TouchableOpacity 
+                style={styles.scanClose}
+                onPress={() => setShowScanModal(false)}
+              >
+                <Ionicons name="close" size={28} color="#FFF" />
+              </TouchableOpacity>
+              
+              <View style={styles.scanFrame}>
+                <View style={[styles.corner, styles.cornerTL]} />
+                <View style={[styles.corner, styles.cornerTR]} />
+                <View style={[styles.corner, styles.cornerBL]} />
+                <View style={[styles.corner, styles.cornerBR]} />
+              </View>
+              
+              <Text style={styles.scanText}>Scan friend's QR code</Text>
+            </View>
+          </CameraView>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.text.primary,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.sm,
+  },
+
+  // Tabs
+  tabs: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 8,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    ...SHADOWS.sm,
+  },
+  tabActive: {
+    backgroundColor: '#EEF2FF',
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.text.muted,
+  },
+  tabTextActive: {
+    color: COLORS.primary,
+  },
+  tabBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 4,
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 120,
+  },
+  section: {
+    gap: 20,
+  },
+
+  // Rank Card
+  rankCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 20,
+    ...SHADOWS.md,
+  },
+  rankLeft: {},
+  rankLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '600',
+  },
+  rankNumber: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  rankRight: {
+    alignItems: 'flex-end',
+  },
+  rankXP: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  rankLevel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '600',
+  },
+
+  // Friends Section
+  friendsSection: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 16,
+    ...SHADOWS.sm,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
+  sectionAction: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  friendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.surfaceAlt,
+  },
+  friendAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E0E7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  friendInitial: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  friendInfo: {
+    flex: 1,
+  },
+  friendName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+  },
+  friendLevel: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+  },
+  challengeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Challenge Section
+  challengeSection: {
+    gap: 12,
+  },
+
+  // New Challenge Button
+  newChallengeBtn: {
+    marginTop: 8,
+  },
+  newChallengeBtnGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 16,
+  },
+  newChallengeBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginTop: 12,
+  },
+  emptySubtext: {
+    fontSize: 13,
+    color: COLORS.text.muted,
+    marginTop: 4,
+  },
+
+  // QR Modal
+  qrModal: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    padding: 8,
+  },
+  qrTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.text.primary,
+    marginBottom: 8,
+  },
+  qrSubtitle: {
+    fontSize: 14,
+    color: COLORS.text.secondary,
+    marginBottom: 32,
+  },
+  qrContainer: {
+    padding: 24,
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    ...SHADOWS.lg,
+  },
+  qrId: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text.muted,
+    marginTop: 24,
+    letterSpacing: 1,
+  },
+
+  // Scan Modal
+  scanModal: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  camera: {
+    flex: 1,
+  },
+  scanOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanClose: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    padding: 8,
+  },
+  scanFrame: {
+    width: 250,
+    height: 250,
+    position: 'relative',
+  },
+  corner: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderColor: COLORS.primary,
+  },
+  cornerTL: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 12,
+  },
+  cornerTR: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 12,
+  },
+  cornerBL: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 12,
+  },
+  cornerBR: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 12,
+  },
+  scanText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 32,
+  },
+});
+
+export default SocialScreen;
+

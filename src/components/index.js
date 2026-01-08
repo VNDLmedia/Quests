@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VIBE APP - Component Exports
+// PULSE - Component Exports
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Basic Components
@@ -20,3 +20,11 @@ export { default as StoryBubble, StoryBubbleRow } from './StoryBubble';
 
 // Overlays & Modals
 export { default as MatchOverlay } from './MatchOverlay';
+
+// Game UI Components
+export { default as AchievementToast } from './AchievementToast';
+export { default as AchievementBadge } from './AchievementBadge';
+export { default as StreakBanner } from './StreakBanner';
+export { default as LiveLeaderboard } from './LiveLeaderboard';
+export { default as ChallengeCard } from './ChallengeCard';
+export { default as ActivityFeed } from './ActivityFeed';
