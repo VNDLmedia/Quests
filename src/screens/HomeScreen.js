@@ -8,7 +8,7 @@ const HomeScreen = () => {
     <View style={styles.container}>
       <StatusBar style="auto" />
       <Card>
-        <Text style={styles.title}>Willkommen zu Quests!</Text>
+        <Text style={styles.title}>Willkommen zu Ethernal Paths!</Text>
         <Text style={styles.subtitle}>
           Dein React Native Projekt ist bereit.
         </Text>

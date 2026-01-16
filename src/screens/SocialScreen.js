@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// PULSE - Social Screen
+// ETHERNAL PATHS - Social Screen
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
@@ -15,19 +15,25 @@ import {
   TextInput,
   FlatList,
   RefreshControl,
+  KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { COLORS, SHADOWS } from '../theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../game/GameProvider';
 import { useLeaderboard } from '../game/hooks';
 import LiveLeaderboard from '../components/LiveLeaderboard';
 import ChallengeCard from '../components/ChallengeCard';
 import ActivityFeed from '../components/ActivityFeed';
+import { Skeleton } from '../components';
 
 const SocialScreen = () => {
+  const insets = useSafeAreaInsets();
   const { 
     player, 
     friends, 
@@ -52,6 +58,7 @@ const SocialScreen = () => {
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [manualCode, setManualCode] = useState('');
   
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -66,8 +73,8 @@ const SocialScreen = () => {
 
   const handleBarCodeScanned = async ({ data }) => {
     setShowScanModal(false);
-    // Data should be a user ID like "PULSE-XXXX"
-    if (data.startsWith('PULSE-')) {
+    // Data should be a user ID like "EP-XXXX"
+    if (data.startsWith('EP-')) {
       const userId = data;
       const result = await addFriend(userId);
       if (!result.error) {
@@ -76,7 +83,32 @@ const SocialScreen = () => {
     }
   };
 
+  const handleManualSubmit = async () => {
+    if (!manualCode.trim()) return;
+    
+    // Auto-prefix if user just types the ID part
+    let code = manualCode.trim().toUpperCase();
+    if (!code.startsWith('EP-') && !code.startsWith('QUEST-')) {
+      code = `EP-${code}`;
+    }
+
+    setShowScanModal(false);
+    setManualCode('');
+    
+    // Simulate add friend (or call real function if available for manual code)
+    const result = await addFriend(code);
+    if (!result?.error) {
+      alert(`Friend request sent to ${code}!`);
+    } else {
+      alert('Could not add friend. Please check the code.');
+    }
+  };
+
   const startScan = async () => {
+    if (Platform.OS === 'web') {
+        setShowScanModal(true);
+        return;
+    }
     if (!permission?.granted) {
       const res = await requestPermission();
       if (!res.granted) return;
@@ -97,21 +129,7 @@ const SocialScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Social</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => setShowQRModal(true)}>
-            <Ionicons name="qr-code" size={22} color={COLORS.text.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn} onPress={startScan}>
-            <Ionicons name="scan" size={22} color={COLORS.text.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
+      <View style={[styles.tabs, { marginTop: insets.top + 20 }]}>
         {[
           { key: 'leaderboard', label: 'Leaderboard', icon: 'podium' },
           { key: 'challenges', label: 'Challenges', icon: 'flash', badge: pendingChallenges.length },
@@ -301,20 +319,26 @@ const SocialScreen = () => {
           
           <View style={styles.qrContainer}>
             <QRCode 
-              value={`PULSE-${player.id || 'GUEST'}`} 
+              value={`EP-${player.id || 'GUEST'}`} 
               size={200}
               color="#000"
               backgroundColor="#FFF"
             />
           </View>
           
-          <Text style={styles.qrId}>PULSE-{player.id?.slice(0, 8) || 'GUEST'}</Text>
+          <Text style={styles.qrId}>EP-{player.id?.slice(0, 8) || 'GUEST'}</Text>
         </View>
       </Modal>
 
       {/* Scan Modal */}
-      <Modal visible={showScanModal} animationType="slide">
-        <View style={styles.scanModal}>
+      <Modal visible={showScanModal} animationType="slide" presentationStyle="fullScreen">
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.scanModal}
+        >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={{flex: 1}}>
+          {Platform.OS !== 'web' && permission?.granted ? (
           <CameraView
             style={styles.camera}
             onBarcodeScanned={handleBarCodeScanned}
@@ -338,7 +362,41 @@ const SocialScreen = () => {
               <Text style={styles.scanText}>Scan friend's QR code</Text>
             </View>
           </CameraView>
+          ) : (
+            <View style={[styles.camera, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+                 <TouchableOpacity 
+                style={styles.scanClose}
+                onPress={() => setShowScanModal(false)}
+              >
+                <Ionicons name="close" size={28} color="#FFF" />
+              </TouchableOpacity>
+              <Text style={{color: '#FFF', marginBottom: 20}}>Camera not available on Web or Permission Denied</Text>
+            </View>
+          )}
+
+          {/* Manual Entry Section */}
+          <View style={styles.manualEntryContainer}>
+            <Text style={styles.manualEntryTitle}>Or enter code manually</Text>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.manualInput}
+                placeholder="EP-XXXX"
+                placeholderTextColor="#666"
+                value={manualCode}
+                onChangeText={setManualCode}
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity 
+                style={styles.manualSubmitBtn}
+                onPress={handleManualSubmit}
+              >
+                <Text style={styles.manualSubmitText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
+        </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -667,6 +725,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginTop: 32,
+  },
+  manualEntryContainer: {
+    padding: 24,
+    backgroundColor: '#111',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginTop: -20,
+  },
+  manualEntryTitle: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  manualInput: {
+    flex: 1,
+    height: 50,
+    backgroundColor: '#222',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    color: '#FFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  manualSubmitBtn: {
+    width: 80,
+    height: 50,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manualSubmitText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 16,
   },
 });
 

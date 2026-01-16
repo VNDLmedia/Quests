@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// PULSE - CLEAN MODERN CI
+// ETHERNAL PATHS - CLEAN MODERN CI
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Platform } from 'react-native';
 
 export const BRAND = {
-  name: 'PULSE',
-  tagline: 'Europark Experience',
-  fullName: 'Europark PULSE',
+  name: 'Ethernal Paths',
+  tagline: 'Your Adventure Awaits',
+  fullName: 'Ethernal Paths',
 };
 
 export const COLORS = {

@@ -7,7 +7,7 @@ import { COLORS } from '../theme';
 
 // Lazy load screens to avoid circular dependencies
 const MapScreen = lazy(() => import('../screens/VibeMapScreen'));
-const AdventuresScreen = lazy(() => import('../screens/TrendingScreen'));
+const AdventuresScreen = lazy(() => import('../screens/QuestLogScreen'));
 const SocialScreen = lazy(() => import('../screens/SocialScreen'));
 const ClubPassScreen = lazy(() => import('../screens/VibePassScreen'));
 

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// PULSE - Location Service
+// ETHERNAL PATHS - Location Service
 // ═══════════════════════════════════════════════════════════════════════════
 // Handles location tracking, geofencing, and proximity detection
 
@@ -8,8 +8,8 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { EUROPARK_LOCATIONS, calculateDistance, isWithinLocation } from '../config/quests';
 
-const LOCATION_TASK_NAME = 'PULSE_BACKGROUND_LOCATION';
-const GEOFENCE_TASK_NAME = 'PULSE_GEOFENCE';
+const LOCATION_TASK_NAME = 'ETHERNAL_BACKGROUND_LOCATION';
+const GEOFENCE_TASK_NAME = 'ETHERNAL_GEOFENCE';
 
 class LocationServiceClass {
   constructor() {
@@ -31,8 +31,9 @@ class LocationServiceClass {
    * Request location permissions
    */
   async requestPermissions() {
+    // Web permissions are handled by the browser when calling getCurrentPosition
     if (Platform.OS === 'web') {
-      return { granted: false, canAskAgain: false };
+      return { granted: true, canAskAgain: true };
     }
 
     const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
@@ -54,14 +55,12 @@ class LocationServiceClass {
    * Get current location once
    */
   async getCurrentLocation() {
-    if (Platform.OS === 'web') {
-      return this.getMockLocation();
-    }
-
+    // Try to get real location first, even on web
     try {
-      const { status } = await Location.getForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        return null;
+        console.warn('Location permission denied, using mock location');
+        return Platform.OS === 'web' ? this.getMockLocation() : null;
       }
 
       const location = await Location.getCurrentPositionAsync({
@@ -77,7 +76,10 @@ class LocationServiceClass {
 
       return this.currentLocation;
     } catch (error) {
-      console.error('Error getting location:', error);
+      console.warn('Error getting location, falling back to mock if web:', error);
+      if (Platform.OS === 'web') {
+        return this.getMockLocation();
+      }
       return null;
     }
   }
@@ -102,25 +104,30 @@ class LocationServiceClass {
    * Start continuous location tracking
    */
   async startTracking(options = {}) {
-    if (Platform.OS === 'web' || this.isTracking) {
+    if (this.isTracking) {
       return;
     }
 
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      return;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        return;
+      }
+
+      this.isTracking = true;
+
+      this.watchSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          distanceInterval: options.distanceInterval || 10, // meters
+          timeInterval: options.timeInterval || 5000, // ms
+        },
+        (location) => this.handleLocationUpdate(location)
+      );
+    } catch (error) {
+      console.warn('Failed to start tracking:', error);
+      this.isTracking = false;
     }
-
-    this.isTracking = true;
-
-    this.watchSubscription = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        distanceInterval: options.distanceInterval || 10, // meters
-        timeInterval: options.timeInterval || 5000, // ms
-      },
-      (location) => this.handleLocationUpdate(location)
-    );
   }
 
   /**

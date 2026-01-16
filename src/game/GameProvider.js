@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// PULSE - Central Game State Provider
+// ETHERNAL PATHS - Central Game State Provider
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
@@ -8,6 +8,7 @@ import { supabase, isSupabaseConfigured } from '../config/supabase';
 import { LEVEL_CONFIG, calculateFinalXP, DAILY_REWARDS } from './config/rewards';
 import { ACHIEVEMENTS, getAllAchievements } from './config/achievements';
 import { getDailyQuests, QUEST_TEMPLATES } from './config/quests';
+import { getCardByLevel } from './config/cards';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INITIAL STATE
@@ -37,6 +38,10 @@ const initialState = {
     rewardsRedeemed: 0,
   },
   
+  // Collection
+  collection: [], 
+  justUnlockedCard: null,
+
   // Achievements
   achievements: [], // Unlocked achievement keys
   achievementProgress: {}, // Progress tracking
@@ -107,6 +112,8 @@ const ACTIONS = {
   ADD_TOAST: 'ADD_TOAST',
   REMOVE_TOAST: 'REMOVE_TOAST',
   
+  ACKNOWLEDGE_CARD: 'ACKNOWLEDGE_CARD',
+
   HYDRATE_STATE: 'HYDRATE_STATE',
 };
 
@@ -135,6 +142,18 @@ function gameReducer(state, action) {
       const newLevel = LEVEL_CONFIG.getLevelFromXP(newXP);
       const leveledUp = newLevel > state.player.level;
       
+      // Check for Card Unlock
+      let newUnlockedCard = null;
+      let newCollection = state.collection;
+      
+      if (leveledUp) {
+        const cardReward = getCardByLevel(newLevel);
+        if (cardReward && !state.collection.includes(cardReward.id)) {
+          newUnlockedCard = cardReward;
+          newCollection = [...state.collection, cardReward.id];
+        }
+      }
+      
       return {
         ...state,
         player: {
@@ -142,11 +161,16 @@ function gameReducer(state, action) {
           xp: newXP,
           level: newLevel,
         },
+        collection: newCollection,
+        justUnlockedCard: newUnlockedCard,
         toasts: leveledUp 
           ? [...state.toasts, { id: Date.now(), type: 'level_up', level: newLevel }]
           : state.toasts,
       };
     }
+    
+    case ACTIONS.ACKNOWLEDGE_CARD:
+      return { ...state, justUnlockedCard: null };
       
     case ACTIONS.UNLOCK_ACHIEVEMENT: {
       const achievement = ACHIEVEMENTS[action.payload];
@@ -317,10 +341,11 @@ const GameContext = createContext(null);
 
 // Storage keys
 const STORAGE_KEYS = {
-  PLAYER: '@pulse_player',
-  ACHIEVEMENTS: '@pulse_achievements',
-  QUESTS: '@pulse_quests',
-  DAILY_REWARD: '@pulse_daily_reward',
+  PLAYER: '@ethernal_player',
+  ACHIEVEMENTS: '@ethernal_achievements',
+  QUESTS: '@ethernal_quests',
+  DAILY_REWARD: '@ethernal_daily_reward',
+  COLLECTION: '@ethernal_collection',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -335,11 +360,12 @@ export function GameProvider({ children }) {
   useEffect(() => {
     const loadPersistedState = async () => {
       try {
-        const [playerData, achievementsData, questsData, dailyData] = await Promise.all([
+        const [playerData, achievementsData, questsData, dailyData, collectionData] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.PLAYER),
           AsyncStorage.getItem(STORAGE_KEYS.ACHIEVEMENTS),
           AsyncStorage.getItem(STORAGE_KEYS.QUESTS),
           AsyncStorage.getItem(STORAGE_KEYS.DAILY_REWARD),
+          AsyncStorage.getItem(STORAGE_KEYS.COLLECTION),
         ]);
 
         const hydratedState = {};
@@ -350,6 +376,12 @@ export function GameProvider({ children }) {
         
         if (achievementsData) {
           hydratedState.achievements = JSON.parse(achievementsData);
+        }
+
+        if (collectionData) {
+          hydratedState.collection = JSON.parse(collectionData);
+        } else {
+          hydratedState.collection = [];
         }
         
         if (questsData) {
@@ -402,6 +434,7 @@ export function GameProvider({ children }) {
             active: state.activeQuests,
             completed: state.completedQuests,
           })),
+          AsyncStorage.setItem(STORAGE_KEYS.COLLECTION, JSON.stringify(state.collection)),
         ]);
       } catch (error) {
         console.error('Failed to persist state:', error);
@@ -744,6 +777,10 @@ export function GameProvider({ children }) {
     dispatch({ type: ACTIONS.REMOVE_TOAST, payload: toastId });
   }, []);
 
+  const acknowledgeCard = useCallback(() => {
+    dispatch({ type: ACTIONS.ACKNOWLEDGE_CARD });
+  }, []);
+
   // ─────────────────────────────────────────────────────────────────────────
   // CONTEXT VALUE
   // ─────────────────────────────────────────────────────────────────────────
@@ -762,6 +799,7 @@ export function GameProvider({ children }) {
     updateLocation,
     clearNewAchievement,
     removeToast,
+    acknowledgeCard,
     
     // Utilities
     dispatch,

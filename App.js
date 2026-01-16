@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform, Text } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GameProvider, useGame } from './src/game';
-import { AchievementToast } from './src/components';
+import { AchievementToast, CardUnlockOverlay } from './src/components';
 
 // Main App wrapper with GameProvider
 function AppContent() {
@@ -70,6 +70,9 @@ function AppContent() {
           onDismiss={clearNewAchievement}
         />
       )}
+
+      {/* Global Card Unlock Overlay */}
+      <CardUnlockOverlay />
     </View>
   );
 }

@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SHADOWS } from '../theme';
+import Skeleton from './Skeleton';
 
 const LiveLeaderboard = ({
   data = [],
@@ -93,7 +94,23 @@ const LiveLeaderboard = ({
       </View>
 
       {/* Top 3 Podium */}
-      {topThree.length >= 3 && (
+      {isLoading ? (
+        <View style={{flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 20}}>
+           <View style={{alignItems: 'center', marginTop: 30}}>
+             <Skeleton width={48} height={48} borderRadius={24} style={{marginBottom: 8}} />
+             <Skeleton width={60} height={12} borderRadius={4} />
+           </View>
+           <View style={{alignItems: 'center'}}>
+             <Skeleton width={60} height={60} borderRadius={30} style={{marginBottom: 8}} />
+             <Skeleton width={80} height={16} borderRadius={4} />
+           </View>
+           <View style={{alignItems: 'center', marginTop: 30}}>
+             <Skeleton width={48} height={48} borderRadius={24} style={{marginBottom: 8}} />
+             <Skeleton width={60} height={12} borderRadius={4} />
+           </View>
+        </View>
+      ) : (
+      topThree.length >= 3 && (
         <View style={styles.podium}>
           {/* 2nd Place */}
           <View style={[styles.podiumItem, styles.podiumSecond]}>
@@ -146,7 +163,7 @@ const LiveLeaderboard = ({
             <Text style={styles.podiumXP}>{formatXP(topThree[2]?.weeklyXP)}</Text>
           </View>
         </View>
-      )}
+      ))}
 
       {/* Rest of Leaderboard */}
       <ScrollView
@@ -157,7 +174,20 @@ const LiveLeaderboard = ({
           <RefreshControl refreshing={isLoading} onRefresh={onRefresh} />
         }
       >
-        {rest.map((player, index) => {
+        {isLoading ? (
+             Array.from({ length: 5 }).map((_, i) => (
+                <View key={i} style={styles.listItem}>
+                    <Skeleton width={20} height={20} borderRadius={4} />
+                    <Skeleton width={36} height={36} borderRadius={18} style={{marginHorizontal: 10}} />
+                    <View style={{flex: 1}}>
+                        <Skeleton width={120} height={16} borderRadius={4} style={{marginBottom: 4}} />
+                        <Skeleton width={60} height={12} borderRadius={4} />
+                    </View>
+                    <Skeleton width={40} height={16} borderRadius={4} />
+                </View>
+             ))
+        ) : (
+        rest.map((player, index) => {
           const rank = index + 4;
           const isMe = player.isMe;
           
@@ -186,10 +216,11 @@ const LiveLeaderboard = ({
               </Text>
             </View>
           );
-        })}
+        })
+        )}
 
         {/* My Rank (if not in visible list) */}
-        {myRank && myRank > data.length && (
+        {!isLoading && myRank && myRank > data.length && (
           <View style={styles.myRankContainer}>
             <Text style={styles.myRankDots}>• • •</Text>
             <View style={[styles.listItem, styles.listItemMe]}>

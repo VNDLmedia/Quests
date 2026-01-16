@@ -3,8 +3,8 @@ import {
   View, 
   StyleSheet, 
   Text, 
-  ScrollView,
-  TouchableOpacity,
+  ScrollView, 
+  TouchableOpacity, 
   Platform,
   StatusBar,
   useWindowDimensions,
@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAND, COLORS, SHADOWS } from '../theme';
 import { usePlayer, useAchievements } from '../game/hooks';
 import { StreakBanner, AchievementBadge } from '../components';
@@ -21,6 +22,7 @@ import { LEVEL_CONFIG } from '../game/config/rewards';
 
 const ClubPassScreen = () => {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('wallet');
   const [showQR, setShowQR] = useState(false);
   
@@ -48,8 +50,8 @@ const ClubPassScreen = () => {
   const shadowWidth = cardWidth - 30;
 
   const member = {
-    name: displayName || username || 'PULSE Member',
-    id: `PULSE-${username?.slice(0, 4)?.toUpperCase() || '8821'}`,
+    name: displayName || username || 'Ethernal Paths Member',
+    id: `EP-${username?.slice(0, 4)?.toUpperCase() || '8821'}`,
     points: xp,
     level: levelTitle?.title || 'Newcomer',
     nextLevel: 'Next Level',
@@ -85,15 +87,7 @@ const ClubPassScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <View /> 
-        <TouchableOpacity style={styles.settingsBtn}>
-          <Ionicons name="cog-outline" size={24} color={COLORS.text.primary} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]} showsVerticalScrollIndicator={false}>
         {/* HERO CARD */}
         <TouchableOpacity style={styles.cardContainer} activeOpacity={0.95} onPress={() => setShowQR(true)}>
           <LinearGradient
@@ -103,8 +97,8 @@ const ClubPassScreen = () => {
           >
             <View style={styles.cardTop}>
               <View style={styles.cardLogo}>
-                <Ionicons name="pulse" size={24} color="#FFF" />
-                <Text style={styles.cardBrand}>PULSE</Text>
+                <Ionicons name="compass" size={24} color="#FFF" />
+                <Text style={styles.cardBrand}>Ethernal Paths</Text>
               </View>
               <Ionicons name="wifi" size={20} color="rgba(255,255,255,0.6)" />
             </View>
@@ -434,19 +428,19 @@ const styles = StyleSheet.create({
   cardValue: { color: '#FFF', fontSize: 15, fontWeight: '700' },
   cardShadow: { position: 'absolute', top: 15, height: 200, backgroundColor: COLORS.primary, borderRadius: 20, opacity: 0.3, zIndex: 1, transform: [{ translateY: 8 }] },
 
-  levelCompact: { paddingHorizontal: 24, marginBottom: 24, maxWidth: 600, alignSelf: 'center', width: '100%' },
+  levelCompact: { paddingHorizontal: 20, marginBottom: 24, maxWidth: 600, alignSelf: 'center', width: '100%' },
   levelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   levelCurrent: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
   xpText: { fontSize: 13, color: COLORS.text.secondary, fontWeight: '600' },
   progressBar: { height: 6, backgroundColor: COLORS.surfaceAlt, borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
 
-  tabs: { flexDirection: 'row', paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 20, maxWidth: 600, alignSelf: 'center', width: '100%' },
+  tabs: { flexDirection: 'row', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 20, maxWidth: 600, alignSelf: 'center', width: '100%' },
   tab: { marginRight: 24, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: COLORS.text.primary },
   tabText: { fontSize: 15, fontWeight: '600', color: COLORS.text.muted },
   tabTextActive: { color: COLORS.text.primary },
-  tabContent: { paddingHorizontal: 24, maxWidth: 600, alignSelf: 'center', width: '100%' },
+  tabContent: { paddingHorizontal: 20, maxWidth: 600, alignSelf: 'center', width: '100%' },
 
   actionGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 },
   actionItem: { alignItems: 'center', gap: 8, width: 70 },
@@ -521,7 +515,7 @@ const styles = StyleSheet.create({
   loadingContainer: { alignItems: 'center', marginBottom: 20 },
   
   // Streak Section
-  streakSection: { paddingHorizontal: 24, marginBottom: 24, maxWidth: 600, alignSelf: 'center', width: '100%' },
+  streakSection: { paddingHorizontal: 20, marginBottom: 24, maxWidth: 600, alignSelf: 'center', width: '100%' },
   
   // Achievement Styles
   achievementStats: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 20, ...SHADOWS.sm },

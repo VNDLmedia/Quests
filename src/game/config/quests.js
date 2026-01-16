@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// PULSE - Quest Templates & Configuration
+// ETHERNAL PATHS - Quest Templates & Configuration
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Quest types
@@ -218,7 +218,7 @@ export const QUEST_TEMPLATES = {
     category: 'social',
     title: 'NPC Recruitment',
     description: 'Scan another player\'s QR code.',
-    briefing: 'Find another PULSE player and scan their profile QR code to add them as a friend!',
+    briefing: 'Find another Ethernal Paths player and scan their profile QR code to add them as a friend!',
     icon: 'qr-code',
     color: '#EC4899',
     xpReward: 300,
@@ -245,6 +245,7 @@ export const getDailyQuests = () => {
   const dailyKeys = ['daily_coffee', 'daily_steps', 'daily_visit'];
   return dailyKeys.map(key => ({
     ...QUEST_TEMPLATES[key],
+    id: `${key}_${new Date().toDateString()}`,
     isDaily: true,
     generatedAt: new Date().toDateString(),
   }));
