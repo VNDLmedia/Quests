@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase, isSupabaseConfigured } from '../config/supabase';
+import { supabase, isSupabaseConfigured, getSession, onAuthStateChange } from '../config/supabase';
 import { LEVEL_CONFIG, calculateFinalXP, DAILY_REWARDS } from './config/rewards';
 import { ACHIEVEMENTS, getAllAchievements } from './config/achievements';
 import { getDailyQuests, QUEST_TEMPLATES } from './config/quests';
@@ -355,6 +355,157 @@ export function GameProvider({ children }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // LOAD PROFILE FROM SUPABASE
+  // ─────────────────────────────────────────────────────────────────────────
+  const loadUserProfile = useCallback(async (userId, authUser = null) => {
+    if (!isSupabaseConfigured() || !userId) return { profile: null, error: null };
+
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Failed to load profile:', error);
+        // Return error so caller can handle it (e.g., sign out deleted users)
+        return { profile: null, error };
+      }
+
+      if (profile) {
+        // Get display name from profile, or fall back to auth metadata
+        const authMetadata = authUser?.user_metadata || {};
+        const displayName = profile.display_name && profile.display_name !== 'New Player'
+          ? profile.display_name
+          : authMetadata.display_name || profile.display_name || 'New Player';
+        
+        // If profile has default name but auth has real name, update the profile
+        if (profile.display_name === 'New Player' && authMetadata.display_name) {
+          await supabase
+            .from('profiles')
+            .update({ display_name: authMetadata.display_name })
+            .eq('id', userId);
+        }
+
+        // Map profile fields to player state
+        dispatch({
+          type: ACTIONS.SET_PLAYER,
+          payload: {
+            id: profile.id,
+            username: profile.username || 'User',
+            displayName: displayName,
+            avatarUrl: profile.avatar_url,
+            xp: profile.xp || 0,
+            level: profile.level || 1,
+            loginStreak: profile.login_streak || 0,
+            lastLoginDate: profile.last_login_date,
+            streakFreezeCount: profile.streak_freeze_count || 0,
+            totalQuestsCompleted: profile.total_quests_completed || 0,
+            totalDistanceWalked: profile.total_distance_walked || 0,
+          },
+        });
+      }
+
+      return { profile, error: null };
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      return { profile: null, error };
+    }
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // AUTHENTICATION INITIALIZATION
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      dispatch({ type: ACTIONS.SET_LOADING, payload: false });
+      return;
+    }
+
+    // Check for existing session on mount
+    const initializeAuth = async () => {
+      try {
+        const session = await getSession();
+        if (session?.user) {
+          const { profile, error } = await loadUserProfile(session.user.id, session.user);
+          
+          // If profile doesn't exist (user was deleted), sign out
+          if (error || !profile) {
+            console.log('User profile not found, signing out stale session');
+            await supabase.auth.signOut();
+            // Clear persisted state
+            await AsyncStorage.multiRemove([
+              STORAGE_KEYS.PLAYER,
+              STORAGE_KEYS.ACHIEVEMENTS,
+              STORAGE_KEYS.QUESTS,
+              STORAGE_KEYS.DAILY_REWARD,
+              STORAGE_KEYS.COLLECTION,
+            ]);
+            dispatch({ type: ACTIONS.SET_USER, payload: null });
+          } else {
+            dispatch({ type: ACTIONS.SET_USER, payload: session.user });
+          }
+        } else {
+          dispatch({ type: ACTIONS.SET_USER, payload: null });
+        }
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+        dispatch({ type: ACTIONS.SET_USER, payload: null });
+      } finally {
+        dispatch({ type: ACTIONS.SET_LOADING, payload: false });
+      }
+    };
+
+    initializeAuth();
+
+    // Listen to auth state changes
+    const { data: { subscription } } = onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const { profile, error } = await loadUserProfile(session.user.id, session.user);
+        
+        // If profile doesn't exist, sign out
+        if (error || !profile) {
+          console.log('User profile not found after sign in');
+          await supabase.auth.signOut();
+          dispatch({ type: ACTIONS.SET_USER, payload: null });
+        } else {
+          dispatch({ type: ACTIONS.SET_USER, payload: session.user });
+        }
+      } else if (event === 'SIGNED_OUT') {
+        dispatch({ type: ACTIONS.SET_USER, payload: null });
+        // Reset player state to guest
+        dispatch({
+          type: ACTIONS.SET_PLAYER,
+          payload: {
+            id: null,
+            username: 'Guest',
+            displayName: 'New Player',
+            avatarUrl: null,
+            xp: 0,
+            level: 1,
+            loginStreak: 0,
+            lastLoginDate: null,
+            streakFreezeCount: 0,
+            totalQuestsCompleted: 0,
+            totalDistanceWalked: 0,
+            friendsCount: 0,
+            challengesWon: 0,
+            challengeWinStreak: 0,
+            rewardsRedeemed: 0,
+          },
+        });
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        dispatch({ type: ACTIONS.SET_USER, payload: session.user });
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [loadUserProfile]);
+
+  // ─────────────────────────────────────────────────────────────────────────
   // PERSISTENCE - Load from AsyncStorage
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -412,7 +563,7 @@ export function GameProvider({ children }) {
         dispatch({ type: ACTIONS.HYDRATE_STATE, payload: hydratedState });
       } catch (error) {
         console.error('Failed to load persisted state:', error);
-        dispatch({ type: ACTIONS.SET_LOADING, payload: false });
+        // Don't set loading to false here, let auth init handle it
       }
     };
 
@@ -498,6 +649,149 @@ export function GameProvider({ children }) {
       supabase.removeChannel(challengeChannel);
     };
   }, [state.user]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // AUTHENTICATION ACTIONS
+  // ─────────────────────────────────────────────────────────────────────────
+  
+  // Sign up with email and password
+  const signUp = useCallback(async (email, password, displayName) => {
+    if (!isSupabaseConfigured()) {
+      return { error: { message: 'Supabase is not configured' } };
+    }
+
+    // Display name is required
+    if (!displayName || displayName.trim().length < 2) {
+      return { error: { message: 'Display name is required' } };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: displayName.trim(),
+            username: displayName.trim().toLowerCase().replace(/\s+/g, '_'),
+          },
+        },
+      });
+
+      if (error) {
+        return { error };
+      }
+
+      if (data?.user) {
+        dispatch({ type: ACTIONS.SET_USER, payload: data.user });
+        // Update player state with display name immediately
+        dispatch({
+          type: ACTIONS.UPDATE_PLAYER,
+          payload: {
+            displayName: displayName.trim(),
+            username: displayName.trim().toLowerCase().replace(/\s+/g, '_'),
+          },
+        });
+        // Profile will be created by database trigger, load it after a short delay
+        setTimeout(async () => {
+          const { error: profileError } = await loadUserProfile(data.user.id, data.user);
+          if (profileError) {
+            console.error('Failed to load profile after signup:', profileError);
+          }
+        }, 500);
+      }
+
+      return { data, error: null };
+    } catch (error) {
+      return { error: { message: error.message || 'Failed to sign up' } };
+    }
+  }, [loadUserProfile]);
+
+  // Sign in with email and password
+  const signIn = useCallback(async (email, password) => {
+    if (!isSupabaseConfigured()) {
+      return { error: { message: 'Supabase is not configured' } };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        return { error };
+      }
+
+      if (data?.user) {
+        const { profile, error: profileError } = await loadUserProfile(data.user.id, data.user);
+        if (profileError || !profile) {
+          // Profile doesn't exist - this shouldn't happen on normal sign in
+          await supabase.auth.signOut();
+          return { error: { message: 'Account not found. Please sign up again.' } };
+        }
+        dispatch({ type: ACTIONS.SET_USER, payload: data.user });
+      }
+
+      return { data, error: null };
+    } catch (error) {
+      return { error: { message: error.message || 'Failed to sign in' } };
+    }
+  }, [loadUserProfile]);
+
+  // Sign out
+  const signOut = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      return { error: { message: 'Supabase is not configured' } };
+    }
+
+    try {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        return { error };
+      }
+
+      // Clear persisted state
+      try {
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.PLAYER,
+          STORAGE_KEYS.ACHIEVEMENTS,
+          STORAGE_KEYS.QUESTS,
+          STORAGE_KEYS.DAILY_REWARD,
+          STORAGE_KEYS.COLLECTION,
+        ]);
+      } catch (storageError) {
+        console.error('Failed to clear storage:', storageError);
+      }
+
+      dispatch({ type: ACTIONS.SET_USER, payload: null });
+      // Reset to initial state
+      dispatch({
+        type: ACTIONS.SET_PLAYER,
+        payload: {
+          id: null,
+          username: 'Guest',
+          displayName: 'New Player',
+          avatarUrl: null,
+          xp: 0,
+          level: 1,
+          loginStreak: 0,
+          lastLoginDate: null,
+          streakFreezeCount: 0,
+          totalQuestsCompleted: 0,
+          totalDistanceWalked: 0,
+          friendsCount: 0,
+          challengesWon: 0,
+          challengeWinStreak: 0,
+          rewardsRedeemed: 0,
+        },
+      });
+
+      return { error: null };
+    } catch (error) {
+      return { error: { message: error.message || 'Failed to sign out' } };
+    }
+  }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
   // ACTIONS
@@ -786,6 +1080,11 @@ export function GameProvider({ children }) {
   // ─────────────────────────────────────────────────────────────────────────
   const value = {
     ...state,
+    
+    // Auth Actions
+    signIn,
+    signUp,
+    signOut,
     
     // Actions
     addXP,
