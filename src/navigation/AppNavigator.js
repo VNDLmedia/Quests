@@ -10,6 +10,7 @@ const MapScreen = lazy(() => import('../screens/VibeMapScreen'));
 const AdventuresScreen = lazy(() => import('../screens/QuestLogScreen'));
 const SocialScreen = lazy(() => import('../screens/SocialScreen'));
 const ClubPassScreen = lazy(() => import('../screens/VibePassScreen'));
+const UserScreen = lazy(() => import('../screens/UserScreen'));
 
 // Loading fallback
 const LoadingScreen = () => (
@@ -43,6 +44,7 @@ const AppNavigator = () => {
             else if (route.name === 'Adventures') iconName = focused ? 'layers' : 'layers-outline';
             else if (route.name === 'Social') iconName = focused ? 'people' : 'people-outline';
             else if (route.name === 'Club') iconName = focused ? 'wallet' : 'wallet-outline';
+            else if (route.name === 'User') iconName = focused ? 'person' : 'person-outline';
             
             return (
               <View style={styles.iconContainer}>
@@ -57,6 +59,7 @@ const AppNavigator = () => {
         <Tab.Screen name="Adventures" component={withSuspense(AdventuresScreen)} />
         <Tab.Screen name="Social" component={withSuspense(SocialScreen)} />
         <Tab.Screen name="Club" component={withSuspense(ClubPassScreen)} />
+        <Tab.Screen name="User" component={withSuspense(UserScreen)} />
       </Tab.Navigator>
     </NavigationContainer>
   );

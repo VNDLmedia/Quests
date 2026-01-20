@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Platform, Text } from 'react-native';
+import { View, StyleSheet, Platform, Text, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GameProvider, useGame } from './src/game';
 import { AchievementToast, CardUnlockOverlay } from './src/components';
+import LoginScreen from './src/screens/LoginScreen';
+import { COLORS } from './src/theme';
 
 // Main App wrapper with GameProvider
 function AppContent() {
   const [isReady, setIsReady] = useState(false);
   
   const gameContext = useGame();
+  const isLoading = gameContext?.isLoading ?? true;
+  const user = gameContext?.user;
   const newAchievement = gameContext?.newAchievement;
   const clearNewAchievement = gameContext?.clearNewAchievement || (() => {});
   const updateLocation = gameContext?.updateLocation || (() => {});
@@ -59,6 +64,26 @@ function AppContent() {
     }
   }, [player.xp, player.level, player.totalQuestsCompleted]);
 
+  // Show loading screen while checking authentication
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // If no user session, show only the login screen
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.authContainer}>
+        <LoginScreen />
+      </SafeAreaView>
+    );
+  }
+
+  // User is authenticated - show the full app
   return (
     <View style={styles.container}>
       <AppNavigator />
@@ -79,14 +104,31 @@ function AppContent() {
 
 export default function App() {
   return (
-    <GameProvider>
-      <AppContent />
-    </GameProvider>
+    <SafeAreaProvider>
+      <GameProvider>
+        <AppContent />
+      </GameProvider>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  authContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.text.secondary,
   },
 });

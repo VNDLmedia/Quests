@@ -8,6 +8,10 @@ export { default as TrendingScreen } from './TrendingScreen';
 export { default as VibePassScreen } from './VibePassScreen';
 export { default as SocialScreen } from './SocialScreen';
 
+// Auth Screens
+export { default as LoginScreen } from './LoginScreen';
+export { default as UserScreen } from './UserScreen';
+
 // Legacy Screens (für Kompatibilität)
 export { default as HomeScreen } from './HomeScreen';
 export { default as MapScreen } from './MapScreen';
