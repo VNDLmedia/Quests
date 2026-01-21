@@ -9,7 +9,6 @@ import {
   Animated,
   StatusBar,
   Dimensions,
-  Modal,
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,22 +17,115 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BRAND, COLORS, SHADOWS } from '../theme';
 import { useGame } from '../game/GameProvider';
 import { useQuests } from '../game/hooks';
-import { EUROPARK_LOCATIONS, QUEST_TEMPLATES, calculateDistance, getRandomQuest } from '../game/config/quests';
-import * as Location from 'expo-location';
+import { EUROPARK_LOCATIONS, QUEST_TEMPLATES, calculateDistance } from '../game/config/quests';
 
 const { width, height } = Dimensions.get('window');
 
 // Quest interaction radius in meters
 const QUEST_INTERACTION_RADIUS = 100;
 
+// Platform-specific location handling
+const getLocation = () => {
+  return new Promise((resolve, reject) => {
+    if (Platform.OS === 'web') {
+      // Use browser's Geolocation API for web
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation nicht unterstützt'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => {
+          reject(error);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    } else {
+      // Use expo-location for native
+      import('expo-location').then(async (Location) => {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          reject(new Error('Standortberechtigung verweigert'));
+          return;
+        }
+        const location = await Location.getCurrentPositionAsync({});
+        resolve({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+      }).catch(reject);
+    }
+  });
+};
+
+const watchLocation = (callback, errorCallback) => {
+  if (Platform.OS === 'web') {
+    // Use browser's watchPosition for web
+    if (!navigator.geolocation) {
+      errorCallback?.(new Error('Geolocation nicht unterstützt'));
+      return null;
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        callback({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      (error) => {
+        errorCallback?.(error);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+    );
+    return { remove: () => navigator.geolocation.clearWatch(watchId) };
+  } else {
+    // Use expo-location for native
+    let subscription = null;
+    import('expo-location').then(async (Location) => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        errorCallback?.(new Error('Standortberechtigung verweigert'));
+        return;
+      }
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          distanceInterval: 10,
+          timeInterval: 5000,
+        },
+        (location) => {
+          callback({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
+        }
+      );
+    }).catch(errorCallback);
+    
+    return {
+      remove: () => {
+        if (subscription) {
+          subscription.remove();
+        }
+      }
+    };
+  }
+};
+
 const MapScreen = () => {
   const webviewRef = useRef(null);
   const slideAnim = useRef(new Animated.Value(height)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const locationWatchRef = useRef(null);
   
   // Game Data
   const { currentLocation, updateLocation, dispatch } = useGame();
-  const { activeQuests, nearbyQuests, startQuest, getDistanceToQuest } = useQuests();
+  const { activeQuests } = useQuests();
   
   // State
   const [selectedQuest, setSelectedQuest] = useState(null);
@@ -41,6 +133,8 @@ const MapScreen = () => {
   const [userLoc, setUserLoc] = useState(null);
   const [availableQuests, setAvailableQuests] = useState([]);
   const [questDistances, setQuestDistances] = useState({});
+  const [locationError, setLocationError] = useState(null);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
 
   // Pulse animation for active quest
   useEffect(() => {
@@ -56,49 +150,55 @@ const MapScreen = () => {
 
   // Location tracking
   useEffect(() => {
-    let locationSubscription;
+    let isMounted = true;
     
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Berechtigung verweigert', 'Standortberechtigung wird benötigt.');
-        return;
-      }
-      
-      // Get initial location
-      let location = await Location.getCurrentPositionAsync({});
-      const coords = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude
-      };
-      setUserLoc(coords);
-      updateLocation(coords);
-      
-      // Generate quests around user
-      generateNearbyQuests(coords);
-      
-      // Watch location changes
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 10, // Update every 10 meters
-          timeInterval: 5000, // Or every 5 seconds
-        },
-        (location) => {
-          const newCoords = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude
-          };
-          setUserLoc(newCoords);
-          updateLocation(newCoords);
-          updateQuestDistances(newCoords);
+    const initLocation = async () => {
+      try {
+        setIsLoadingLocation(true);
+        setLocationError(null);
+        
+        // Get initial location
+        const coords = await getLocation();
+        
+        if (isMounted) {
+          setUserLoc(coords);
+          updateLocation(coords);
+          generateNearbyQuests(coords);
+          setIsLoadingLocation(false);
+          
+          // Start watching location
+          locationWatchRef.current = watchLocation(
+            (newCoords) => {
+              if (isMounted) {
+                setUserLoc(newCoords);
+                updateLocation(newCoords);
+                updateQuestDistances(newCoords);
+              }
+            },
+            (error) => {
+              console.warn('Location watch error:', error);
+            }
+          );
         }
-      );
-    })();
+      } catch (error) {
+        console.error('Location error:', error);
+        if (isMounted) {
+          setLocationError(error.message || 'Standort konnte nicht ermittelt werden');
+          setIsLoadingLocation(false);
+          // Use default location (Europark)
+          const defaultCoords = { latitude: 47.8224, longitude: 13.0456 };
+          setUserLoc(defaultCoords);
+          generateNearbyQuests(defaultCoords);
+        }
+      }
+    };
+    
+    initLocation();
     
     return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
+      isMounted = false;
+      if (locationWatchRef.current) {
+        locationWatchRef.current.remove();
       }
     };
   }, []);
@@ -108,7 +208,7 @@ const MapScreen = () => {
     const questKeys = ['daily_coffee', 'speed_fountain', 'golden_compass', 'fashionista', 'movie_night'];
     const generatedQuests = [];
     
-    questKeys.forEach((key, index) => {
+    questKeys.forEach((key) => {
       const template = QUEST_TEMPLATES[key];
       if (!template) return;
       
@@ -129,7 +229,7 @@ const MapScreen = () => {
         ...template,
         lat: questLat,
         lng: questLng,
-        isSpawned: true, // Not yet accepted
+        isSpawned: true,
         progress: 0,
       });
     });
@@ -189,15 +289,14 @@ const MapScreen = () => {
   // Get current active quest (for overlay)
   const currentActiveQuest = useMemo(() => {
     if (activeQuests.length === 0) return null;
-    // Return the quest with highest priority or nearest
     return activeQuests[0];
   }, [activeQuests]);
 
   // Update Map when data changes
   useEffect(() => {
-    if (mapReady && webviewRef.current) {
+    if (mapReady && webviewRef.current && userLoc) {
       const data = {
-        player: userLoc || { latitude: 47.8224, longitude: 13.0456 },
+        player: userLoc,
         quests: mapQuests.map(q => ({
           id: q.id,
           lat: q.lat,
@@ -214,11 +313,23 @@ const MapScreen = () => {
           target: q.target,
         }))
       };
-      webviewRef.current.injectJavaScript(`
+      
+      const jsCode = `
         if (window.updateMap) {
           window.updateMap(${JSON.stringify(data)});
         }
-      `);
+        true;
+      `;
+      
+      if (Platform.OS === 'web') {
+        // For web iframe
+        const iframe = document.querySelector('iframe[title="Quest Map"]');
+        if (iframe && iframe.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'UPDATE_MAP', data }, '*');
+        }
+      } else {
+        webviewRef.current.injectJavaScript(jsCode);
+      }
     }
   }, [mapReady, userLoc, mapQuests]);
 
@@ -265,24 +376,42 @@ const MapScreen = () => {
 
   // Center on quest
   const centerOnQuest = (quest) => {
-    if (webviewRef.current) {
-      webviewRef.current.injectJavaScript(`
-        if (window.map) {
-          window.map.setView([${quest.lat}, ${quest.lng}], 18);
-        }
-      `);
+    const jsCode = `
+      if (window.map) {
+        window.map.setView([${quest.lat}, ${quest.lng}], 18);
+      }
+      true;
+    `;
+    
+    if (Platform.OS === 'web') {
+      const iframe = document.querySelector('iframe[title="Quest Map"]');
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'CENTER_MAP', lat: quest.lat, lng: quest.lng }, '*');
+      }
+    } else if (webviewRef.current) {
+      webviewRef.current.injectJavaScript(jsCode);
     }
     openQuestDetail(quest);
   };
 
   // Center on user
   const centerOnUser = () => {
-    if (userLoc && webviewRef.current) {
-      webviewRef.current.injectJavaScript(`
+    if (userLoc) {
+      const jsCode = `
         if (window.map) {
           window.map.setView([${userLoc.latitude}, ${userLoc.longitude}], 18);
         }
-      `);
+        true;
+      `;
+      
+      if (Platform.OS === 'web') {
+        const iframe = document.querySelector('iframe[title="Quest Map"]');
+        if (iframe && iframe.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'CENTER_MAP', lat: userLoc.latitude, lng: userLoc.longitude }, '*');
+        }
+      } else if (webviewRef.current) {
+        webviewRef.current.injectJavaScript(jsCode);
+      }
     }
   };
 
@@ -329,9 +458,16 @@ const MapScreen = () => {
       <div id="map"></div>
       <script>
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([47.8224, 13.0456], 17);
+        window.map = map;
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
         
-        const sendMsg = (data) => window.ReactNativeWebView?.postMessage(JSON.stringify(data));
+        const sendMsg = (data) => {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify(data));
+          } else {
+            window.parent.postMessage(data, '*');
+          }
+        };
 
         let playerMarker = null;
         let questMarkers = [];
@@ -353,6 +489,7 @@ const MapScreen = () => {
                 iconAnchor: [10,10] 
               });
               playerMarker = L.marker(newLatLng, { icon: playerIcon, zIndexOffset: 1000 }).addTo(map);
+              map.setView(newLatLng, 17);
             } else {
               playerMarker.setLatLng(newLatLng);
             }
@@ -390,11 +527,35 @@ const MapScreen = () => {
           }
         };
 
+        // Listen for messages from parent (web)
+        window.addEventListener('message', function(event) {
+          if (event.data.type === 'UPDATE_MAP') {
+            window.updateMap(event.data.data);
+          } else if (event.data.type === 'CENTER_MAP') {
+            map.setView([event.data.lat, event.data.lng], 18);
+          }
+        });
+
         setTimeout(() => sendMsg({ type: 'MAP_READY' }), 500);
       </script>
     </body>
     </html>
   `;
+
+  // Handle messages from web iframe
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleMessage = (event) => {
+        if (event.data && event.data.type === 'MAP_READY') {
+          setMapReady(true);
+        } else if (event.data && event.data.type === 'QUEST_TAP') {
+          openQuestDetail(event.data.quest);
+        }
+      };
+      window.addEventListener('message', handleMessage);
+      return () => window.removeEventListener('message', handleMessage);
+    }
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -403,7 +564,11 @@ const MapScreen = () => {
       {/* Map */}
       <View style={styles.mapContainer}>
         {Platform.OS === 'web' ? (
-          <iframe srcDoc={mapHtml} style={styles.map} title="Quest Map" />
+          <iframe 
+            srcDoc={mapHtml} 
+            style={{ width: '100%', height: '100%', border: 'none' }} 
+            title="Quest Map" 
+          />
         ) : (
           <WebView 
             ref={webviewRef}
@@ -424,6 +589,24 @@ const MapScreen = () => {
           />
         )}
       </View>
+
+      {/* Location Error Banner */}
+      {locationError && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="warning" size={16} color="#F59E0B" />
+          <Text style={styles.errorText}>{locationError}</Text>
+        </View>
+      )}
+
+      {/* Loading Indicator */}
+      {isLoadingLocation && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingBox}>
+            <Ionicons name="locate" size={24} color={COLORS.primary} />
+            <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
+          </View>
+        </View>
+      )}
 
       {/* Active Quest Overlay (Top) */}
       {currentActiveQuest && (
@@ -614,6 +797,40 @@ const styles = StyleSheet.create({
   mapContainer: { flex: 1 },
   map: { width: '100%', height: '100%', border: 'none' },
   
+  // Error & Loading
+  errorBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 160 : 140,
+    left: 20,
+    right: 20,
+    backgroundColor: '#FEF3C7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+    ...SHADOWS.sm,
+  },
+  errorText: { flex: 1, fontSize: 13, color: '#92400E' },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(248, 250, 252, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingBox: {
+    backgroundColor: '#FFF',
+    padding: 24,
+    borderRadius: 20,
+    alignItems: 'center',
+    ...SHADOWS.lg,
+  },
+  loadingText: { marginTop: 12, fontSize: 14, color: COLORS.text.secondary, fontWeight: '500' },
+
   // Active Quest Overlay
   activeQuestOverlay: {
     position: 'absolute',
