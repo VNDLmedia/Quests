@@ -38,7 +38,7 @@ const MapScreen = () => {
   const [userLoc, setUserLoc] = useState(DEFAULT_LOCATION);
   const [locationStatus, setLocationStatus] = useState('searching');
   const [availableQuests, setAvailableQuests] = useState([]);
-  const [questDistances, setQuestDistances] = useState({});
+  const mapReadyRef = useRef(false);
 
   // Request location - can be called manually for retry
   const requestLocation = useCallback(() => {
@@ -127,33 +127,23 @@ const MapScreen = () => {
     setAvailableQuests(generatedQuests);
   }, []);
 
-  // Update distances
-  useEffect(() => {
-    if (availableQuests.length > 0) {
-      const distances = {};
-      availableQuests.forEach(quest => {
-        const dist = calculateDistance(userLoc.latitude, userLoc.longitude, quest.lat, quest.lng);
-        distances[quest.id] = Math.round(dist);
-      });
-      setQuestDistances(distances);
-    }
-  }, [userLoc, availableQuests]);
-
   const canInteractWithQuest = useCallback((quest) => {
     if (!quest) return false;
     const distance = calculateDistance(userLoc.latitude, userLoc.longitude, quest.lat, quest.lng);
     return distance <= QUEST_INTERACTION_RADIUS;
   }, [userLoc]);
 
+  // Berechne mapQuests nur wenn sich availableQuests oder activeQuests ändern
   const mapQuests = useMemo(() => {
     const quests = [];
     
     availableQuests.forEach(q => {
+      const dist = calculateDistance(userLoc.latitude, userLoc.longitude, q.lat, q.lng);
       quests.push({
         ...q,
         status: 'available',
-        canInteract: canInteractWithQuest(q),
-        distance: questDistances[q.id] || null,
+        canInteract: dist <= QUEST_INTERACTION_RADIUS,
+        distance: Math.round(dist),
       });
     });
     
@@ -172,7 +162,7 @@ const MapScreen = () => {
     });
     
     return quests;
-  }, [availableQuests, activeQuests, questDistances, canInteractWithQuest, userLoc]);
+  }, [availableQuests, activeQuests, userLoc]);
 
   const currentActiveQuest = useMemo(() => activeQuests[0] || null, [activeQuests]);
 
@@ -273,9 +263,15 @@ const MapScreen = () => {
     }
   }, [updateLocation, generateNearbyQuests]);
 
-  // Update Map
+  // Update Map - mit Debounce um Flackern zu verhindern
+  const updateMapRef = useRef(null);
   useEffect(() => {
-    if (mapReady) {
+    if (!mapReadyRef.current && !mapReady) return;
+    
+    // Debounce map updates
+    if (updateMapRef.current) clearTimeout(updateMapRef.current);
+    
+    updateMapRef.current = setTimeout(() => {
       const data = {
         player: userLoc,
         quests: mapQuests.map(q => ({
@@ -299,7 +295,11 @@ const MapScreen = () => {
       } else {
         webviewRef.current?.injectJavaScript(`window.updateMap && window.updateMap(${JSON.stringify(data)});true;`);
       }
-    }
+    }, 100);
+    
+    return () => {
+      if (updateMapRef.current) clearTimeout(updateMapRef.current);
+    };
   }, [mapReady, userLoc, mapQuests]);
 
   const openQuestDetail = (quest) => {
@@ -400,8 +400,12 @@ const MapScreen = () => {
   useEffect(() => {
     if (Platform.OS === 'web') {
       const handleMessage = (e) => {
-        if (e.data?.type === 'MAP_READY') setMapReady(true);
-        else if (e.data?.type === 'QUEST_TAP') openQuestDetail(e.data.quest);
+        if (e.data?.type === 'MAP_READY' && !mapReadyRef.current) {
+          mapReadyRef.current = true;
+          setMapReady(true);
+        } else if (e.data?.type === 'QUEST_TAP') {
+          openQuestDetail(e.data.quest);
+        }
       };
       window.addEventListener('message', handleMessage);
       return () => window.removeEventListener('message', handleMessage);
