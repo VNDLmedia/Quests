@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -23,6 +23,32 @@ const { width, height } = Dimensions.get('window');
 
 const QUEST_INTERACTION_RADIUS = 100;
 const DEFAULT_LOCATION = { latitude: 47.8224, longitude: 13.0456 };
+
+// Stabile Map-Komponente die NICHT bei Parent-Renders neu erstellt wird
+const StableMapIframe = memo(({ html, onMessage }) => {
+  const iframeRef = useRef(null);
+  
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleMessage = (e) => {
+        if (e.data?.type) onMessage(e.data);
+      };
+      window.addEventListener('message', handleMessage);
+      return () => window.removeEventListener('message', handleMessage);
+    }
+  }, [onMessage]);
+  
+  if (Platform.OS !== 'web') return null;
+  
+  return (
+    <iframe 
+      ref={iframeRef}
+      srcDoc={html} 
+      style={{ width: '100%', height: '100%', border: 'none' }} 
+      title="Quest Map" 
+    />
+  );
+}, (prev, next) => prev.html === next.html); // Nur neu rendern wenn html sich ändert
 
 const MapScreen = () => {
   const insets = useSafeAreaInsets();
@@ -397,18 +423,13 @@ const MapScreen = () => {
     setTimeout(()=>sendMsg({type:'MAP_READY'}),300);
     </script></body></html>`, []);
 
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const handleMessage = (e) => {
-        if (e.data?.type === 'MAP_READY' && !mapReadyRef.current) {
-          mapReadyRef.current = true;
-          setMapReady(true);
-        } else if (e.data?.type === 'QUEST_TAP') {
-          openQuestDetail(e.data.quest);
-        }
-      };
-      window.addEventListener('message', handleMessage);
-      return () => window.removeEventListener('message', handleMessage);
+  // Stabiler Message Handler für die Map
+  const handleMapMessage = useCallback((data) => {
+    if (data.type === 'MAP_READY' && !mapReadyRef.current) {
+      mapReadyRef.current = true;
+      setMapReady(true);
+    } else if (data.type === 'QUEST_TAP') {
+      openQuestDetail(data.quest);
     }
   }, []);
 
@@ -422,7 +443,7 @@ const MapScreen = () => {
       {/* Map - Full Screen */}
       <View style={StyleSheet.absoluteFill}>
         {Platform.OS === 'web' ? (
-          <iframe srcDoc={mapHtml} style={{ width: '100%', height: '100%', border: 'none' }} title="Quest Map" />
+          <StableMapIframe html={mapHtml} onMessage={handleMapMessage} />
         ) : (
           <WebView 
             ref={webviewRef}
@@ -431,8 +452,10 @@ const MapScreen = () => {
             onMessage={(e) => {
               try {
                 const d = JSON.parse(e.nativeEvent.data);
-                if (d.type === 'MAP_READY') setMapReady(true);
-                else if (d.type === 'QUEST_TAP') openQuestDetail(d.quest);
+                if (d.type === 'MAP_READY' && !mapReadyRef.current) {
+                  mapReadyRef.current = true;
+                  setMapReady(true);
+                } else if (d.type === 'QUEST_TAP') openQuestDetail(d.quest);
               } catch (err) {}
             }} 
           />
