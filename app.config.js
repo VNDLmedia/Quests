@@ -10,20 +10,53 @@ module.exports = {
     splash: {
       image: './assets/splash-icon.png',
       resizeMode: 'contain',
-      backgroundColor: '#ffffff'
+      backgroundColor: '#4F46E5'
     },
     ios: {
-      supportsTablet: true
+      supportsTablet: true,
+      statusBarStyle: 'dark-content',
     },
     android: {
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#ffffff'
+        backgroundColor: '#4F46E5'
       },
-      edgeToEdgeEnabled: true
+      edgeToEdgeEnabled: true,
     },
     web: {
-      favicon: './assets/favicon.png'
+      favicon: './assets/favicon.png',
+      bundler: 'metro',
+      // PWA Configuration
+      name: 'Ethernal Paths',
+      shortName: 'Ethernal',
+      description: 'Quest-based adventure game',
+      lang: 'de',
+      themeColor: '#4F46E5',
+      backgroundColor: '#F8FAFC',
+      display: 'standalone',
+      orientation: 'portrait',
+      scope: '/',
+      startUrl: '/',
+      // Status bar configuration for PWA
+      statusBar: {
+        hidden: false,
+        backgroundColor: '#4F46E5',
+      },
     },
+    // Plugins
+    plugins: [
+      [
+        'expo-camera',
+        {
+          cameraPermission: 'Erlaubt Ethernal Paths auf deine Kamera zuzugreifen um QR-Codes zu scannen.'
+        }
+      ],
+      [
+        'expo-location',
+        {
+          locationAlwaysAndWhenInUsePermission: 'Erlaubt Ethernal Paths deinen Standort zu verwenden um Quests in deiner Nähe anzuzeigen.'
+        }
+      ]
+    ],
   },
 };
