@@ -36,13 +36,20 @@ const MapScreen = () => {
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const [userLoc, setUserLoc] = useState(DEFAULT_LOCATION); // Start with default immediately
-  const [hasRealLocation, setHasRealLocation] = useState(false);
+  const [showLocationBanner, setShowLocationBanner] = useState(true);
   const [availableQuests, setAvailableQuests] = useState([]);
   const [questDistances, setQuestDistances] = useState({});
 
-  // Generate quests immediately on mount
+  // Generate quests immediately on mount & auto-hide location banner
   useEffect(() => {
     generateNearbyQuests(DEFAULT_LOCATION);
+    
+    // Auto-hide location banner after 4 seconds
+    const timer = setTimeout(() => {
+      setShowLocationBanner(false);
+    }, 4000);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   // Get location in background - non-blocking
@@ -57,7 +64,7 @@ const MapScreen = () => {
               longitude: position.coords.longitude,
             };
             setUserLoc(coords);
-            setHasRealLocation(true);
+            setShowLocationBanner(false);
             updateLocation(coords);
             generateNearbyQuests(coords);
             
@@ -97,7 +104,7 @@ const MapScreen = () => {
               longitude: location.coords.longitude,
             };
             setUserLoc(coords);
-            setHasRealLocation(true);
+            setShowLocationBanner(false);
             updateLocation(coords);
             generateNearbyQuests(coords);
             
@@ -393,8 +400,8 @@ const MapScreen = () => {
         </TouchableOpacity>
       )}
 
-      {/* Location Indicator (small, non-blocking) */}
-      {!hasRealLocation && (
+      {/* Location Indicator (small, non-blocking, auto-hides) */}
+      {showLocationBanner && (
         <View style={[styles.locationIndicator, { top: topOffset + (currentActiveQuest ? 70 : 0) }]}>
           <Ionicons name="locate-outline" size={14} color="#F59E0B" />
           <Text style={styles.locationText}>Standort wird gesucht...</Text>
