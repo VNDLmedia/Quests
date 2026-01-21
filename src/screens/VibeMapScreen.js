@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview'; 
 import { LinearGradient } from 'expo-linear-gradient';
-import { BRAND, COLORS, SHADOWS } from '../theme';
+import { COLORS, SHADOWS } from '../theme';
 import { useGame } from '../game/GameProvider';
 import { useQuests } from '../game/hooks';
 import { EUROPARK_LOCATIONS, QUEST_TEMPLATES, calculateDistance } from '../game/config/quests';
@@ -24,107 +24,20 @@ const { width, height } = Dimensions.get('window');
 // Quest interaction radius in meters
 const QUEST_INTERACTION_RADIUS = 100;
 
-// Platform-specific location handling
-const getLocation = () => {
-  return new Promise((resolve, reject) => {
-    if (Platform.OS === 'web') {
-      // Use browser's Geolocation API for web
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocation nicht unterstützt'));
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
-        },
-        (error) => {
-          reject(error);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-      );
-    } else {
-      // Use expo-location for native
-      import('expo-location').then(async (Location) => {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          reject(new Error('Standortberechtigung verweigert'));
-          return;
-        }
-        const location = await Location.getCurrentPositionAsync({});
-        resolve({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-      }).catch(reject);
-    }
-  });
-};
+// Default location (Europark Salzburg)
+const DEFAULT_LOCATION = { latitude: 47.8224, longitude: 13.0456 };
 
-const watchLocation = (callback, errorCallback) => {
-  if (Platform.OS === 'web') {
-    // Use browser's watchPosition for web
-    if (!navigator.geolocation) {
-      errorCallback?.(new Error('Geolocation nicht unterstützt'));
-      return null;
-    }
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        callback({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-      },
-      (error) => {
-        errorCallback?.(error);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-    );
-    return { remove: () => navigator.geolocation.clearWatch(watchId) };
-  } else {
-    // Use expo-location for native
-    let subscription = null;
-    import('expo-location').then(async (Location) => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        errorCallback?.(new Error('Standortberechtigung verweigert'));
-        return;
-      }
-      subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 10,
-          timeInterval: 5000,
-        },
-        (location) => {
-          callback({
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          });
-        }
-      );
-    }).catch(errorCallback);
-    
-    return {
-      remove: () => {
-        if (subscription) {
-          subscription.remove();
-        }
-      }
-    };
-  }
-};
+// Timeout for location request (ms)
+const LOCATION_TIMEOUT = 8000;
 
 const MapScreen = () => {
   const webviewRef = useRef(null);
   const slideAnim = useRef(new Animated.Value(height)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const locationWatchRef = useRef(null);
+  const locationWatchId = useRef(null);
   
   // Game Data
-  const { currentLocation, updateLocation, dispatch } = useGame();
+  const { updateLocation, dispatch } = useGame();
   const { activeQuests } = useQuests();
   
   // State
@@ -136,7 +49,7 @@ const MapScreen = () => {
   const [locationError, setLocationError] = useState(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
 
-  // Pulse animation for active quest
+  // Pulse animation
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
@@ -148,48 +61,134 @@ const MapScreen = () => {
     return () => pulse.stop();
   }, []);
 
-  // Location tracking
+  // Location tracking - simplified and robust
   useEffect(() => {
     let isMounted = true;
+    let timeoutId = null;
     
-    const initLocation = async () => {
-      try {
-        setIsLoadingLocation(true);
-        setLocationError(null);
-        
-        // Get initial location
-        const coords = await getLocation();
-        
-        if (isMounted) {
-          setUserLoc(coords);
-          updateLocation(coords);
-          generateNearbyQuests(coords);
+    const initLocation = () => {
+      // Set a timeout to use default location if geolocation takes too long
+      timeoutId = setTimeout(() => {
+        if (isMounted && isLoadingLocation) {
+          console.log('Location timeout, using default');
+          setLocationError('Standort konnte nicht ermittelt werden. Standardposition wird verwendet.');
+          setUserLoc(DEFAULT_LOCATION);
+          generateNearbyQuests(DEFAULT_LOCATION);
           setIsLoadingLocation(false);
-          
-          // Start watching location
-          locationWatchRef.current = watchLocation(
-            (newCoords) => {
-              if (isMounted) {
+        }
+      }, LOCATION_TIMEOUT);
+
+      if (Platform.OS === 'web') {
+        // Web: Use browser geolocation
+        if (!navigator.geolocation) {
+          clearTimeout(timeoutId);
+          setLocationError('Geolocation nicht unterstützt');
+          setUserLoc(DEFAULT_LOCATION);
+          generateNearbyQuests(DEFAULT_LOCATION);
+          setIsLoadingLocation(false);
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            if (!isMounted) return;
+            clearTimeout(timeoutId);
+            const coords = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            };
+            setUserLoc(coords);
+            updateLocation(coords);
+            generateNearbyQuests(coords);
+            setIsLoadingLocation(false);
+            
+            // Start watching
+            locationWatchId.current = navigator.geolocation.watchPosition(
+              (pos) => {
+                if (!isMounted) return;
+                const newCoords = {
+                  latitude: pos.coords.latitude,
+                  longitude: pos.coords.longitude,
+                };
                 setUserLoc(newCoords);
                 updateLocation(newCoords);
-                updateQuestDistances(newCoords);
-              }
-            },
-            (error) => {
-              console.warn('Location watch error:', error);
+              },
+              () => {},
+              { enableHighAccuracy: true, maximumAge: 10000 }
+            );
+          },
+          (error) => {
+            if (!isMounted) return;
+            clearTimeout(timeoutId);
+            console.log('Geolocation error:', error);
+            setLocationError('Standortberechtigung verweigert');
+            setUserLoc(DEFAULT_LOCATION);
+            generateNearbyQuests(DEFAULT_LOCATION);
+            setIsLoadingLocation(false);
+          },
+          { enableHighAccuracy: true, timeout: LOCATION_TIMEOUT - 1000, maximumAge: 60000 }
+        );
+      } else {
+        // Native: Use expo-location
+        (async () => {
+          try {
+            const Location = await import('expo-location');
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            
+            if (!isMounted) return;
+            
+            if (status !== 'granted') {
+              clearTimeout(timeoutId);
+              setLocationError('Standortberechtigung verweigert');
+              setUserLoc(DEFAULT_LOCATION);
+              generateNearbyQuests(DEFAULT_LOCATION);
+              setIsLoadingLocation(false);
+              return;
             }
-          );
-        }
-      } catch (error) {
-        console.error('Location error:', error);
-        if (isMounted) {
-          setLocationError(error.message || 'Standort konnte nicht ermittelt werden');
-          setIsLoadingLocation(false);
-          // Use default location (Europark)
-          const defaultCoords = { latitude: 47.8224, longitude: 13.0456 };
-          setUserLoc(defaultCoords);
-          generateNearbyQuests(defaultCoords);
-        }
+            
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            
+            if (!isMounted) return;
+            clearTimeout(timeoutId);
+            
+            const coords = {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            };
+            setUserLoc(coords);
+            updateLocation(coords);
+            generateNearbyQuests(coords);
+            setIsLoadingLocation(false);
+            
+            // Start watching - store subscription differently to avoid the removeSubscription bug
+            const subscription = await Location.watchPositionAsync(
+              {
+                accuracy: Location.Accuracy.Balanced,
+                distanceInterval: 10,
+              },
+              (loc) => {
+                if (!isMounted) return;
+                const newCoords = {
+                  latitude: loc.coords.latitude,
+                  longitude: loc.coords.longitude,
+                };
+                setUserLoc(newCoords);
+                updateLocation(newCoords);
+              }
+            );
+            locationWatchId.current = subscription;
+          } catch (error) {
+            if (!isMounted) return;
+            clearTimeout(timeoutId);
+            console.log('Location error:', error);
+            setLocationError('Standort konnte nicht ermittelt werden');
+            setUserLoc(DEFAULT_LOCATION);
+            generateNearbyQuests(DEFAULT_LOCATION);
+            setIsLoadingLocation(false);
+          }
+        })();
       }
     };
     
@@ -197,8 +196,21 @@ const MapScreen = () => {
     
     return () => {
       isMounted = false;
-      if (locationWatchRef.current) {
-        locationWatchRef.current.remove();
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      // Cleanup location watch
+      if (Platform.OS === 'web') {
+        if (locationWatchId.current !== null) {
+          navigator.geolocation.clearWatch(locationWatchId.current);
+        }
+      } else {
+        if (locationWatchId.current && typeof locationWatchId.current.remove === 'function') {
+          try {
+            locationWatchId.current.remove();
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        }
       }
     };
   }, []);
@@ -212,14 +224,12 @@ const MapScreen = () => {
       const template = QUEST_TEMPLATES[key];
       if (!template) return;
       
-      // Get location or generate random one nearby
       let questLat, questLng;
       if (template.location && EUROPARK_LOCATIONS[template.location]) {
         const loc = EUROPARK_LOCATIONS[template.location];
         questLat = loc.lat;
         questLng = loc.lng;
       } else {
-        // Generate random location within 500m
         questLat = coords.latitude + (Math.random() - 0.5) * 0.009;
         questLng = coords.longitude + (Math.random() - 0.5) * 0.009;
       }
@@ -238,14 +248,16 @@ const MapScreen = () => {
   }, []);
 
   // Update distances to quests
-  const updateQuestDistances = useCallback((coords) => {
-    const distances = {};
-    availableQuests.forEach(quest => {
-      const dist = calculateDistance(coords.latitude, coords.longitude, quest.lat, quest.lng);
-      distances[quest.id] = Math.round(dist);
-    });
-    setQuestDistances(distances);
-  }, [availableQuests]);
+  useEffect(() => {
+    if (userLoc && availableQuests.length > 0) {
+      const distances = {};
+      availableQuests.forEach(quest => {
+        const dist = calculateDistance(userLoc.latitude, userLoc.longitude, quest.lat, quest.lng);
+        distances[quest.id] = Math.round(dist);
+      });
+      setQuestDistances(distances);
+    }
+  }, [userLoc, availableQuests]);
 
   // Check if user can interact with quest
   const canInteractWithQuest = useCallback((quest) => {
@@ -258,7 +270,6 @@ const MapScreen = () => {
   const mapQuests = useMemo(() => {
     const quests = [];
     
-    // Add spawned (available) quests
     availableQuests.forEach(q => {
       quests.push({
         ...q,
@@ -268,7 +279,6 @@ const MapScreen = () => {
       });
     });
     
-    // Add active quests
     activeQuests.forEach(q => {
       const loc = EUROPARK_LOCATIONS[q.location];
       if (loc) {
@@ -294,7 +304,7 @@ const MapScreen = () => {
 
   // Update Map when data changes
   useEffect(() => {
-    if (mapReady && webviewRef.current && userLoc) {
+    if (mapReady && userLoc) {
       const data = {
         player: userLoc,
         quests: mapQuests.map(q => ({
@@ -314,21 +324,16 @@ const MapScreen = () => {
         }))
       };
       
-      const jsCode = `
-        if (window.updateMap) {
-          window.updateMap(${JSON.stringify(data)});
-        }
-        true;
-      `;
-      
       if (Platform.OS === 'web') {
-        // For web iframe
         const iframe = document.querySelector('iframe[title="Quest Map"]');
         if (iframe && iframe.contentWindow) {
           iframe.contentWindow.postMessage({ type: 'UPDATE_MAP', data }, '*');
         }
-      } else {
-        webviewRef.current.injectJavaScript(jsCode);
+      } else if (webviewRef.current) {
+        webviewRef.current.injectJavaScript(`
+          if (window.updateMap) { window.updateMap(${JSON.stringify(data)}); }
+          true;
+        `);
       }
     }
   }, [mapReady, userLoc, mapQuests]);
@@ -350,17 +355,12 @@ const MapScreen = () => {
     if (!selectedQuest) return;
     
     if (!canInteractWithQuest(selectedQuest)) {
-      Alert.alert(
-        'Zu weit entfernt!', 
-        `Du musst näher als ${QUEST_INTERACTION_RADIUS}m sein, um diese Quest anzunehmen.`
-      );
+      Alert.alert('Zu weit entfernt!', `Du musst näher als ${QUEST_INTERACTION_RADIUS}m sein.`);
       return;
     }
     
-    // Remove from available and add to active
     setAvailableQuests(prev => prev.filter(q => q.id !== selectedQuest.id));
     
-    // Start the quest via game system
     const newQuest = {
       id: `active_${selectedQuest.key}_${Date.now()}`,
       ...selectedQuest,
@@ -369,27 +369,22 @@ const MapScreen = () => {
     };
     
     dispatch({ type: 'ADD_QUEST', payload: newQuest });
-    
     Alert.alert('Quest angenommen!', `"${selectedQuest.title}" wurde gestartet.`);
     closeQuestDetail();
   }, [selectedQuest, canInteractWithQuest, dispatch]);
 
   // Center on quest
   const centerOnQuest = (quest) => {
-    const jsCode = `
-      if (window.map) {
-        window.map.setView([${quest.lat}, ${quest.lng}], 18);
-      }
-      true;
-    `;
-    
     if (Platform.OS === 'web') {
       const iframe = document.querySelector('iframe[title="Quest Map"]');
       if (iframe && iframe.contentWindow) {
         iframe.contentWindow.postMessage({ type: 'CENTER_MAP', lat: quest.lat, lng: quest.lng }, '*');
       }
     } else if (webviewRef.current) {
-      webviewRef.current.injectJavaScript(jsCode);
+      webviewRef.current.injectJavaScript(`
+        if (window.map) { window.map.setView([${quest.lat}, ${quest.lng}], 18); }
+        true;
+      `);
     }
     openQuestDetail(quest);
   };
@@ -397,20 +392,16 @@ const MapScreen = () => {
   // Center on user
   const centerOnUser = () => {
     if (userLoc) {
-      const jsCode = `
-        if (window.map) {
-          window.map.setView([${userLoc.latitude}, ${userLoc.longitude}], 18);
-        }
-        true;
-      `;
-      
       if (Platform.OS === 'web') {
         const iframe = document.querySelector('iframe[title="Quest Map"]');
         if (iframe && iframe.contentWindow) {
           iframe.contentWindow.postMessage({ type: 'CENTER_MAP', lat: userLoc.latitude, lng: userLoc.longitude }, '*');
         }
       } else if (webviewRef.current) {
-        webviewRef.current.injectJavaScript(jsCode);
+        webviewRef.current.injectJavaScript(`
+          if (window.map) { window.map.setView([${userLoc.latitude}, ${userLoc.longitude}], 18); }
+          true;
+        `);
       }
     }
   };
@@ -423,7 +414,7 @@ const MapScreen = () => {
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <style>
-        * { margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        * { margin: 0; padding: 0; }
         body { font-family: -apple-system, system-ui, sans-serif; }
         #map { width: 100%; height: 100vh; background: #F8FAFC; }
         .leaflet-control-attribution, .leaflet-control-zoom { display: none; }
@@ -435,7 +426,6 @@ const MapScreen = () => {
         @keyframes pulse { 0% { transform: scale(0.5); opacity: 0; } 50% { opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
 
         .quest-container { display: flex; flex-direction: column; align-items: center; transform: translateY(-32px); transition: all 0.3s; cursor: pointer; }
-        .quest-container:active { transform: translateY(-30px) scale(0.95); }
         .quest-container.disabled { opacity: 0.5; filter: grayscale(0.5); }
         .quest-container.active { animation: questPulse 2s infinite; }
         @keyframes questPulse { 0%, 100% { transform: translateY(-32px) scale(1); } 50% { transform: translateY(-32px) scale(1.05); } }
@@ -475,7 +465,6 @@ const MapScreen = () => {
         window.updateMap = function(data) {
           const { player, quests } = data;
 
-          // Update Player with range indicator
           if (player) {
             const lat = player.latitude || player.lat;
             const lng = player.longitude || player.lng;
@@ -495,7 +484,6 @@ const MapScreen = () => {
             }
           }
 
-          // Update Quests
           questMarkers.forEach(m => map.removeLayer(m));
           questMarkers = [];
 
@@ -527,7 +515,6 @@ const MapScreen = () => {
           }
         };
 
-        // Listen for messages from parent (web)
         window.addEventListener('message', function(event) {
           if (event.data.type === 'UPDATE_MAP') {
             window.updateMap(event.data.data);
@@ -557,6 +544,9 @@ const MapScreen = () => {
     }
   }, []);
 
+  // Bottom padding for navbar
+  const navbarHeight = Platform.OS === 'ios' ? 88 : 64;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -582,23 +572,13 @@ const MapScreen = () => {
                 } else if (data.type === 'QUEST_TAP') {
                   openQuestDetail(data.quest);
                 }
-              } catch (e) {
-                console.log("Map message error", e);
-              }
+              } catch (e) {}
             }} 
           />
         )}
       </View>
 
-      {/* Location Error Banner */}
-      {locationError && (
-        <View style={styles.errorBanner}>
-          <Ionicons name="warning" size={16} color="#F59E0B" />
-          <Text style={styles.errorText}>{locationError}</Text>
-        </View>
-      )}
-
-      {/* Loading Indicator */}
+      {/* Loading Overlay */}
       {isLoadingLocation && (
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingBox}>
@@ -608,8 +588,19 @@ const MapScreen = () => {
         </View>
       )}
 
-      {/* Active Quest Overlay (Top) */}
-      {currentActiveQuest && (
+      {/* Location Error Banner */}
+      {locationError && !isLoadingLocation && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="warning" size={16} color="#F59E0B" />
+          <Text style={styles.errorText}>{locationError}</Text>
+          <TouchableOpacity onPress={() => setLocationError(null)}>
+            <Ionicons name="close" size={18} color="#92400E" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Active Quest Overlay (Top - höher positioniert) */}
+      {currentActiveQuest && !isLoadingLocation && (
         <TouchableOpacity 
           style={styles.activeQuestOverlay}
           onPress={() => {
@@ -640,30 +631,14 @@ const MapScreen = () => {
         </TouchableOpacity>
       )}
 
-      {/* Header */}
-      <View style={styles.headerCard}>
-        <View style={styles.headerLeft}>
-          <View style={styles.logoBadge}>
-            <Ionicons name="compass" size={16} color="#FFF" />
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>Quest Map</Text>
-            <Text style={styles.headerSub}>{mapQuests.filter(q => q.status === 'available' && q.canInteract).length} Quests verfügbar</Text>
-          </View>
-        </View>
-      </View>
-
       {/* Available Quests Carousel */}
-      {mapQuests.filter(q => q.status === 'available').length > 0 && !selectedQuest && (
-        <View style={styles.questCarousel}>
+      {mapQuests.filter(q => q.status === 'available').length > 0 && !selectedQuest && !isLoadingLocation && (
+        <View style={[styles.questCarousel, { bottom: navbarHeight + 90 }]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.questRow}>
             {mapQuests.filter(q => q.status === 'available').map((quest) => (
               <TouchableOpacity 
                 key={quest.id} 
-                style={[
-                  styles.questCard,
-                  !quest.canInteract && styles.questCardLocked
-                ]} 
+                style={[styles.questCard, !quest.canInteract && styles.questCardLocked]} 
                 activeOpacity={0.9}
                 onPress={() => centerOnQuest(quest)}
               >
@@ -696,15 +671,15 @@ const MapScreen = () => {
       )}
 
       {/* Bottom Bar */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { bottom: navbarHeight + 16 }]}>
         <View style={styles.statsGroup}>
           <View style={styles.stat}>
-            <Text style={styles.statLabel}>Aktive Quests</Text>
+            <Text style={styles.statLabel}>Aktiv</Text>
             <Text style={styles.statValue}>{activeQuests.length}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.stat}>
-            <Text style={styles.statLabel}>In Reichweite</Text>
+            <Text style={styles.statLabel}>Erreichbar</Text>
             <Text style={styles.statValue}>{mapQuests.filter(q => q.canInteract && q.status === 'available').length}</Text>
           </View>
         </View>
@@ -713,8 +688,8 @@ const MapScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Quest Detail Sheet */}
-      <Animated.View style={[styles.bottomSheet, { transform: [{ translateY: slideAnim }] }]}>
+      {/* Quest Detail Sheet - über Navbar */}
+      <Animated.View style={[styles.bottomSheet, { paddingBottom: navbarHeight + 20, transform: [{ translateY: slideAnim }] }]}>
         {selectedQuest && (
           <>
             <View style={styles.sheetHandle} />
@@ -731,7 +706,6 @@ const MapScreen = () => {
               </TouchableOpacity>
             </View>
             
-            {/* Quest Stats */}
             <View style={styles.sheetStats}>
               <View style={styles.sheetStatItem}>
                 <Text style={styles.sheetStatLabel}>BELOHNUNG</Text>
@@ -744,12 +718,11 @@ const MapScreen = () => {
                 </Text>
               </View>
               <View style={styles.sheetStatItem}>
-                <Text style={styles.sheetStatLabel}>SCHWIERIGKEIT</Text>
+                <Text style={styles.sheetStatLabel}>LEVEL</Text>
                 <Text style={styles.sheetStatValue}>{selectedQuest.difficulty || 'Easy'}</Text>
               </View>
             </View>
 
-            {/* Briefing */}
             {selectedQuest.briefing && (
               <View style={styles.briefingBox}>
                 <Ionicons name="document-text" size={16} color={COLORS.text.muted} />
@@ -757,13 +730,9 @@ const MapScreen = () => {
               </View>
             )}
 
-            {/* Action Button */}
             {selectedQuest.status === 'available' ? (
               <TouchableOpacity 
-                style={[
-                  styles.sheetBtn, 
-                  { backgroundColor: selectedQuest.canInteract ? selectedQuest.color : '#94A3B8' }
-                ]} 
+                style={[styles.sheetBtn, { backgroundColor: selectedQuest.canInteract ? selectedQuest.color : '#94A3B8' }]} 
                 onPress={acceptQuest}
                 disabled={!selectedQuest.canInteract}
               >
@@ -774,8 +743,8 @@ const MapScreen = () => {
                   </>
                 ) : (
                   <>
-                    <Ionicons name="lock-closed" size={16} color="#FFF" />
-                    <Text style={styles.sheetBtnText}>Näher kommen ({selectedQuest.distance}m entfernt)</Text>
+                    <Ionicons name="walk" size={18} color="#FFF" />
+                    <Text style={styles.sheetBtnText}>Noch {selectedQuest.distance}m entfernt</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -795,61 +764,58 @@ const MapScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   mapContainer: { flex: 1 },
-  map: { width: '100%', height: '100%', border: 'none' },
+  map: { flex: 1 },
   
-  // Error & Loading
+  // Loading & Error
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(248, 250, 252, 0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  loadingBox: {
+    backgroundColor: '#FFF',
+    padding: 28,
+    borderRadius: 24,
+    alignItems: 'center',
+    ...SHADOWS.lg,
+  },
+  loadingText: { marginTop: 14, fontSize: 15, color: COLORS.text.secondary, fontWeight: '600' },
   errorBanner: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 160 : 140,
-    left: 20,
-    right: 20,
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 20, right: 20,
     backgroundColor: '#FEF3C7',
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    borderRadius: 12,
-    gap: 8,
+    borderRadius: 14,
+    gap: 10,
     ...SHADOWS.sm,
+    zIndex: 50,
   },
-  errorText: { flex: 1, fontSize: 13, color: '#92400E' },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(248, 250, 252, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingBox: {
-    backgroundColor: '#FFF',
-    padding: 24,
-    borderRadius: 20,
-    alignItems: 'center',
-    ...SHADOWS.lg,
-  },
-  loadingText: { marginTop: 12, fontSize: 14, color: COLORS.text.secondary, fontWeight: '500' },
+  errorText: { flex: 1, fontSize: 13, color: '#92400E', fontWeight: '500' },
 
-  // Active Quest Overlay
+  // Active Quest Overlay - ganz oben
   activeQuestOverlay: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 110 : 90,
-    left: 20,
-    right: 20,
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 20, right: 20,
     zIndex: 10,
   },
   activeQuestGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 18,
     ...SHADOWS.md,
   },
   activeQuestIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -857,41 +823,20 @@ const styles = StyleSheet.create({
   },
   activeQuestInfo: { flex: 1 },
   activeQuestLabel: { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 1 },
-  activeQuestTitle: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  activeQuestTitle: { fontSize: 16, fontWeight: '700', color: '#FFF', marginTop: 2 },
   activeQuestProgress: {
     backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginRight: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginRight: 10,
   },
-  activeQuestProgressText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
-
-  // Header
-  headerCard: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
-    padding: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    ...SHADOWS.sm,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logoBadge: { width: 32, height: 32, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text.primary },
-  headerSub: { fontSize: 11, color: COLORS.text.secondary, fontWeight: '500' },
+  activeQuestProgressText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
 
   // Quest Carousel
   questCarousel: { 
     position: 'absolute', 
-    bottom: Platform.OS === 'ios' ? 180 : 160,
-    left: 0, 
-    right: 0 
+    left: 0, right: 0,
   },
   questRow: { paddingHorizontal: 20, gap: 12 },
   questCard: {
@@ -906,10 +851,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#E2E8F0',
   },
-  questCardLocked: {
-    opacity: 0.7,
-    borderStyle: 'dashed',
-  },
+  questCardLocked: { opacity: 0.7, borderStyle: 'dashed' },
   questCardIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   questCardInfo: { flex: 1 },
   questCardTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text.primary, marginBottom: 4 },
@@ -926,11 +868,9 @@ const styles = StyleSheet.create({
   // Bottom Bar
   bottomBar: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 100 : 80,
-    left: 20,
-    right: 20,
+    left: 20, right: 20,
     backgroundColor: '#FFF',
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 12,
     paddingLeft: 20,
     flexDirection: 'row',
@@ -941,7 +881,7 @@ const styles = StyleSheet.create({
   statsGroup: { flexDirection: 'row', alignItems: 'center', gap: 20 },
   stat: { gap: 2 },
   statLabel: { fontSize: 10, textTransform: 'uppercase', color: COLORS.text.muted, fontWeight: '600' },
-  statValue: { fontSize: 16, fontWeight: '800', color: COLORS.text.primary },
+  statValue: { fontSize: 18, fontWeight: '800', color: COLORS.text.primary },
   divider: { width: 1, height: 28, backgroundColor: COLORS.border },
   locateBtn: {
     width: 48,
@@ -952,32 +892,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Bottom Sheet
+  // Bottom Sheet - über Navbar
   bottomSheet: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 0, left: 0, right: 0,
     backgroundColor: '#FFF',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     ...SHADOWS.xl,
-    zIndex: 20,
+    zIndex: 30,
   },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: 20 },
-  sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginBottom: 20 },
-  sheetIcon: { width: 60, height: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 20 },
+  sheetIcon: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   sheetContent: { flex: 1 },
-  sheetTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text.primary, marginBottom: 4 },
+  sheetTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text.primary, marginBottom: 4 },
   sheetSub: { fontSize: 14, color: COLORS.text.secondary, lineHeight: 20 },
-  closeSheet: { padding: 8 },
+  closeSheet: { padding: 6 },
   
-  sheetStats: { flexDirection: 'row', gap: 24, marginBottom: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  sheetStats: { flexDirection: 'row', gap: 20, marginBottom: 18, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   sheetStatItem: {},
   sheetStatLabel: { fontSize: 10, fontWeight: '700', color: COLORS.text.muted, letterSpacing: 0.5, marginBottom: 4 },
-  sheetStatValue: { fontSize: 18, fontWeight: '800', color: COLORS.text.primary },
+  sheetStatValue: { fontSize: 17, fontWeight: '800', color: COLORS.text.primary },
   
   briefingBox: {
     flexDirection: 'row',
@@ -985,7 +922,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     padding: 14,
     borderRadius: 14,
-    marginBottom: 20,
+    marginBottom: 18,
   },
   briefingText: { flex: 1, fontSize: 13, color: COLORS.text.secondary, lineHeight: 20 },
   
