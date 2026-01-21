@@ -40,6 +40,63 @@ const MapScreen = () => {
   const [availableQuests, setAvailableQuests] = useState([]);
   const [questDistances, setQuestDistances] = useState({});
 
+  // Request location - can be called manually for retry
+  const requestLocation = useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    
+    setLocationStatus('searching');
+    
+    if (!navigator.geolocation) {
+      setLocationStatus('error');
+      return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setUserLoc(coords);
+        setLocationStatus('found');
+        updateLocation(coords);
+        
+        // Generate quests with new location
+        const questKeys = ['daily_coffee', 'speed_fountain', 'golden_compass', 'fashionista', 'movie_night'];
+        const generatedQuests = questKeys.map((key) => {
+          const template = QUEST_TEMPLATES[key];
+          if (!template) return null;
+          
+          let questLat, questLng;
+          if (template.location && EUROPARK_LOCATIONS[template.location]) {
+            const loc = EUROPARK_LOCATIONS[template.location];
+            questLat = loc.lat;
+            questLng = loc.lng;
+          } else {
+            questLat = coords.latitude + (Math.random() - 0.5) * 0.008;
+            questLng = coords.longitude + (Math.random() - 0.5) * 0.008;
+          }
+          
+          return {
+            id: `spawn_${key}_${Date.now()}_${Math.random()}`,
+            ...template,
+            lat: questLat,
+            lng: questLng,
+            isSpawned: true,
+            progress: 0,
+          };
+        }).filter(Boolean);
+        
+        setAvailableQuests(generatedQuests);
+      },
+      (err) => {
+        console.log('Geolocation retry error:', err.code, err.message);
+        setLocationStatus(err.code === 1 ? 'denied' : 'error');
+      },
+      { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 }
+    );
+  }, [updateLocation]);
+
   // Generate nearby quests - defined first so it can be used by other hooks
   const generateNearbyQuests = useCallback((coords) => {
     const questKeys = ['daily_coffee', 'speed_fountain', 'golden_compass', 'fashionista', 'movie_night'];
