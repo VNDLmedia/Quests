@@ -342,9 +342,9 @@ const MapScreen = () => {
   }, []);
 
   // Calculate positions based on safe area and navbar
-  const topOffset = Platform.OS === 'ios' ? insets.top + 10 : insets.top + 10;
-  const navbarHeight = Platform.OS === 'ios' ? 90 : 70;
-  const bottomBarBottom = navbarHeight + 8; // Bottom bar sits just above navbar
+  const topOffset = Platform.OS === 'ios' ? insets.top + 10 : 16;
+  // Navbar actual height from AppNavigator
+  const bottomBarBottom = Platform.OS === 'ios' ? insets.bottom + 60 : 12;
 
   return (
     <View style={styles.container}>
@@ -445,7 +445,7 @@ const MapScreen = () => {
       </View>
 
       {/* Quest Detail Sheet */}
-      <Animated.View style={[styles.bottomSheet, { paddingBottom: navbarHeight + 16, transform: [{ translateY: slideAnim }] }]}>
+      <Animated.View style={[styles.bottomSheet, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 70 : 20, transform: [{ translateY: slideAnim }] }]}>
         {selectedQuest && (
           <>
             <View style={styles.sheetHandle} />
