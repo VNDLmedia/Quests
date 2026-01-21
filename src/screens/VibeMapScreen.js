@@ -35,114 +35,12 @@ const MapScreen = () => {
   
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [mapReady, setMapReady] = useState(false);
-  const [userLoc, setUserLoc] = useState(DEFAULT_LOCATION); // Start with default immediately
-  const [locationStatus, setLocationStatus] = useState('searching'); // 'searching' | 'found' | 'denied' | 'error'
+  const [userLoc, setUserLoc] = useState(DEFAULT_LOCATION);
+  const [locationStatus, setLocationStatus] = useState('searching');
   const [availableQuests, setAvailableQuests] = useState([]);
   const [questDistances, setQuestDistances] = useState({});
 
-  // Generate quests immediately on mount
-  useEffect(() => {
-    generateNearbyQuests(DEFAULT_LOCATION);
-  }, []);
-
-  // Request location function
-  const requestLocation = useCallback(() => {
-    setLocationStatus('searching');
-    
-    if (Platform.OS === 'web') {
-      if (!navigator.geolocation) {
-        setLocationStatus('error');
-        Alert.alert('Fehler', 'Geolocation wird nicht unterstützt');
-        return;
-      }
-      
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const coords = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          };
-          setUserLoc(coords);
-          setLocationStatus('found');
-          updateLocation(coords);
-          generateNearbyQuests(coords);
-          
-          // Start watching
-          locationWatchId.current = navigator.geolocation.watchPosition(
-            (pos) => setUserLoc({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-            () => {},
-            { enableHighAccuracy: false, maximumAge: 60000 }
-          );
-        },
-        (err) => {
-          console.log('Geolocation error:', err.code, err.message);
-          if (err.code === 1) {
-            setLocationStatus('denied');
-          } else {
-            setLocationStatus('error');
-          }
-        },
-        { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 }
-      );
-    }
-  }, [updateLocation, generateNearbyQuests]);
-
-  // Get location on mount
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      // Small delay to let the page load
-      const timer = setTimeout(() => {
-        requestLocation();
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else {
-      // Native: Use expo-location
-      (async () => {
-        try {
-          const Location = await import('expo-location');
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          
-          if (status === 'granted') {
-            const location = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
-            });
-            
-            const coords = {
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-            };
-            setUserLoc(coords);
-            setShowLocationBanner(false);
-            updateLocation(coords);
-            generateNearbyQuests(coords);
-            
-            // Watch position
-            const sub = await Location.watchPositionAsync(
-              { accuracy: Location.Accuracy.Balanced, distanceInterval: 20 },
-              (loc) => {
-                setUserLoc({
-                  latitude: loc.coords.latitude,
-                  longitude: loc.coords.longitude,
-                });
-              }
-            );
-            locationWatchId.current = sub;
-          }
-        } catch (e) {
-          console.log('Location error:', e);
-        }
-      })();
-    }
-    
-    return () => {
-      if (Platform.OS === 'web' && locationWatchId.current !== null) {
-        navigator.geolocation.clearWatch(locationWatchId.current);
-      } else if (locationWatchId.current?.remove) {
-        try { locationWatchId.current.remove(); } catch (e) {}
-      }
-    };
-  }, []);
-
+  // Generate nearby quests - defined first so it can be used by other hooks
   const generateNearbyQuests = useCallback((coords) => {
     const questKeys = ['daily_coffee', 'speed_fountain', 'golden_compass', 'fashionista', 'movie_night'];
     const generatedQuests = questKeys.map((key) => {
@@ -220,6 +118,103 @@ const MapScreen = () => {
   }, [availableQuests, activeQuests, questDistances, canInteractWithQuest, userLoc]);
 
   const currentActiveQuest = useMemo(() => activeQuests[0] || null, [activeQuests]);
+
+  // Generate quests on mount
+  useEffect(() => {
+    generateNearbyQuests(DEFAULT_LOCATION);
+  }, [generateNearbyQuests]);
+
+  // Request location
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      if (!navigator.geolocation) {
+        setLocationStatus('error');
+        return;
+      }
+      
+      // Delay to let page load
+      const timer = setTimeout(() => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const coords = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            };
+            setUserLoc(coords);
+            setLocationStatus('found');
+            updateLocation(coords);
+            generateNearbyQuests(coords);
+            
+            // Start watching
+            locationWatchId.current = navigator.geolocation.watchPosition(
+              (pos) => setUserLoc({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+              () => {},
+              { enableHighAccuracy: false, maximumAge: 60000 }
+            );
+          },
+          (err) => {
+            console.log('Geolocation error:', err.code, err.message);
+            setLocationStatus(err.code === 1 ? 'denied' : 'error');
+          },
+          { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 }
+        );
+      }, 500);
+      
+      return () => {
+        clearTimeout(timer);
+        if (locationWatchId.current !== null) {
+          navigator.geolocation.clearWatch(locationWatchId.current);
+        }
+      };
+    } else {
+      // Native: Use expo-location
+      let sub = null;
+      (async () => {
+        try {
+          const Location = await import('expo-location');
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          
+          if (status === 'granted') {
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            
+            const coords = {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            };
+            setUserLoc(coords);
+            setLocationStatus('found');
+            updateLocation(coords);
+            generateNearbyQuests(coords);
+            
+            // Watch position
+            sub = await Location.watchPositionAsync(
+              { accuracy: Location.Accuracy.Balanced, distanceInterval: 20 },
+              (loc) => {
+                setUserLoc({
+                  latitude: loc.coords.latitude,
+                  longitude: loc.coords.longitude,
+                });
+              }
+            );
+            locationWatchId.current = sub;
+          } else {
+            setLocationStatus('denied');
+          }
+        } catch (e) {
+          console.log('Location error:', e);
+          setLocationStatus('error');
+        }
+      })();
+      
+      return () => {
+        if (locationWatchId.current?.remove) {
+          try { locationWatchId.current.remove(); } catch (e) {}
+        }
+      };
+    }
+  }, [updateLocation, generateNearbyQuests]);
 
   // Update Map
   useEffect(() => {
