@@ -24,31 +24,60 @@ const { width, height } = Dimensions.get('window');
 const QUEST_INTERACTION_RADIUS = 100;
 const DEFAULT_LOCATION = { latitude: 47.8224, longitude: 13.0456 };
 
-// Stabile Map-Komponente die NICHT bei Parent-Renders neu erstellt wird
-const StableMapIframe = memo(({ html, onMessage }) => {
-  const iframeRef = useRef(null);
-  
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const handleMessage = (e) => {
-        if (e.data?.type) onMessage(e.data);
-      };
-      window.addEventListener('message', handleMessage);
-      return () => window.removeEventListener('message', handleMessage);
-    }
-  }, [onMessage]);
-  
-  if (Platform.OS !== 'web') return null;
-  
-  return (
-    <iframe 
-      ref={iframeRef}
-      srcDoc={html} 
-      style={{ width: '100%', height: '100%', border: 'none' }} 
-      title="Quest Map" 
-    />
-  );
-}, (prev, next) => prev.html === next.html); // Nur neu rendern wenn html sich ändert
+// Map HTML als Blob URL - wird nur EINMAL erstellt
+const MAP_HTML = `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+<style>
+*{margin:0;padding:0}body{font-family:-apple-system,system-ui,sans-serif}
+#map{width:100%;height:100vh;background:#F8FAFC}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none}
+.user-core{width:18px;height:18px;background:#4F46E5;border:3px solid #FFF;border-radius:50%;box-shadow:0 2px 10px rgba(79,70,229,0.5);position:relative;z-index:2}
+.user-pulse{position:absolute;top:50%;left:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(79,70,229,0.2);animation:pulse 2s infinite}
+.user-range{position:absolute;top:50%;left:50%;width:160px;height:160px;margin:-80px 0 0 -80px;border-radius:50%;background:rgba(79,70,229,0.06);border:2px dashed rgba(79,70,229,0.25)}
+@keyframes pulse{0%{transform:scale(0.5);opacity:0}50%{opacity:1}100%{transform:scale(1.5);opacity:0}}
+.quest-container{display:flex;flex-direction:column;align-items:center;transform:translateY(-30px);cursor:pointer}
+.quest-container.disabled{opacity:0.5;filter:grayscale(0.4)}
+.quest-pill{background:#FFF;padding:5px 8px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,0.12);display:flex;align-items:center;gap:6px;white-space:nowrap;border:2px solid}
+.quest-pill.available{border-color:#10B981}.quest-pill.active{border-color:#4F46E5;background:linear-gradient(135deg,#EEF2FF,#FFF)}.quest-pill.locked{border-color:#94A3B8;border-style:dashed}
+.quest-icon{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.quest-title{font-size:11px;font-weight:700;color:#1E293B}.quest-distance{font-size:9px;color:#64748B}
+.quest-reward{font-size:9px;font-weight:700;background:#F1F5F9;padding:2px 5px;border-radius:6px;color:#4F46E5}
+.quest-point{width:10px;height:10px;background:#FFF;border:3px solid;border-radius:50%;margin-top:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2)}
+</style></head><body><div id="map"></div><script>
+const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([47.8224,13.0456],17);
+window.map=map;L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);
+const sendMsg=d=>{window.ReactNativeWebView?window.ReactNativeWebView.postMessage(JSON.stringify(d)):window.parent.postMessage(d,'*')};
+let playerMarker=null,questMarkers=[];
+window.updateMap=function(data){
+const{player,quests}=data;
+if(player){
+const lat=player.latitude||player.lat,lng=player.longitude||player.lng;
+if(!playerMarker){
+playerMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="position:relative"><div class="user-range"></div><div class="user-pulse"></div><div class="user-core"></div></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000}).addTo(map);
+map.setView([lat,lng],17);
+}else{playerMarker.setLatLng([lat,lng])}
+}
+questMarkers.forEach(m=>map.removeLayer(m));questMarkers=[];
+if(quests){quests.forEach(q=>{
+const sc=q.status==='active'?'active':q.canInteract?'available':'locked';
+const dt=q.distance?(q.distance<1000?q.distance+'m':(q.distance/1000).toFixed(1)+'km'):'';
+const h='<div class="quest-container '+(sc==='locked'?' disabled':'')+'"><div class="quest-pill '+sc+'"><div class="quest-icon" style="background:'+q.color+'20;color:'+q.color+'">⚔</div><div><div class="quest-title">'+q.title+'</div><div class="quest-distance">'+dt+'</div></div><div class="quest-reward">'+q.reward+'</div></div><div class="quest-point" style="border-color:'+q.color+'"></div></div>';
+const m=L.marker([q.lat,q.lng],{icon:L.divIcon({className:'',html:h,iconSize:[140,45],iconAnchor:[70,45]})}).addTo(map);
+m.on('click',()=>sendMsg({type:'QUEST_TAP',quest:q}));questMarkers.push(m);
+})}
+};
+window.addEventListener('message',e=>{if(e.data.type==='UPDATE_MAP')window.updateMap(e.data.data);else if(e.data.type==='CENTER_MAP')map.setView([e.data.lat,e.data.lng],18)});
+setTimeout(()=>sendMsg({type:'MAP_READY'}),300);
+<\/script></body></html>`;
+
+// Erstelle Blob URL einmalig beim Module-Load
+let mapBlobUrl = null;
+if (Platform.OS === 'web' && typeof Blob !== 'undefined') {
+  const blob = new Blob([MAP_HTML], { type: 'text/html' });
+  mapBlobUrl = URL.createObjectURL(blob);
+}
 
 const MapScreen = () => {
   const insets = useSafeAreaInsets();
@@ -376,60 +405,19 @@ const MapScreen = () => {
     }
   };
 
-  const mapHtml = useMemo(() => `<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-      *{margin:0;padding:0}body{font-family:-apple-system,system-ui,sans-serif}
-      #map{width:100%;height:100vh;background:#F8FAFC}
-      .leaflet-control-attribution,.leaflet-control-zoom{display:none}
-      .user-core{width:18px;height:18px;background:#4F46E5;border:3px solid #FFF;border-radius:50%;box-shadow:0 2px 10px rgba(79,70,229,0.5);position:relative;z-index:2}
-      .user-pulse{position:absolute;top:50%;left:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(79,70,229,0.2);animation:pulse 2s infinite}
-      .user-range{position:absolute;top:50%;left:50%;width:160px;height:160px;margin:-80px 0 0 -80px;border-radius:50%;background:rgba(79,70,229,0.06);border:2px dashed rgba(79,70,229,0.25)}
-      @keyframes pulse{0%{transform:scale(0.5);opacity:0}50%{opacity:1}100%{transform:scale(1.5);opacity:0}}
-      .quest-container{display:flex;flex-direction:column;align-items:center;transform:translateY(-30px);cursor:pointer}
-      .quest-container.disabled{opacity:0.5;filter:grayscale(0.4)}
-      .quest-pill{background:#FFF;padding:5px 8px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,0.12);display:flex;align-items:center;gap:6px;white-space:nowrap;border:2px solid}
-      .quest-pill.available{border-color:#10B981}.quest-pill.active{border-color:#4F46E5;background:linear-gradient(135deg,#EEF2FF,#FFF)}.quest-pill.locked{border-color:#94A3B8;border-style:dashed}
-      .quest-icon{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px}
-      .quest-title{font-size:11px;font-weight:700;color:#1E293B}.quest-distance{font-size:9px;color:#64748B}
-      .quest-reward{font-size:9px;font-weight:700;background:#F1F5F9;padding:2px 5px;border-radius:6px;color:#4F46E5}
-      .quest-point{width:10px;height:10px;background:#FFF;border:3px solid;border-radius:50%;margin-top:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2)}
-    </style></head><body><div id="map"></div><script>
-    const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([${DEFAULT_LOCATION.latitude},${DEFAULT_LOCATION.longitude}],17);
-    window.map=map;L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);
-    const sendMsg=d=>{window.ReactNativeWebView?window.ReactNativeWebView.postMessage(JSON.stringify(d)):window.parent.postMessage(d,'*')};
-    let playerMarker=null,questMarkers=[];
-    window.updateMap=function(data){
-      const{player,quests}=data;
-      if(player){
-        const lat=player.latitude||player.lat,lng=player.longitude||player.lng;
-        if(!playerMarker){
-          playerMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="position:relative"><div class="user-range"></div><div class="user-pulse"></div><div class="user-core"></div></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000}).addTo(map);
-          map.setView([lat,lng],17);
-        }else{playerMarker.setLatLng([lat,lng])}
-      }
-      questMarkers.forEach(m=>map.removeLayer(m));questMarkers=[];
-      if(quests){quests.forEach(q=>{
-        const sc=q.status==='active'?'active':q.canInteract?'available':'locked';
-        const dt=q.distance?(q.distance<1000?q.distance+'m':(q.distance/1000).toFixed(1)+'km'):'';
-        const h='<div class="quest-container '+(sc==='locked'?' disabled':'')+'"><div class="quest-pill '+sc+'"><div class="quest-icon" style="background:'+q.color+'20;color:'+q.color+'">⚔</div><div><div class="quest-title">'+q.title+'</div><div class="quest-distance">'+dt+'</div></div><div class="quest-reward">'+q.reward+'</div></div><div class="quest-point" style="border-color:'+q.color+'"></div></div>';
-        const m=L.marker([q.lat,q.lng],{icon:L.divIcon({className:'',html:h,iconSize:[140,45],iconAnchor:[70,45]})}).addTo(map);
-        m.on('click',()=>sendMsg({type:'QUEST_TAP',quest:q}));questMarkers.push(m);
-      })}
-    };
-    window.addEventListener('message',e=>{if(e.data.type==='UPDATE_MAP')window.updateMap(e.data.data);else if(e.data.type==='CENTER_MAP')map.setView([e.data.lat,e.data.lng],18)});
-    setTimeout(()=>sendMsg({type:'MAP_READY'}),300);
-    </script></body></html>`, []);
-
-  // Stabiler Message Handler für die Map
-  const handleMapMessage = useCallback((data) => {
-    if (data.type === 'MAP_READY' && !mapReadyRef.current) {
-      mapReadyRef.current = true;
-      setMapReady(true);
-    } else if (data.type === 'QUEST_TAP') {
-      openQuestDetail(data.quest);
+  // Web Message Handler - einmal registrieren
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handler = (e) => {
+        if (e.data?.type === 'MAP_READY' && !mapReadyRef.current) {
+          mapReadyRef.current = true;
+          setMapReady(true);
+        } else if (e.data?.type === 'QUEST_TAP') {
+          openQuestDetail(e.data.quest);
+        }
+      };
+      window.addEventListener('message', handler);
+      return () => window.removeEventListener('message', handler);
     }
   }, []);
 
@@ -440,14 +428,18 @@ const MapScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Map - Full Screen */}
+      {/* Map - Full Screen - Blob URL für Stabilität */}
       <View style={StyleSheet.absoluteFill}>
-        {Platform.OS === 'web' ? (
-          <StableMapIframe html={mapHtml} onMessage={handleMapMessage} />
-        ) : (
+        {Platform.OS === 'web' && mapBlobUrl ? (
+          <iframe 
+            src={mapBlobUrl} 
+            style={{ width: '100%', height: '100%', border: 'none' }} 
+            title="Quest Map" 
+          />
+        ) : Platform.OS !== 'web' ? (
           <WebView 
             ref={webviewRef}
-            source={{ html: mapHtml }} 
+            source={{ html: MAP_HTML }} 
             style={{ flex: 1 }}
             onMessage={(e) => {
               try {
@@ -459,7 +451,7 @@ const MapScreen = () => {
               } catch (err) {}
             }} 
           />
-        )}
+        ) : null}
       </View>
 
       {/* Active Quest Overlay */}
