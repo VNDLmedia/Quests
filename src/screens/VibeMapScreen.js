@@ -343,7 +343,8 @@ const MapScreen = () => {
 
   // Calculate positions based on safe area and navbar
   const topOffset = Platform.OS === 'ios' ? insets.top + 10 : insets.top + 10;
-  const bottomOffset = Platform.OS === 'ios' ? 95 : 75; // Close to navbar
+  const navbarHeight = Platform.OS === 'ios' ? 90 : 70;
+  const bottomBarBottom = navbarHeight + 8; // Bottom bar sits just above navbar
 
   return (
     <View style={styles.container}>
@@ -402,7 +403,7 @@ const MapScreen = () => {
 
       {/* Quest Carousel */}
       {mapQuests.filter(q => q.status === 'available').length > 0 && !selectedQuest && (
-        <View style={[styles.questCarousel, { bottom: bottomOffset + 65 }]}>
+        <View style={[styles.questCarousel, { bottom: bottomBarBottom + 70 }]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.questRow}>
             {mapQuests.filter(q => q.status === 'available').map((quest) => (
               <TouchableOpacity key={quest.id} style={[styles.questCard, !quest.canInteract && styles.questCardLocked]} activeOpacity={0.9} onPress={() => centerOnQuest(quest)}>
@@ -426,7 +427,7 @@ const MapScreen = () => {
       )}
 
       {/* Bottom Bar */}
-      <View style={[styles.bottomBar, { bottom: bottomOffset + 5 }]}>
+      <View style={[styles.bottomBar, { bottom: bottomBarBottom }]}>
         <View style={styles.statsGroup}>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{activeQuests.length}</Text>
@@ -444,7 +445,7 @@ const MapScreen = () => {
       </View>
 
       {/* Quest Detail Sheet */}
-      <Animated.View style={[styles.bottomSheet, { paddingBottom: bottomOffset + 16, transform: [{ translateY: slideAnim }] }]}>
+      <Animated.View style={[styles.bottomSheet, { paddingBottom: navbarHeight + 16, transform: [{ translateY: slideAnim }] }]}>
         {selectedQuest && (
           <>
             <View style={styles.sheetHandle} />
