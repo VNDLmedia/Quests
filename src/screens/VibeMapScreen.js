@@ -350,7 +350,7 @@ const MapScreen = () => {
     }
   };
 
-  const mapHtml = `<!DOCTYPE html><html><head>
+  const mapHtml = useMemo(() => `<!DOCTYPE html><html><head>
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -395,7 +395,7 @@ const MapScreen = () => {
     };
     window.addEventListener('message',e=>{if(e.data.type==='UPDATE_MAP')window.updateMap(e.data.data);else if(e.data.type==='CENTER_MAP')map.setView([e.data.lat,e.data.lng],18)});
     setTimeout(()=>sendMsg({type:'MAP_READY'}),300);
-    </script></body></html>`;
+    </script></body></html>`, []);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
