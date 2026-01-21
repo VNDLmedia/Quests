@@ -50,15 +50,14 @@ const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([47.
 window.map=map;L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);
 const sendMsg=d=>{window.ReactNativeWebView?window.ReactNativeWebView.postMessage(JSON.stringify(d)):window.parent.postMessage(d,'*')};
 let playerMarker=null,questMarkers=[];
-window.updateMap=function(data){
-const{player,quests}=data;
-if(player){
+window.updatePlayer=function(player){
 const lat=player.latitude||player.lat,lng=player.longitude||player.lng;
 if(!playerMarker){
 playerMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="position:relative"><div class="user-range"></div><div class="user-pulse"></div><div class="user-core"></div></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000}).addTo(map);
 map.setView([lat,lng],17);
 }else{playerMarker.setLatLng([lat,lng])}
-}
+};
+window.updateQuests=function(quests){
 questMarkers.forEach(m=>map.removeLayer(m));questMarkers=[];
 if(quests){quests.forEach(q=>{
 const sc=q.status==='active'?'active':q.canInteract?'available':'locked';
@@ -68,7 +67,11 @@ const m=L.marker([q.lat,q.lng],{icon:L.divIcon({className:'',html:h,iconSize:[14
 m.on('click',()=>sendMsg({type:'QUEST_TAP',quest:q}));questMarkers.push(m);
 })}
 };
-window.addEventListener('message',e=>{if(e.data.type==='UPDATE_MAP')window.updateMap(e.data.data);else if(e.data.type==='CENTER_MAP')map.setView([e.data.lat,e.data.lng],18)});
+window.addEventListener('message',e=>{
+if(e.data.type==='UPDATE_PLAYER')window.updatePlayer(e.data.player);
+else if(e.data.type==='UPDATE_QUESTS')window.updateQuests(e.data.quests);
+else if(e.data.type==='CENTER_MAP')map.setView([e.data.lat,e.data.lng],18);
+});
 setTimeout(()=>sendMsg({type:'MAP_READY'}),300);
 <\/script></body></html>`;
 
@@ -247,12 +250,8 @@ const MapScreen = () => {
             updateLocation(coords);
             generateNearbyQuests(coords);
             
-            // Start watching
-            locationWatchId.current = navigator.geolocation.watchPosition(
-              (pos) => setUserLoc({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-              () => {},
-              { enableHighAccuracy: false, maximumAge: 60000 }
-            );
+// Kein kontinuierliches Watching auf Web - zu viele Updates verursachen Flackern
+          // Position wird manuell über den Center-Button aktualisiert
           },
           (err) => {
             console.log('Geolocation error:', err.code, err.message);
@@ -318,44 +317,55 @@ const MapScreen = () => {
     }
   }, [updateLocation, generateNearbyQuests]);
 
-  // Update Map - mit Debounce um Flackern zu verhindern
-  const updateMapRef = useRef(null);
+  // Speichere letzte Quest-IDs um unnötige Updates zu vermeiden
+  const lastQuestIdsRef = useRef('');
+  const lastPlayerPosRef = useRef('');
+  
+  // Update nur Player Position - sehr oft erlaubt
   useEffect(() => {
     if (!mapReadyRef.current && !mapReady) return;
     
-    // Debounce map updates
-    if (updateMapRef.current) clearTimeout(updateMapRef.current);
+    const posKey = `${userLoc.latitude.toFixed(5)},${userLoc.longitude.toFixed(5)}`;
+    if (posKey === lastPlayerPosRef.current) return;
+    lastPlayerPosRef.current = posKey;
     
-    updateMapRef.current = setTimeout(() => {
-      const data = {
-        player: userLoc,
-        quests: mapQuests.map(q => ({
-          id: q.id,
-          lat: q.lat,
-          lng: q.lng,
-          title: q.title,
-          desc: q.description,
-          icon: q.icon || 'flag',
-          color: q.color || '#4F46E5',
-          reward: `${q.xpReward} XP`,
-          status: q.status,
-          canInteract: q.canInteract,
-          distance: q.distance,
-        }))
-      };
-      
-      if (Platform.OS === 'web') {
-        const iframe = document.querySelector('iframe[title="Quest Map"]');
-        iframe?.contentWindow?.postMessage({ type: 'UPDATE_MAP', data }, '*');
-      } else {
-        webviewRef.current?.injectJavaScript(`window.updateMap && window.updateMap(${JSON.stringify(data)});true;`);
-      }
-    }, 100);
+    if (Platform.OS === 'web') {
+      const iframe = document.querySelector('iframe[title="Quest Map"]');
+      iframe?.contentWindow?.postMessage({ type: 'UPDATE_PLAYER', player: userLoc }, '*');
+    } else {
+      webviewRef.current?.injectJavaScript(`window.updatePlayer && window.updatePlayer(${JSON.stringify(userLoc)});true;`);
+    }
+  }, [mapReady, userLoc]);
+  
+  // Update Quests - nur wenn sich die Quest-Liste ändert
+  useEffect(() => {
+    if (!mapReadyRef.current && !mapReady) return;
     
-    return () => {
-      if (updateMapRef.current) clearTimeout(updateMapRef.current);
-    };
-  }, [mapReady, userLoc, mapQuests]);
+    const questIds = mapQuests.map(q => q.id + q.canInteract).join(',');
+    if (questIds === lastQuestIdsRef.current) return;
+    lastQuestIdsRef.current = questIds;
+    
+    const questData = mapQuests.map(q => ({
+      id: q.id,
+      lat: q.lat,
+      lng: q.lng,
+      title: q.title,
+      desc: q.description,
+      icon: q.icon || 'flag',
+      color: q.color || '#4F46E5',
+      reward: `${q.xpReward} XP`,
+      status: q.status,
+      canInteract: q.canInteract,
+      distance: q.distance,
+    }));
+    
+    if (Platform.OS === 'web') {
+      const iframe = document.querySelector('iframe[title="Quest Map"]');
+      iframe?.contentWindow?.postMessage({ type: 'UPDATE_QUESTS', quests: questData }, '*');
+    } else {
+      webviewRef.current?.injectJavaScript(`window.updateQuests && window.updateQuests(${JSON.stringify(questData)});true;`);
+    }
+  }, [mapReady, mapQuests]);
 
   const openQuestDetail = (quest) => {
     const fullQuest = mapQuests.find(q => q.id === quest.id) || quest;
