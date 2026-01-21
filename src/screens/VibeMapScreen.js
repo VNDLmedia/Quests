@@ -55,10 +55,14 @@ const MapScreen = () => {
   // Get location in background - non-blocking
   useEffect(() => {
     if (Platform.OS === 'web') {
-      // Web: Use browser geolocation
+      // Web/PWA: Use browser geolocation with better options for mobile
       if (navigator.geolocation) {
+        console.log('Requesting geolocation...');
+        
+        // First try: Fast location (might be less accurate)
         navigator.geolocation.getCurrentPosition(
           (position) => {
+            console.log('Got location:', position.coords);
             const coords = {
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
@@ -68,7 +72,7 @@ const MapScreen = () => {
             updateLocation(coords);
             generateNearbyQuests(coords);
             
-            // Start watching
+            // Start watching for updates
             locationWatchId.current = navigator.geolocation.watchPosition(
               (pos) => {
                 setUserLoc({
@@ -76,16 +80,32 @@ const MapScreen = () => {
                   longitude: pos.coords.longitude,
                 });
               },
-              () => {},
-              { enableHighAccuracy: true, maximumAge: 30000 }
+              (err) => console.log('Watch error:', err.message),
+              { enableHighAccuracy: false, maximumAge: 60000, timeout: 30000 }
             );
           },
           (err) => {
-            console.log('Geolocation error:', err.message);
-            // Keep using default location
+            console.log('Geolocation error:', err.code, err.message);
+            // Try again with different options
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                const coords = {
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude,
+                };
+                setUserLoc(coords);
+                setShowLocationBanner(false);
+                updateLocation(coords);
+                generateNearbyQuests(coords);
+              },
+              (err2) => console.log('Geolocation retry failed:', err2.message),
+              { enableHighAccuracy: false, timeout: 30000, maximumAge: Infinity }
+            );
           },
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+          { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
         );
+      } else {
+        console.log('Geolocation not supported');
       }
     } else {
       // Native: Use expo-location
