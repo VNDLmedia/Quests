@@ -36,77 +36,65 @@ const MapScreen = () => {
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const [userLoc, setUserLoc] = useState(DEFAULT_LOCATION); // Start with default immediately
-  const [showLocationBanner, setShowLocationBanner] = useState(true);
+  const [locationStatus, setLocationStatus] = useState('searching'); // 'searching' | 'found' | 'denied' | 'error'
   const [availableQuests, setAvailableQuests] = useState([]);
   const [questDistances, setQuestDistances] = useState({});
 
-  // Generate quests immediately on mount & auto-hide location banner
+  // Generate quests immediately on mount
   useEffect(() => {
     generateNearbyQuests(DEFAULT_LOCATION);
-    
-    // Auto-hide location banner after 4 seconds
-    const timer = setTimeout(() => {
-      setShowLocationBanner(false);
-    }, 4000);
-    
-    return () => clearTimeout(timer);
   }, []);
 
-  // Get location in background - non-blocking
+  // Request location function
+  const requestLocation = useCallback(() => {
+    setLocationStatus('searching');
+    
+    if (Platform.OS === 'web') {
+      if (!navigator.geolocation) {
+        setLocationStatus('error');
+        Alert.alert('Fehler', 'Geolocation wird nicht unterstützt');
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+          setUserLoc(coords);
+          setLocationStatus('found');
+          updateLocation(coords);
+          generateNearbyQuests(coords);
+          
+          // Start watching
+          locationWatchId.current = navigator.geolocation.watchPosition(
+            (pos) => setUserLoc({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+            () => {},
+            { enableHighAccuracy: false, maximumAge: 60000 }
+          );
+        },
+        (err) => {
+          console.log('Geolocation error:', err.code, err.message);
+          if (err.code === 1) {
+            setLocationStatus('denied');
+          } else {
+            setLocationStatus('error');
+          }
+        },
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 }
+      );
+    }
+  }, [updateLocation, generateNearbyQuests]);
+
+  // Get location on mount
   useEffect(() => {
     if (Platform.OS === 'web') {
-      // Web/PWA: Use browser geolocation with better options for mobile
-      if (navigator.geolocation) {
-        console.log('Requesting geolocation...');
-        
-        // First try: Fast location (might be less accurate)
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            console.log('Got location:', position.coords);
-            const coords = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            };
-            setUserLoc(coords);
-            setShowLocationBanner(false);
-            updateLocation(coords);
-            generateNearbyQuests(coords);
-            
-            // Start watching for updates
-            locationWatchId.current = navigator.geolocation.watchPosition(
-              (pos) => {
-                setUserLoc({
-                  latitude: pos.coords.latitude,
-                  longitude: pos.coords.longitude,
-                });
-              },
-              (err) => console.log('Watch error:', err.message),
-              { enableHighAccuracy: false, maximumAge: 60000, timeout: 30000 }
-            );
-          },
-          (err) => {
-            console.log('Geolocation error:', err.code, err.message);
-            // Try again with different options
-            navigator.geolocation.getCurrentPosition(
-              (position) => {
-                const coords = {
-                  latitude: position.coords.latitude,
-                  longitude: position.coords.longitude,
-                };
-                setUserLoc(coords);
-                setShowLocationBanner(false);
-                updateLocation(coords);
-                generateNearbyQuests(coords);
-              },
-              (err2) => console.log('Geolocation retry failed:', err2.message),
-              { enableHighAccuracy: false, timeout: 30000, maximumAge: Infinity }
-            );
-          },
-          { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
-        );
-      } else {
-        console.log('Geolocation not supported');
-      }
+      // Small delay to let the page load
+      const timer = setTimeout(() => {
+        requestLocation();
+      }, 1000);
+      return () => clearTimeout(timer);
     } else {
       // Native: Use expo-location
       (async () => {
@@ -420,12 +408,23 @@ const MapScreen = () => {
         </TouchableOpacity>
       )}
 
-      {/* Location Indicator (small, non-blocking, auto-hides) */}
-      {showLocationBanner && (
-        <View style={[styles.locationIndicator, { top: topOffset + (currentActiveQuest ? 70 : 0) }]}>
-          <Ionicons name="locate-outline" size={14} color="#F59E0B" />
-          <Text style={styles.locationText}>Standort wird gesucht...</Text>
-        </View>
+      {/* Location Status Banner */}
+      {locationStatus !== 'found' && (
+        <TouchableOpacity 
+          style={[styles.locationIndicator, { top: topOffset + (currentActiveQuest ? 70 : 0) }]}
+          onPress={requestLocation}
+        >
+          <Ionicons 
+            name={locationStatus === 'denied' ? 'location-outline' : locationStatus === 'error' ? 'warning-outline' : 'locate-outline'} 
+            size={14} 
+            color={locationStatus === 'denied' ? '#EF4444' : '#F59E0B'} 
+          />
+          <Text style={styles.locationText}>
+            {locationStatus === 'searching' && 'Standort wird gesucht...'}
+            {locationStatus === 'denied' && 'Tippen für Standort-Berechtigung'}
+            {locationStatus === 'error' && 'Standort nicht verfügbar - Tippen zum Retry'}
+          </Text>
+        </TouchableOpacity>
       )}
 
       {/* Quest Carousel */}
