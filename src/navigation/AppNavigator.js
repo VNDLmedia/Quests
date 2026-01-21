@@ -9,7 +9,6 @@ import { COLORS } from '../theme';
 const MapScreen = lazy(() => import('../screens/VibeMapScreen'));
 const AdventuresScreen = lazy(() => import('../screens/QuestLogScreen'));
 const SocialScreen = lazy(() => import('../screens/SocialScreen'));
-const ClubPassScreen = lazy(() => import('../screens/VibePassScreen'));
 const UserScreen = lazy(() => import('../screens/UserScreen'));
 
 // Loading fallback
@@ -37,29 +36,44 @@ const AppNavigator = () => {
           tabBarStyle: styles.tabBar,
           tabBarActiveTintColor: COLORS.primary,
           tabBarInactiveTintColor: COLORS.text.muted,
-          tabBarShowLabel: false,
+          tabBarShowLabel: true,
+          tabBarLabelStyle: styles.tabLabel,
           tabBarIcon: ({ focused, color }) => {
             let iconName;
             if (route.name === 'Map') iconName = focused ? 'compass' : 'compass-outline';
-            else if (route.name === 'Adventures') iconName = focused ? 'layers' : 'layers-outline';
+            else if (route.name === 'Quests') iconName = focused ? 'layers' : 'layers-outline';
             else if (route.name === 'Social') iconName = focused ? 'people' : 'people-outline';
-            else if (route.name === 'Club') iconName = focused ? 'wallet' : 'wallet-outline';
-            else if (route.name === 'User') iconName = focused ? 'person' : 'person-outline';
+            else if (route.name === 'Profil') iconName = focused ? 'person' : 'person-outline';
             
             return (
               <View style={styles.iconContainer}>
-                <Ionicons name={iconName} size={26} color={color} />
+                <Ionicons name={iconName} size={24} color={color} />
                 {focused && <View style={styles.activeDot} />}
               </View>
             );
           },
         })}
       >
-        <Tab.Screen name="Map" component={withSuspense(MapScreen)} />
-        <Tab.Screen name="Adventures" component={withSuspense(AdventuresScreen)} />
-        <Tab.Screen name="Social" component={withSuspense(SocialScreen)} />
-        <Tab.Screen name="Club" component={withSuspense(ClubPassScreen)} />
-        <Tab.Screen name="User" component={withSuspense(UserScreen)} />
+        <Tab.Screen 
+          name="Map" 
+          component={withSuspense(MapScreen)} 
+          options={{ tabBarLabel: 'Karte' }}
+        />
+        <Tab.Screen 
+          name="Quests" 
+          component={withSuspense(AdventuresScreen)} 
+          options={{ tabBarLabel: 'Quests' }}
+        />
+        <Tab.Screen 
+          name="Social" 
+          component={withSuspense(SocialScreen)} 
+          options={{ tabBarLabel: 'Social' }}
+        />
+        <Tab.Screen 
+          name="Profil" 
+          component={withSuspense(UserScreen)} 
+          options={{ tabBarLabel: 'Profil' }}
+        />
       </Tab.Navigator>
     </NavigationContainer>
   );
@@ -68,14 +82,22 @@ const AppNavigator = () => {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 0, left: 0, right: 0,
+    bottom: 0, 
+    left: 0, 
+    right: 0,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: COLORS.surfaceAlt,
     height: Platform.OS === 'ios' ? 88 : 64,
-    paddingTop: 12,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
     elevation: 0,
     shadowOpacity: 0,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
   },
   iconContainer: {
     alignItems: 'center',
@@ -83,7 +105,9 @@ const styles = StyleSheet.create({
     width: 50,
   },
   activeDot: {
-    width: 4, height: 4, borderRadius: 2,
+    width: 4, 
+    height: 4, 
+    borderRadius: 2,
     backgroundColor: COLORS.primary,
     marginTop: 4,
   }
