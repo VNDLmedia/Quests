@@ -343,7 +343,7 @@ const MapScreen = () => {
 
   // Calculate positions based on safe area and navbar
   const topOffset = Platform.OS === 'ios' ? insets.top + 10 : insets.top + 10;
-  const bottomOffset = Platform.OS === 'ios' ? 110 : 85; // Navbar is now 70px + some padding
+  const bottomOffset = Platform.OS === 'ios' ? 95 : 75; // Close to navbar
 
   return (
     <View style={styles.container}>
@@ -402,7 +402,7 @@ const MapScreen = () => {
 
       {/* Quest Carousel */}
       {mapQuests.filter(q => q.status === 'available').length > 0 && !selectedQuest && (
-        <View style={[styles.questCarousel, { bottom: bottomOffset + 80 }]}>
+        <View style={[styles.questCarousel, { bottom: bottomOffset + 65 }]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.questRow}>
             {mapQuests.filter(q => q.status === 'available').map((quest) => (
               <TouchableOpacity key={quest.id} style={[styles.questCard, !quest.canInteract && styles.questCardLocked]} activeOpacity={0.9} onPress={() => centerOnQuest(quest)}>
@@ -426,7 +426,7 @@ const MapScreen = () => {
       )}
 
       {/* Bottom Bar */}
-      <View style={[styles.bottomBar, { bottom: bottomOffset + 10 }]}>
+      <View style={[styles.bottomBar, { bottom: bottomOffset + 5 }]}>
         <View style={styles.statsGroup}>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{activeQuests.length}</Text>
@@ -542,8 +542,8 @@ const styles = StyleSheet.create({
   divider: { width: 1, height: 24, backgroundColor: COLORS.border },
   locateBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
 
-  // Bottom Sheet
-  bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, ...SHADOWS.xl, zIndex: 30 },
+  // Bottom Sheet - extra tall to hide edge during animation
+  bottomSheet: { position: 'absolute', bottom: -50, left: 0, right: 0, backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 16, minHeight: 320, ...SHADOWS.xl, zIndex: 30 },
   sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: 16 },
   sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
   sheetIcon: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
