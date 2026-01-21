@@ -341,9 +341,9 @@ const MapScreen = () => {
     }
   }, []);
 
-  // Calculate positions based on safe area
+  // Calculate positions based on safe area and navbar
   const topOffset = Platform.OS === 'ios' ? insets.top + 10 : insets.top + 10;
-  const bottomOffset = Platform.OS === 'ios' ? 100 : 70;
+  const bottomOffset = Platform.OS === 'ios' ? 110 : 85; // Navbar is now 70px + some padding
 
   return (
     <View style={styles.container}>

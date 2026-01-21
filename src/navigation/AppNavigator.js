@@ -29,17 +29,17 @@ const withSuspense = (Component) => (props) => (
 const Tab = createBottomTabNavigator();
 
 // Check if running as PWA
-const isPWA = Platform.OS === 'web' && window.matchMedia?.('(display-mode: standalone)').matches;
+const isPWA = Platform.OS === 'web' && typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches;
 
 const AppNavigator = () => {
   const insets = useSafeAreaInsets();
   
-  // Calculate tab bar height - more padding for PWA on Android
+  // Calculate tab bar height - bigger for better touch targets
   const tabBarHeight = Platform.select({
-    ios: 50 + insets.bottom,
-    android: isPWA ? 60 : 56,
-    web: isPWA ? 60 : 56,
-    default: 56,
+    ios: 60 + insets.bottom,
+    android: 70,
+    web: 70,
+    default: 70,
   });
 
   return (
@@ -72,7 +72,7 @@ const AppNavigator = () => {
               else if (route.name === 'Social') iconName = focused ? 'people' : 'people-outline';
               else if (route.name === 'Profil') iconName = focused ? 'person' : 'person-outline';
               
-              return <Ionicons name={iconName} size={22} color={color} />;
+              return <Ionicons name={iconName} size={24} color={color} />;
             },
           })}
         >
@@ -107,18 +107,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    paddingTop: 6,
-    elevation: 0,
-    shadowOpacity: 0,
+    paddingTop: 8,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: 2,
-    marginBottom: 2,
+    marginTop: 4,
+    marginBottom: 6,
   },
   tabIcon: {
-    marginTop: 4,
+    marginTop: 6,
   },
 });
 
