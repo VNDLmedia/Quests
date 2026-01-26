@@ -10,7 +10,8 @@ import {
   Alert, 
   Platform,
   Dimensions,
-  StatusBar
+  StatusBar,
+  ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,7 +46,7 @@ const QuestLogScreen = ({ navigation }) => {
 
   const handleRefresh = async () => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     setIsLoading(false);
   };
 
@@ -176,15 +177,23 @@ const QuestLogScreen = ({ navigation }) => {
 
         <View style={{ height: 24 }} />
 
-        {activeQuests.length === 0 && !isLoading ? (
+        {activeQuests.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
               <Ionicons name="map" size={48} color={COLORS.primary} />
             </View>
             <Text style={styles.emptyText}>No active quests</Text>
             <Text style={styles.emptySub}>Explore the map to find new adventures or wait for daily reset!</Text>
-            <TouchableOpacity style={styles.refreshBtn} onPress={handleRefresh}>
-              <Text style={styles.refreshBtnText}>Check for New Quests</Text>
+            <TouchableOpacity 
+              style={[styles.refreshBtn, isLoading && styles.refreshBtnDisabled]} 
+              onPress={handleRefresh}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.refreshBtnText}>Check for New Quests</Text>
+              )}
             </TouchableOpacity>
           </View>
         ) : (
@@ -348,7 +357,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 16,
+    minWidth: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
     ...SHADOWS.md,
+  },
+  refreshBtnDisabled: {
+    opacity: 0.8,
   },
   refreshBtnText: {
     color: '#FFF',

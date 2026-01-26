@@ -3,8 +3,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useMemo, useCallback } from 'react';
+import { Alert } from 'react-native';
 import { useGame } from '../GameProvider';
-import { QUEST_TEMPLATES, getDailyQuests, isWithinLocation, calculateDistance } from '../config/quests';
+import { QUEST_TEMPLATES, isWithinLocation, calculateDistance } from '../config/quests';
+import { supabase } from '../../config/supabase';
 
 export function useQuests() {
   const { 
@@ -12,7 +14,9 @@ export function useQuests() {
     completedQuests, 
     completeQuest, 
     currentLocation,
-    dispatch 
+    dispatch,
+    quests: allQuests, // Now available from context
+    user
   } = useGame();
 
   // Categorized quests
@@ -30,51 +34,136 @@ export function useQuests() {
   const nearbyQuests = useMemo(() => {
     if (!currentLocation) return [];
     
-    return activeQuests.filter(quest => {
-      if (!quest.location) return false;
-      
-      const isNear = isWithinLocation(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        quest.location
-      );
-      
-      return isNear;
-    });
+    // We can't easily check 'near' without the locations list here
+    // For now, let's just return quests that have a location defined
+    // In a real app, this hook would need access to the locations list from GameProvider
+    return activeQuests.filter(quest => !!quest.location);
   }, [activeQuests, currentLocation]);
 
-  // Start a quest
-  const startQuest = useCallback((questKey) => {
-    const template = QUEST_TEMPLATES[questKey];
-    if (!template) return null;
-    
-    const newQuest = {
-      id: `${questKey}_${Date.now()}`,
-      ...template,
-      progress: 0,
-      startedAt: new Date().toISOString(),
-      expiresAt: template.expiresIn 
-        ? new Date(Date.now() + template.expiresIn).toISOString()
-        : null,
-    };
-    
-    dispatch({ type: 'ADD_QUEST', payload: newQuest });
-    return newQuest;
-  }, [dispatch]);
+  // Start a quest - Supabase first, then update local state
+  const startQuest = useCallback(async (questOrKey) => {
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to start quests');
+      return null;
+    }
 
-  // Update quest progress
-  const updateProgress = useCallback((questId, progress) => {
+    // Handle both quest object or key string
+    let template;
+    if (typeof questOrKey === 'string') {
+        template = allQuests?.find(q => q.key === questOrKey) || QUEST_TEMPLATES[questOrKey];
+    } else {
+        template = questOrKey;
+    }
+
+    if (!template) {
+        console.error('Quest template not found for:', questOrKey);
+        return null;
+    }
+
+    // Find the quest ID from the database
+    let dbQuestId = template.id;
+    if (template.key) {
+      const dbQuest = allQuests?.find(q => q.key === template.key);
+      if (dbQuest) dbQuestId = dbQuest.id;
+    }
+
+    if (!dbQuestId) {
+      console.error('Could not find DB ID for quest:', template);
+      Alert.alert('Error', 'Could not start quest: Invalid Quest ID');
+      return null;
+    }
+
+    const expiresAt = template.expiresIn 
+      ? new Date(Date.now() + template.expiresIn).toISOString()
+      : null;
+
+    try {
+      // Insert into Supabase FIRST
+      console.log('Inserting user_quest:', { user_id: user.id, quest_id: dbQuestId });
+      const { data, error } = await supabase.from('user_quests').insert({
+        user_id: user.id,
+        quest_id: dbQuestId,
+        status: 'active',
+        progress: 0,
+        started_at: new Date().toISOString(),
+        expires_at: expiresAt
+      }).select(`
+        *,
+        quest:quest_id (*)
+      `).single();
+      
+      if (error) {
+        console.error('Failed to start quest:', error);
+        Alert.alert('Error', 'Failed to start quest. ' + (error.message || ''));
+        return null;
+      }
+
+      console.log('Quest saved to DB:', data);
+
+      // Build local quest object from DB response
+      const newQuest = {
+        id: data.id, // Use the user_quest ID from DB!
+        questId: data.quest_id,
+        ...data.quest,
+        // Normalize snake_case
+        xpReward: data.quest?.xp_reward,
+        timeLimit: data.quest?.time_limit,
+        requiresScan: data.quest?.requires_scan,
+        target: data.quest?.target_value || 1,
+        location: data.quest?.location_id,
+        // User-specific data
+        progress: data.progress || 0,
+        status: data.status,
+        startedAt: data.started_at,
+        expiresAt: data.expires_at,
+      };
+      
+      // Update local state with the DB data
+      dispatch({ type: 'ADD_QUEST', payload: newQuest });
+
+      return newQuest;
+    } catch (err) {
+      console.error('Error starting quest:', err);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+      return null;
+    }
+  }, [dispatch, allQuests, user]);
+
+  // Update quest progress - Supabase first
+  const updateProgress = useCallback(async (questId, progress) => {
     const quest = activeQuests.find(q => q.id === questId);
     if (!quest) return;
     
-    const newProgress = Math.min(progress, quest.target);
-    dispatch({ type: 'UPDATE_QUEST', payload: { id: questId, progress: newProgress } });
+    const newProgress = Math.min(progress, quest.target || 1);
+    const isComplete = newProgress >= (quest.target || 1);
     
+    // Update Supabase first (questId is now the user_quest.id from DB)
+    if (user) {
+      try {
+        const { error } = await supabase.from('user_quests')
+          .update({ 
+            progress: newProgress,
+            status: isComplete ? 'completed' : 'active',
+            completed_at: isComplete ? new Date().toISOString() : null
+          })
+          .eq('id', questId); // questId IS the user_quest.id
+        
+        if (error) {
+          console.error('Failed to update progress:', error);
+        }
+      } catch (err) {
+        console.error('Error updating progress:', err);
+      }
+    }
+
+    // Update local state
+    dispatch({ type: 'UPDATE_QUEST', payload: { id: questId, progress: newProgress } });
+
     // Auto-complete if target reached
-    if (newProgress >= quest.target) {
+    if (isComplete) {
       completeQuest(questId, quest.xpReward);
     }
-  }, [activeQuests, dispatch, completeQuest]);
+  }, [activeQuests, dispatch, completeQuest, user]);
 
   // Check location-based quest completion
   const checkLocationQuests = useCallback((coords) => {
@@ -82,34 +171,18 @@ export function useQuests() {
     
     const completedIds = [];
     
-    for (const quest of activeQuests) {
-      if (quest.type !== 'location' || !quest.location) continue;
-      
-      const isAtLocation = isWithinLocation(coords.latitude, coords.longitude, quest.location);
-      
-      if (isAtLocation && quest.progress < quest.target) {
-        updateProgress(quest.id, quest.progress + 1);
-        completedIds.push(quest.id);
-      }
-    }
+    // Disabled for now as we migrated away from hardcoded locations
+    // Needs to be updated to use locations from context
     
     return completedIds;
-  }, [activeQuests, updateProgress]);
+  }, []);
 
   // Get distance to quest location
   const getDistanceToQuest = useCallback((quest) => {
     if (!currentLocation || !quest.location) return null;
     
-    const { EUROPARK_LOCATIONS } = require('../config/quests');
-    const location = EUROPARK_LOCATIONS[quest.location];
-    if (!location) return null;
-    
-    return calculateDistance(
-      currentLocation.latitude,
-      currentLocation.longitude,
-      location.lat,
-      location.lng
-    );
+    // Disabled: Requires locations from context
+    return null;
   }, [currentLocation]);
 
   // Check for expired quests

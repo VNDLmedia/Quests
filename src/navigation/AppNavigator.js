@@ -26,6 +26,12 @@ const withSuspense = (Component) => (props) => (
   </Suspense>
 );
 
+// Define screens outside component to prevent remounting on re-renders
+const MapScreenWrapped = withSuspense(MapScreen);
+const AdventuresScreenWrapped = withSuspense(AdventuresScreen);
+const SocialScreenWrapped = withSuspense(SocialScreen);
+const UserScreenWrapped = withSuspense(UserScreen);
+
 const Tab = createBottomTabNavigator();
 
 // Check if running as PWA
@@ -78,22 +84,22 @@ const AppNavigator = () => {
         >
           <Tab.Screen 
             name="Map" 
-            component={withSuspense(MapScreen)} 
+            component={MapScreenWrapped} 
             options={{ tabBarLabel: 'Karte' }}
           />
           <Tab.Screen 
             name="Quests" 
-            component={withSuspense(AdventuresScreen)} 
+            component={AdventuresScreenWrapped} 
             options={{ tabBarLabel: 'Quests' }}
           />
           <Tab.Screen 
             name="Social" 
-            component={withSuspense(SocialScreen)} 
+            component={SocialScreenWrapped} 
             options={{ tabBarLabel: 'Social' }}
           />
           <Tab.Screen 
             name="Profil" 
-            component={withSuspense(UserScreen)} 
+            component={UserScreenWrapped} 
             options={{ tabBarLabel: 'Profil' }}
           />
         </Tab.Navigator>

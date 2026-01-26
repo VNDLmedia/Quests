@@ -3,11 +3,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured, getSession, onAuthStateChange } from '../config/supabase';
 import { LEVEL_CONFIG, calculateFinalXP, DAILY_REWARDS } from './config/rewards';
 import { ACHIEVEMENTS, getAllAchievements } from './config/achievements';
-import { getDailyQuests, QUEST_TEMPLATES } from './config/quests';
+import { QUEST_TEMPLATES } from './config/quests';
 import { getCardByLevel } from './config/cards';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -70,6 +69,10 @@ const initialState = {
   currentLocation: null,
   nearbyQuests: [],
   
+  // Game Data
+  quests: [], // Available quest templates
+  locations: [], // POI locations
+  
   // UI State
   toasts: [],
 };
@@ -108,6 +111,7 @@ const ACTIONS = {
   
   SET_LOCATION: 'SET_LOCATION',
   SET_NEARBY_QUESTS: 'SET_NEARBY_QUESTS',
+  SET_GAME_DATA: 'SET_GAME_DATA',
   
   ADD_TOAST: 'ADD_TOAST',
   REMOVE_TOAST: 'REMOVE_TOAST',
@@ -314,6 +318,13 @@ function gameReducer(state, action) {
     case ACTIONS.SET_NEARBY_QUESTS:
       return { ...state, nearbyQuests: action.payload };
       
+    case ACTIONS.SET_GAME_DATA:
+      return { 
+        ...state, 
+        quests: action.payload.quests || state.quests,
+        locations: action.payload.locations || state.locations 
+      };
+      
     case ACTIONS.ADD_TOAST:
       return {
         ...state,
@@ -339,14 +350,6 @@ function gameReducer(state, action) {
 // ═══════════════════════════════════════════════════════════════════════════
 const GameContext = createContext(null);
 
-// Storage keys
-const STORAGE_KEYS = {
-  PLAYER: '@ethernal_player',
-  ACHIEVEMENTS: '@ethernal_achievements',
-  QUESTS: '@ethernal_quests',
-  DAILY_REWARD: '@ethernal_daily_reward',
-  COLLECTION: '@ethernal_collection',
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROVIDER COMPONENT
@@ -415,6 +418,121 @@ export function GameProvider({ children }) {
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // LOAD GAME DATA (Quests & Locations)
+  // ─────────────────────────────────────────────────────────────────────────
+  const fetchGameData = useCallback(async () => {
+    if (!isSupabaseConfigured()) return;
+    
+    try {
+      const [questsResult, locationsResult] = await Promise.all([
+        supabase.from('quests').select('*'),
+        supabase.from('locations').select('*')
+      ]);
+      
+      if (questsResult.error) console.error('Error fetching quests:', questsResult.error);
+      if (locationsResult.error) console.error('Error fetching locations:', locationsResult.error);
+      
+      const quests = questsResult.data || [];
+      const locations = locationsResult.data || [];
+      
+      // Transform quests to match internal format if needed
+      // (Supabase returns snake_case, app might use camelCase - sticking to mixed for now to minimize refactor)
+      // But let's normalize 'xp_reward' to 'xpReward' etc to match QUEST_TEMPLATES structure
+      const normalizedQuests = quests.map(q => ({
+        ...q,
+        xpReward: q.xp_reward,
+        timeLimit: q.time_limit,
+        expiresIn: q.expires_in,
+        requiresScan: q.requires_scan,
+        target: q.target_value,
+        location: q.location_id,
+        locations: q.multi_locations,
+        // Keep original keys too just in case
+      }));
+      
+      // Transform locations to object map for easy lookup
+      const locationsMap = locations.reduce((acc, loc) => {
+        acc[loc.id] = loc;
+        return acc;
+      }, {});
+      
+      dispatch({ 
+        type: ACTIONS.SET_GAME_DATA, 
+        payload: { quests: normalizedQuests, locations: locationsMap } 
+      });
+      
+      console.log('Game data loaded:', normalizedQuests.length, 'quests', Object.keys(locationsMap).length, 'locations');
+      return { quests: normalizedQuests, locations: locationsMap };
+    } catch (error) {
+      console.error('Failed to fetch game data:', error);
+      return { quests: [], locations: {} };
+    }
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // FETCH USER QUESTS FROM SUPABASE
+  // ─────────────────────────────────────────────────────────────────────────
+  const fetchUserQuests = useCallback(async (userId) => {
+    if (!isSupabaseConfigured() || !userId) return;
+    
+    try {
+      // Fetch user's active quests with quest details
+      const { data: userQuests, error } = await supabase
+        .from('user_quests')
+        .select(`
+          *,
+          quest:quest_id (*)
+        `)
+        .eq('user_id', userId);
+      
+      if (error) {
+        console.error('Error fetching user quests:', error);
+        return;
+      }
+      
+      // Transform to internal format
+      const activeQuests = [];
+      const completedQuests = [];
+      
+      for (const uq of userQuests || []) {
+        const questData = {
+          id: uq.id, // Use user_quest ID as the unique identifier
+          questId: uq.quest_id, // Original quest template ID
+          ...uq.quest, // Spread quest template data
+          // Normalize snake_case to camelCase
+          xpReward: uq.quest?.xp_reward,
+          timeLimit: uq.quest?.time_limit,
+          expiresIn: uq.quest?.expires_in,
+          requiresScan: uq.quest?.requires_scan,
+          target: uq.quest?.target_value || 1,
+          location: uq.quest?.location_id,
+          // User-specific data
+          progress: uq.progress || 0,
+          status: uq.status,
+          startedAt: uq.started_at,
+          completedAt: uq.completed_at,
+          expiresAt: uq.expires_at,
+        };
+        
+        if (uq.status === 'completed') {
+          completedQuests.push(questData);
+        } else if (uq.status === 'active') {
+          activeQuests.push(questData);
+        }
+      }
+      
+      dispatch({
+        type: ACTIONS.SET_QUESTS,
+        payload: { active: activeQuests, completed: completedQuests }
+      });
+      
+      console.log('User quests loaded:', activeQuests.length, 'active,', completedQuests.length, 'completed');
+    } catch (error) {
+      console.error('Failed to fetch user quests:', error);
+    }
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
   // AUTHENTICATION INITIALIZATION
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -422,6 +540,9 @@ export function GameProvider({ children }) {
       dispatch({ type: ACTIONS.SET_LOADING, payload: false });
       return;
     }
+
+    // Load static game data (quests, locations)
+    fetchGameData();
 
     // Check for existing session on mount
     const initializeAuth = async () => {
@@ -434,17 +555,11 @@ export function GameProvider({ children }) {
           if (error || !profile) {
             console.log('User profile not found, signing out stale session');
             await supabase.auth.signOut();
-            // Clear persisted state
-            await AsyncStorage.multiRemove([
-              STORAGE_KEYS.PLAYER,
-              STORAGE_KEYS.ACHIEVEMENTS,
-              STORAGE_KEYS.QUESTS,
-              STORAGE_KEYS.DAILY_REWARD,
-              STORAGE_KEYS.COLLECTION,
-            ]);
             dispatch({ type: ACTIONS.SET_USER, payload: null });
           } else {
             dispatch({ type: ACTIONS.SET_USER, payload: session.user });
+            // Fetch user's quests from Supabase
+            await fetchUserQuests(session.user.id);
           }
         } else {
           dispatch({ type: ACTIONS.SET_USER, payload: null });
@@ -471,10 +586,12 @@ export function GameProvider({ children }) {
           dispatch({ type: ACTIONS.SET_USER, payload: null });
         } else {
           dispatch({ type: ACTIONS.SET_USER, payload: session.user });
+          // Fetch user's quests from Supabase
+          await fetchUserQuests(session.user.id);
         }
       } else if (event === 'SIGNED_OUT') {
         dispatch({ type: ACTIONS.SET_USER, payload: null });
-        // Reset player state to guest
+        // Reset to initial state
         dispatch({
           type: ACTIONS.SET_PLAYER,
           payload: {
@@ -495,6 +612,8 @@ export function GameProvider({ children }) {
             rewardsRedeemed: 0,
           },
         });
+        // Clear quests
+        dispatch({ type: ACTIONS.SET_QUESTS, payload: { active: [], completed: [] } });
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         dispatch({ type: ACTIONS.SET_USER, payload: session.user });
       }
@@ -503,97 +622,7 @@ export function GameProvider({ children }) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [loadUserProfile]);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // PERSISTENCE - Load from AsyncStorage
-  // ─────────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const loadPersistedState = async () => {
-      try {
-        const [playerData, achievementsData, questsData, dailyData, collectionData] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.PLAYER),
-          AsyncStorage.getItem(STORAGE_KEYS.ACHIEVEMENTS),
-          AsyncStorage.getItem(STORAGE_KEYS.QUESTS),
-          AsyncStorage.getItem(STORAGE_KEYS.DAILY_REWARD),
-          AsyncStorage.getItem(STORAGE_KEYS.COLLECTION),
-        ]);
-
-        const hydratedState = {};
-        
-        if (playerData) {
-          hydratedState.player = { ...initialState.player, ...JSON.parse(playerData) };
-        }
-        
-        if (achievementsData) {
-          hydratedState.achievements = JSON.parse(achievementsData);
-        }
-
-        if (collectionData) {
-          hydratedState.collection = JSON.parse(collectionData);
-        } else {
-          hydratedState.collection = [];
-        }
-        
-        if (questsData) {
-          const quests = JSON.parse(questsData);
-          hydratedState.activeQuests = quests.active || [];
-          hydratedState.completedQuests = quests.completed || [];
-        }
-        
-        if (dailyData) {
-          const daily = JSON.parse(dailyData);
-          const today = new Date().toDateString();
-          hydratedState.hasClaimedDailyReward = daily.date === today;
-          hydratedState.dailyReward = daily.date === today ? daily.reward : null;
-        }
-
-        // Check for daily quests refresh
-        const lastQuestDate = hydratedState.activeQuests?.[0]?.generatedAt;
-        const today = new Date().toDateString();
-        if (lastQuestDate !== today) {
-          // Generate fresh daily quests
-          const dailyQuests = getDailyQuests();
-          hydratedState.activeQuests = [
-            ...dailyQuests,
-            ...(hydratedState.activeQuests || []).filter(q => !q.isDaily),
-          ];
-        }
-
-        dispatch({ type: ACTIONS.HYDRATE_STATE, payload: hydratedState });
-      } catch (error) {
-        console.error('Failed to load persisted state:', error);
-        // Don't set loading to false here, let auth init handle it
-      }
-    };
-
-    loadPersistedState();
-  }, []);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // PERSISTENCE - Save to AsyncStorage
-  // ─────────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (state.isLoading) return;
-
-    const persistState = async () => {
-      try {
-        await Promise.all([
-          AsyncStorage.setItem(STORAGE_KEYS.PLAYER, JSON.stringify(state.player)),
-          AsyncStorage.setItem(STORAGE_KEYS.ACHIEVEMENTS, JSON.stringify(state.achievements)),
-          AsyncStorage.setItem(STORAGE_KEYS.QUESTS, JSON.stringify({
-            active: state.activeQuests,
-            completed: state.completedQuests,
-          })),
-          AsyncStorage.setItem(STORAGE_KEYS.COLLECTION, JSON.stringify(state.collection)),
-        ]);
-      } catch (error) {
-        console.error('Failed to persist state:', error);
-      }
-    };
-
-    persistState();
-  }, [state.player, state.achievements, state.activeQuests, state.completedQuests, state.isLoading]);
+  }, [loadUserProfile, fetchUserQuests, fetchGameData]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // SUPABASE REALTIME SUBSCRIPTIONS
@@ -697,6 +726,7 @@ export function GameProvider({ children }) {
           if (profileError) {
             console.error('Failed to load profile after signup:', profileError);
           }
+          // User starts with no quests, nothing to fetch
         }, 500);
       }
 
@@ -730,13 +760,15 @@ export function GameProvider({ children }) {
           return { error: { message: 'Account not found. Please sign up again.' } };
         }
         dispatch({ type: ACTIONS.SET_USER, payload: data.user });
+        // Fetch user's quests from Supabase
+        await fetchUserQuests(data.user.id);
       }
 
       return { data, error: null };
     } catch (error) {
       return { error: { message: error.message || 'Failed to sign in' } };
     }
-  }, [loadUserProfile]);
+  }, [loadUserProfile, fetchUserQuests]);
 
   // Sign out
   const signOut = useCallback(async () => {
@@ -751,42 +783,7 @@ export function GameProvider({ children }) {
         return { error };
       }
 
-      // Clear persisted state
-      try {
-        await AsyncStorage.multiRemove([
-          STORAGE_KEYS.PLAYER,
-          STORAGE_KEYS.ACHIEVEMENTS,
-          STORAGE_KEYS.QUESTS,
-          STORAGE_KEYS.DAILY_REWARD,
-          STORAGE_KEYS.COLLECTION,
-        ]);
-      } catch (storageError) {
-        console.error('Failed to clear storage:', storageError);
-      }
-
-      dispatch({ type: ACTIONS.SET_USER, payload: null });
-      // Reset to initial state
-      dispatch({
-        type: ACTIONS.SET_PLAYER,
-        payload: {
-          id: null,
-          username: 'Guest',
-          displayName: 'New Player',
-          avatarUrl: null,
-          xp: 0,
-          level: 1,
-          loginStreak: 0,
-          lastLoginDate: null,
-          streakFreezeCount: 0,
-          totalQuestsCompleted: 0,
-          totalDistanceWalked: 0,
-          friendsCount: 0,
-          challengesWon: 0,
-          challengeWinStreak: 0,
-          rewardsRedeemed: 0,
-        },
-      });
-
+      // The onAuthStateChange listener will handle resetting state
       return { error: null };
     } catch (error) {
       return { error: { message: error.message || 'Failed to sign out' } };
@@ -853,12 +850,6 @@ export function GameProvider({ children }) {
     dispatch({ type: ACTIONS.CLAIM_DAILY_REWARD, payload: rewardData });
     dispatch({ type: ACTIONS.ADD_XP, payload: xpReward });
     
-    // Persist daily reward claim
-    await AsyncStorage.setItem(STORAGE_KEYS.DAILY_REWARD, JSON.stringify({
-      date: today,
-      reward: rewardData,
-    }));
-    
     // Check streak achievements
     checkAchievements({ loginStreak: newStreak });
     
@@ -871,10 +862,37 @@ export function GameProvider({ children }) {
   }, [state.hasClaimedDailyReward, state.player, state.user]);
 
   // Complete a quest
-  const completeQuest = useCallback((questId, xpReward) => {
+  const completeQuest = useCallback(async (questId, xpReward) => {
+    const quest = state.activeQuests.find(q => q.id === questId);
+    
+    // Update local state first (optimistic)
     dispatch({ type: ACTIONS.COMPLETE_QUEST, payload: questId });
     
     const finalXP = addXP(xpReward, 'Quest completed');
+    
+    // Update Supabase
+    if (isSupabaseConfigured() && state.user) {
+      try {
+        await supabase
+          .from('user_quests')
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', questId);
+        
+        // Update profile stats
+        await supabase
+          .from('profiles')
+          .update({ 
+            total_quests_completed: state.player.totalQuestsCompleted + 1,
+            xp: state.player.xp + finalXP
+          })
+          .eq('id', state.user.id);
+      } catch (error) {
+        console.error('Failed to update quest completion in DB:', error);
+      }
+    }
     
     // Check quest achievements
     checkAchievements({ 
@@ -882,7 +900,6 @@ export function GameProvider({ children }) {
     });
     
     // Add activity
-    const quest = state.activeQuests.find(q => q.id === questId);
     if (quest) {
       dispatch({ type: ACTIONS.ADD_ACTIVITY, payload: {
         type: 'quest_complete',
@@ -893,7 +910,7 @@ export function GameProvider({ children }) {
     }
     
     return finalXP;
-  }, [addXP, state.player.totalQuestsCompleted, state.activeQuests]);
+  }, [addXP, state.player.totalQuestsCompleted, state.player.xp, state.activeQuests, state.user]);
 
   // Check and unlock achievements
   const checkAchievements = useCallback((stats) => {
@@ -1078,7 +1095,7 @@ export function GameProvider({ children }) {
   // ─────────────────────────────────────────────────────────────────────────
   // CONTEXT VALUE
   // ─────────────────────────────────────────────────────────────────────────
-  const value = {
+  const value = React.useMemo(() => ({
     ...state,
     
     // Auth Actions
@@ -1095,6 +1112,8 @@ export function GameProvider({ children }) {
     createChallenge,
     fetchLeaderboard,
     fetchChallenges,
+    fetchUserQuests,
+    fetchGameData,
     updateLocation,
     clearNewAchievement,
     removeToast,
@@ -1102,7 +1121,26 @@ export function GameProvider({ children }) {
     
     // Utilities
     dispatch,
-  };
+  }), [
+    state,
+    signIn,
+    signUp,
+    signOut,
+    addXP,
+    claimDailyReward,
+    completeQuest,
+    checkAchievements,
+    addFriend,
+    createChallenge,
+    fetchLeaderboard,
+    fetchChallenges,
+    fetchUserQuests,
+    fetchGameData,
+    updateLocation,
+    clearNewAchievement,
+    removeToast,
+    acknowledgeCard
+  ]);
 
   return (
     <GameContext.Provider value={value}>

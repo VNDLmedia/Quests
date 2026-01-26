@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS } from '../theme';
 import { useGame } from '../game/GameProvider';
 import { useQuests } from '../game/hooks';
-import { EUROPARK_LOCATIONS, QUEST_TEMPLATES, calculateDistance } from '../game/config/quests';
+import { calculateDistance } from '../game/config/quests';
 
 const { width, height } = Dimensions.get('window');
 
@@ -88,8 +88,8 @@ const MapScreen = () => {
   const slideAnim = useRef(new Animated.Value(height)).current;
   const locationWatchId = useRef(null);
   
-  const { updateLocation, dispatch } = useGame();
-  const { activeQuests } = useQuests();
+  const { updateLocation, quests: allQuests, locations: allLocations } = useGame();
+  const { activeQuests, startQuest } = useQuests();
   
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [mapReady, setMapReady] = useState(false);
@@ -120,24 +120,25 @@ const MapScreen = () => {
         updateLocation(coords);
         
         // Generate quests with new location
-        const questKeys = ['daily_coffee', 'speed_fountain', 'golden_compass', 'fashionista', 'movie_night'];
-        const generatedQuests = questKeys.map((key) => {
-          const template = QUEST_TEMPLATES[key];
+        const generatedQuests = (allQuests || []).map((template) => {
           if (!template) return null;
           
           let questLat, questLng;
-          if (template.location && EUROPARK_LOCATIONS[template.location]) {
-            const loc = EUROPARK_LOCATIONS[template.location];
+          
+          // Use location from DB if it exists
+          if (template.location && allLocations[template.location]) {
+            const loc = allLocations[template.location];
             questLat = loc.lat;
             questLng = loc.lng;
           } else {
+            // Random location nearby
             questLat = coords.latitude + (Math.random() - 0.5) * 0.008;
             questLng = coords.longitude + (Math.random() - 0.5) * 0.008;
           }
           
           return {
-            id: `spawn_${key}_${Date.now()}_${Math.random()}`,
             ...template,
+            id: `spawn_${template.key || template.id}_${Date.now()}_${Math.random()}`,
             lat: questLat,
             lng: questLng,
             isSpawned: true,
@@ -157,14 +158,14 @@ const MapScreen = () => {
 
   // Generate nearby quests - defined first so it can be used by other hooks
   const generateNearbyQuests = useCallback((coords) => {
-    const questKeys = ['daily_coffee', 'speed_fountain', 'golden_compass', 'fashionista', 'movie_night'];
-    const generatedQuests = questKeys.map((key) => {
-      const template = QUEST_TEMPLATES[key];
-      if (!template) return null;
-      
+    // Check if we have quests loaded
+    if (!allQuests || allQuests.length === 0) return;
+
+    const generatedQuests = allQuests.map((template) => {
       let questLat, questLng;
-      if (template.location && EUROPARK_LOCATIONS[template.location]) {
-        const loc = EUROPARK_LOCATIONS[template.location];
+      
+      if (template.location && allLocations && allLocations[template.location]) {
+        const loc = allLocations[template.location];
         questLat = loc.lat;
         questLng = loc.lng;
       } else {
@@ -173,7 +174,7 @@ const MapScreen = () => {
       }
       
       return {
-        id: `spawn_${key}_${Date.now()}_${Math.random()}`,
+        id: `spawn_${template.key || template.id}_${Date.now()}_${Math.random()}`,
         ...template,
         lat: questLat,
         lng: questLng,
@@ -183,7 +184,7 @@ const MapScreen = () => {
     }).filter(Boolean);
     
     setAvailableQuests(generatedQuests);
-  }, []);
+  }, [allQuests, allLocations]);
 
   const canInteractWithQuest = useCallback((quest) => {
     if (!quest) return false;
@@ -206,7 +207,7 @@ const MapScreen = () => {
     });
     
     activeQuests.forEach(q => {
-      const loc = EUROPARK_LOCATIONS[q.location];
+      const loc = allLocations[q.location];
       if (loc) {
         quests.push({
           ...q,
@@ -220,7 +221,7 @@ const MapScreen = () => {
     });
     
     return quests;
-  }, [availableQuests, activeQuests, userLoc]);
+  }, [availableQuests, activeQuests, userLoc, allLocations]);
 
   const currentActiveQuest = useMemo(() => activeQuests[0] || null, [activeQuests]);
 
@@ -377,26 +378,22 @@ const MapScreen = () => {
     Animated.timing(slideAnim, { toValue: height, duration: 200, useNativeDriver: true }).start(() => setSelectedQuest(null));
   };
 
-  const acceptQuest = useCallback(() => {
+  const acceptQuest = useCallback(async () => {
     if (!selectedQuest) return;
     if (!canInteractWithQuest(selectedQuest)) {
       Alert.alert('Zu weit!', `Näher als ${QUEST_INTERACTION_RADIUS}m kommen.`);
       return;
     }
     
+    // Remove from available quests UI
     setAvailableQuests(prev => prev.filter(q => q.id !== selectedQuest.id));
-    dispatch({ 
-      type: 'ADD_QUEST', 
-      payload: {
-        id: `active_${selectedQuest.key}_${Date.now()}`,
-        ...selectedQuest,
-        startedAt: new Date().toISOString(),
-        progress: 0,
-      }
-    });
+    
+    // Start quest - this saves to Supabase!
+    await startQuest(selectedQuest);
+    
     Alert.alert('Quest gestartet!', selectedQuest.title);
     closeQuestDetail();
-  }, [selectedQuest, canInteractWithQuest, dispatch]);
+  }, [selectedQuest, canInteractWithQuest, startQuest]);
 
   const centerOnQuest = (quest) => {
     if (Platform.OS === 'web') {
@@ -469,7 +466,7 @@ const MapScreen = () => {
         <TouchableOpacity 
           style={[styles.activeQuestOverlay, { top: topOffset }]}
           onPress={() => {
-            const loc = EUROPARK_LOCATIONS[currentActiveQuest.location];
+            const loc = allLocations[currentActiveQuest.location];
             if (loc) centerOnQuest({ ...currentActiveQuest, lat: loc.lat, lng: loc.lng });
           }}
         >
