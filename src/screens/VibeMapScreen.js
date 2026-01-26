@@ -22,16 +22,28 @@ import { calculateDistance } from '../game/config/quests';
 const { width, height } = Dimensions.get('window');
 
 const QUEST_INTERACTION_RADIUS = 100;
-const DEFAULT_LOCATION = { latitude: 47.8224, longitude: 13.0456 };
+// Europa-Park actual GPS coordinates (center of park)
+const DEFAULT_LOCATION = { latitude: 48.2680, longitude: 7.7215 };
 
-// Map HTML als Blob URL - wird nur EINMAL erstellt
+// Europa-Park Custom Map Configuration
+// Tiles scraped from their interactive map - zoom levels 2-7
+const PARK_MAP_CONFIG = {
+  minZoom: 2,
+  maxZoom: 7,
+  defaultZoom: 4,
+  // Map dimensions at max zoom (z=7)
+  width: 15104,
+  height: 19456
+};
+
+// Map HTML - SIMPLE working approach
 const MAP_HTML = `<!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
 <style>
 *{margin:0;padding:0}body{font-family:-apple-system,system-ui,sans-serif}
-#map{width:100%;height:100vh;background:#F8FAFC}
+#map{width:100%;height:100vh;background:#2d5a27}
 .leaflet-control-attribution,.leaflet-control-zoom{display:none}
 .user-core{width:18px;height:18px;background:#4F46E5;border:3px solid #FFF;border-radius:50%;box-shadow:0 2px 10px rgba(79,70,229,0.5);position:relative;z-index:2}
 .user-pulse{position:absolute;top:50%;left:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(79,70,229,0.2);animation:pulse 2s infinite}
@@ -46,39 +58,193 @@ const MAP_HTML = `<!DOCTYPE html><html><head>
 .quest-reward{font-size:9px;font-weight:700;background:#F1F5F9;padding:2px 5px;border-radius:6px;color:#4F46E5}
 .quest-point{width:10px;height:10px;background:#FFF;border:3px solid;border-radius:50%;margin-top:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2)}
 </style></head><body><div id="map"></div><script>
-const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([47.8224,13.0456],17);
-window.map=map;L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);
-const sendMsg=d=>{window.ReactNativeWebView?window.ReactNativeWebView.postMessage(JSON.stringify(d)):window.parent.postMessage(d,'*')};
-let playerMarker=null,questMarkers=[];
-window.updatePlayer=function(player){
-const lat=player.latitude||player.lat,lng=player.longitude||player.lng;
-if(!playerMarker){
-playerMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="position:relative"><div class="user-range"></div><div class="user-pulse"></div><div class="user-core"></div></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000}).addTo(map);
-map.setView([lat,lng],17);
-}else{playerMarker.setLatLng([lat,lng])}
+// CORRECT coordinate system for L.CRS.Simple with Europa-Park tiles
+// Key insight: L.CRS.Simple tile calc is tileX = floor(x * 2^z / 256)
+// So coordinates must be SMALL to produce valid tile indices
+
+// Our tile counts at each zoom level
+const TILE_INFO = {
+  2: { x: 2, y: 3 },
+  3: { x: 4, y: 5 },
+  4: { x: 8, y: 10 },
+  5: { x: 15, y: 19 },
+  6: { x: 30, y: 38 },
+  7: { x: 59, y: 76 }
 };
-window.updateQuests=function(quests){
-questMarkers.forEach(m=>map.removeLayer(m));questMarkers=[];
-if(quests){quests.forEach(q=>{
-const sc=q.status==='active'?'active':q.canInteract?'available':'locked';
-const dt=q.distance?(q.distance<1000?q.distance+'m':(q.distance/1000).toFixed(1)+'km'):'';
-const h='<div class="quest-container '+(sc==='locked'?' disabled':'')+'"><div class="quest-pill '+sc+'"><div class="quest-icon" style="background:'+q.color+'20;color:'+q.color+'">⚔</div><div><div class="quest-title">'+q.title+'</div><div class="quest-distance">'+dt+'</div></div><div class="quest-reward">'+q.reward+'</div></div><div class="quest-point" style="border-color:'+q.color+'"></div></div>';
-const m=L.marker([q.lat,q.lng],{icon:L.divIcon({className:'',html:h,iconSize:[140,45],iconAnchor:[70,45]})}).addTo(map);
-m.on('click',()=>sendMsg({type:'QUEST_TAP',quest:q}));questMarkers.push(m);
-})}
-};
-window.addEventListener('message',e=>{
-if(e.data.type==='UPDATE_PLAYER')window.updatePlayer(e.data.player);
-else if(e.data.type==='UPDATE_QUESTS')window.updateQuests(e.data.quests);
-else if(e.data.type==='CENTER_MAP')map.setView([e.data.lat,e.data.lng],18);
+
+// Coordinate space based on zoom 5 (native view level)
+// At z=5: 15 tiles * (256/32) = 120 coord units in X
+//         19 tiles * (256/32) = 152 coord units in Y
+const MAP_WIDTH = 120;
+const MAP_HEIGHT = 152;
+
+const map = L.map('map', {
+  crs: L.CRS.Simple,
+  minZoom: 2,
+  maxZoom: 7,
+  zoomControl: false,
+  attributionControl: false
 });
-setTimeout(()=>sendMsg({type:'MAP_READY'}),300);
+
+// Simple tile layer - NO Y-flip, direct passthrough
+L.TileLayer.EuropaPark = L.TileLayer.extend({
+  getTileUrl: function(coords) {
+    const z = coords.z;
+    const info = TILE_INFO[z];
+    if (!info) return '';
+    
+    const x = coords.x;
+    const y = coords.y;
+    
+    // Bounds check only
+    if (x < 0 || x >= info.x || y < 0 || y >= info.y) {
+      return '';
+    }
+    
+    return this._url.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+  }
+});
+
+new L.TileLayer.EuropaPark('TILE_BASE_URL/{z}/{x}/{y}.png', {
+  minZoom: 2,
+  maxZoom: 7,
+  tileSize: 256,
+  noWrap: true
+}).addTo(map);
+
+// Map bounds - no restriction on panning
+const mapBounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
+
+// Center view at zoom 5 (good detail level)
+map.fitBounds(mapBounds);
+map.setZoom(5);
+
+function debugLog(msg) {
+  console.log('[Map]', msg);
+}
+
+window.map = map;
+
+const sendMsg = d => {
+  window.ReactNativeWebView ? window.ReactNativeWebView.postMessage(JSON.stringify(d)) : window.parent.postMessage(d, '*');
+};
+
+// GPS to Map Coordinate Conversion
+// Using the CORRECT coordinate scale (0 to MAP_WIDTH/MAP_HEIGHT)
+const GPS_BOUNDS = {
+  minLat: 48.2620, maxLat: 48.2740,  // South to North
+  minLng: 7.7140, maxLng: 7.7320     // West to East
+};
+
+// Map the GPS bounds to our coordinate space
+// Park content is roughly 20-80% of the map in each dimension
+const COORD_BOUNDS = {
+  minX: MAP_WIDTH * 0.15,   // ~18
+  maxX: MAP_WIDTH * 0.85,   // ~100
+  minY: MAP_HEIGHT * 0.15,  // ~23 (in image coords, TOP)
+  maxY: MAP_HEIGHT * 0.85   // ~129 (in image coords, BOTTOM)
+};
+
+function gpsToPixel(lat, lng) {
+  const yPct = (lat - GPS_BOUNDS.minLat) / (GPS_BOUNDS.maxLat - GPS_BOUNDS.minLat);
+  const xPct = (lng - GPS_BOUNDS.minLng) / (GPS_BOUNDS.maxLng - GPS_BOUNDS.minLng);
+  
+  // X: West -> minX, East -> maxX
+  const coordX = COORD_BOUNDS.minX + xPct * (COORD_BOUNDS.maxX - COORD_BOUNDS.minX);
+  
+  // Y: In Leaflet, Y increases upward
+  // High lat (north) = high Leaflet Y = low image Y
+  // So we need: coordY = MAP_HEIGHT - imageY
+  const imageY = COORD_BOUNDS.minY + (1 - yPct) * (COORD_BOUNDS.maxY - COORD_BOUNDS.minY);
+  const coordY = MAP_HEIGHT - imageY;
+  
+  return [coordY, coordX];
+}
+
+let playerMarker = null, questMarkers = [];
+
+window.updatePlayer = function(player) {
+  const lat = player.latitude || player.lat;
+  const lng = player.longitude || player.lng;
+  const [y, x] = gpsToPixel(lat, lng);
+  
+  debugLog('Player: ' + lat.toFixed(4) + ',' + lng.toFixed(4) + ' -> ' + Math.round(y) + ',' + Math.round(x));
+  
+  if (!playerMarker) {
+    playerMarker = L.marker([y, x], {
+      icon: L.divIcon({
+        className: '',
+        html: '<div style="position:relative"><div class="user-range"></div><div class="user-pulse"></div><div class="user-core"></div></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+      }),
+      zIndexOffset: 1000
+    }).addTo(map);
+  } else {
+    playerMarker.setLatLng([y, x]);
+  }
+};
+
+window.updateQuests = function(quests) {
+  questMarkers.forEach(m => map.removeLayer(m));
+  questMarkers = [];
+  
+  if (quests) {
+    quests.forEach(q => {
+      const [y, x] = gpsToPixel(q.lat, q.lng);
+      
+      const sc = q.status === 'active' ? 'active' : q.canInteract ? 'available' : 'locked';
+      const dt = q.distance ? (q.distance < 1000 ? q.distance + 'm' : (q.distance / 1000).toFixed(1) + 'km') : '';
+      const h = '<div class="quest-container ' + (sc === 'locked' ? ' disabled' : '') + '"><div class="quest-pill ' + sc + '"><div class="quest-icon" style="background:' + q.color + '20;color:' + q.color + '">⚔</div><div><div class="quest-title">' + q.title + '</div><div class="quest-distance">' + dt + '</div></div><div class="quest-reward">' + q.reward + '</div></div><div class="quest-point" style="border-color:' + q.color + '"></div></div>';
+      
+      const m = L.marker([y, x], {
+        icon: L.divIcon({
+          className: '',
+          html: h,
+          iconSize: [140, 45],
+          iconAnchor: [70, 45]
+        })
+      }).addTo(map);
+      
+      m.on('click', () => sendMsg({ type: 'QUEST_TAP', quest: q }));
+      questMarkers.push(m);
+    });
+  }
+};
+
+window.addEventListener('message', e => {
+  if (e.data.type === 'UPDATE_PLAYER') window.updatePlayer(e.data.player);
+  else if (e.data.type === 'UPDATE_QUESTS') window.updateQuests(e.data.quests);
+  else if (e.data.type === 'CENTER_MAP') {
+    const [y, x] = gpsToPixel(e.data.lat, e.data.lng);
+    map.setView([y, x], 5);
+  }
+});
+
+// Debug tile loading
+let loadOK = 0;
+map.on('tileload', function(e) {
+  loadOK++;
+});
+map.on('load', function() {
+  debugLog('Loaded ' + loadOK + ' tiles');
+});
+map.on('tileerror', function(e) {
+  const parts = e.tile?.src?.split('/') || [];
+  debugLog('ERR: ' + parts.slice(-3).join('/'));
+});
+
+debugLog('z=' + map.getZoom() + ' bounds=' + MAP_WIDTH + 'x' + MAP_HEIGHT);
+setTimeout(() => sendMsg({ type: 'MAP_READY' }), 300);
 <\/script></body></html>`;
 
 // Erstelle Blob URL einmalig beim Module-Load
 let mapBlobUrl = null;
-if (Platform.OS === 'web' && typeof Blob !== 'undefined') {
-  const blob = new Blob([MAP_HTML], { type: 'text/html' });
+if (Platform.OS === 'web' && typeof Blob !== 'undefined' && typeof window !== 'undefined') {
+  // Replace tile URL placeholder with actual origin
+  const origin = window.location.origin;
+  const htmlWithOrigin = MAP_HTML.replace('TILE_BASE_URL', origin + '/tiles');
+  const blob = new Blob([htmlWithOrigin], { type: 'text/html' });
   mapBlobUrl = URL.createObjectURL(blob);
 }
 
@@ -97,6 +263,7 @@ const MapScreen = () => {
   const [locationStatus, setLocationStatus] = useState('searching');
   const [availableQuests, setAvailableQuests] = useState([]);
   const mapReadyRef = useRef(false);
+  const hasInitiallyCenteredRef = useRef(false);
 
   // Request location - can be called manually for retry
   const requestLocation = useCallback(() => {
@@ -427,6 +594,27 @@ const MapScreen = () => {
       return () => window.removeEventListener('message', handler);
     }
   }, []);
+
+  // Center on user location when map is ready and real location is found
+  useEffect(() => {
+    if (!mapReady || hasInitiallyCenteredRef.current) return;
+    if (locationStatus !== 'found') return;
+    
+    // Only center if we have a real location (not default)
+    const isDefaultLoc = userLoc.latitude === DEFAULT_LOCATION.latitude && 
+                         userLoc.longitude === DEFAULT_LOCATION.longitude;
+    if (isDefaultLoc) return;
+    
+    hasInitiallyCenteredRef.current = true;
+    
+    // Center map on user's actual location
+    if (Platform.OS === 'web') {
+      const iframe = document.querySelector('iframe[title="Quest Map"]');
+      iframe?.contentWindow?.postMessage({ type: 'CENTER_MAP', lat: userLoc.latitude, lng: userLoc.longitude }, '*');
+    } else {
+      webviewRef.current?.injectJavaScript(`window.map?.setView([${userLoc.latitude}, ${userLoc.longitude}], 17);true;`);
+    }
+  }, [mapReady, locationStatus, userLoc]);
 
   // Calculate positions based on safe area and navbar
   const topOffset = Platform.OS === 'ios' ? insets.top + 10 : 16;
