@@ -1,0 +1,88 @@
+# Quest App - Cursor Rules
+
+## Documentation Reference
+ALWAYS check the `/Docs` directory before making changes:
+- `Docs/ARCHITECTURE.md` - System design, data flow, key decisions
+- `Docs/SESSION_*.md` - Session summaries with solved problems
+
+## Key Technical Decisions (DO NOT CHANGE without discussion)
+
+### 1. Map Tile System
+- Tiles use `L.CRS.Simple` with direct coordinate passthrough
+- NO Y-flip transformation - tiles are already correctly oriented
+- Coordinate space: 120×152 units (MAP_WIDTH × MAP_HEIGHT)
+- Tile URL pattern: `/tiles/{z}/{x}/{y}.png`
+
+### 2. Supabase Configuration
+- Credentials are HARDCODED in `src/config/supabase.js` (intentional - env vars don't work reliably in Expo web)
+- Single source of truth - NO AsyncStorage for game data
+- Only auth token persisted locally
+
+### 3. Map Stability
+- Screen components defined OUTSIDE AppNavigator (prevents re-mounting)
+- GameContext value is memoized with useMemo
+- Map uses Blob URL for HTML (prevents re-initialization)
+
+## Common Issues & Solutions
+
+### Map shows green/no tiles
+- Check tile URL in Network tab
+- Verify tiles exist at `public/tiles/{z}/{x}/{y}.png`
+- DO NOT add Y-flip - tiles work without it
+
+### Map keeps re-centering
+- Check for `setMaxBounds` calls (remove them for free panning)
+- Check `CENTER_MAP` message handlers
+
+### Auth not persisting
+- Verify `onAuthStateChange` listener in GameProvider
+- Check for `signOut` calls on error paths
+
+### Quest not saving to Supabase
+- Check RLS policies in Supabase dashboard
+- Verify user_id is being passed correctly
+- Check browser console for Supabase errors
+
+## Code Style
+
+### State Management
+- Use GameProvider for global state
+- Use local useState for component-specific state
+- Prefer useCallback/useMemo for performance-critical code
+
+### Supabase Queries
+```javascript
+// Always handle errors
+const { data, error } = await supabase.from('table').select('*');
+if (error) {
+  console.error('Error:', error);
+  return;
+}
+```
+
+### Map Communication
+```javascript
+// Web: Use postMessage to iframe
+iframe?.contentWindow?.postMessage({ type: 'MESSAGE_TYPE', data }, '*');
+
+// Native: Use injectJavaScript
+webviewRef.current?.injectJavaScript(`window.handler(${JSON.stringify(data)});true;`);
+```
+
+## File Locations
+
+| Purpose | File |
+|---------|------|
+| Supabase client | `src/config/supabase.js` |
+| Auth & global state | `src/game/GameProvider.js` |
+| Map screen | `src/screens/VibeMapScreen.js` |
+| Quest logic | `src/game/hooks/useQuests.js` |
+| Map tiles | `public/tiles/{z}/{x}/{y}.png` |
+| Tile scraper | `scripts/scrape-europapark-tiles.js` |
+
+## Before Making Changes
+
+1. Read relevant docs in `/Docs`
+2. Check if similar issue was solved before (SESSION_*.md)
+3. Test on web first (faster iteration)
+4. Clear cache if issues persist: `npx expo start --web --clear`
