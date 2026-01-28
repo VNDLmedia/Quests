@@ -9,6 +9,7 @@ export { default as VibePassScreen } from './VibePassScreen';
 export { default as SocialScreen } from './SocialScreen';
 
 // Auth Screens
+export { default as LandingScreen } from './LandingScreen';
 export { default as LoginScreen } from './LoginScreen';
 export { default as UserScreen } from './UserScreen';
 

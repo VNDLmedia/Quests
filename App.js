@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform, Text, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GameProvider, useGame } from './src/game';
 import { AchievementToast, CardUnlockOverlay } from './src/components';
 import LoginScreen from './src/screens/LoginScreen';
+import LandingScreen from './src/screens/LandingScreen';
 import { COLORS } from './src/theme';
 
 // Main App wrapper with GameProvider
 function AppContent() {
   const [isReady, setIsReady] = useState(false);
+  const [hasSeenLanding, setHasSeenLanding] = useState(null);
   
   const gameContext = useGame();
   const isLoading = gameContext?.isLoading ?? true;
@@ -19,6 +22,31 @@ function AppContent() {
   const updateLocation = gameContext?.updateLocation || (() => {});
   const checkAchievements = gameContext?.checkAchievements || (() => {});
   const player = gameContext?.player || { xp: 0, level: 1, totalQuestsCompleted: 0 };
+
+  // Check if user has seen landing page
+  useEffect(() => {
+    const checkLandingStatus = async () => {
+      try {
+        const value = await AsyncStorage.getItem('hasSeenLanding');
+        setHasSeenLanding(value === 'true');
+      } catch (e) {
+        // If AsyncStorage fails, default to showing landing
+        setHasSeenLanding(false);
+      }
+    };
+    checkLandingStatus();
+  }, []);
+
+  // Handle "Start your path" button press
+  const handleGetStarted = async () => {
+    try {
+      await AsyncStorage.setItem('hasSeenLanding', 'true');
+      setHasSeenLanding(true);
+    } catch (e) {
+      // Even if storage fails, proceed to login
+      setHasSeenLanding(true);
+    }
+  };
 
   // Initialize location tracking (only on native)
   useEffect(() => {
@@ -64,8 +92,8 @@ function AppContent() {
     }
   }, [player.xp, player.level, player.totalQuestsCompleted]);
 
-  // Show loading screen while checking authentication
-  if (isLoading) {
+  // Show loading screen while checking authentication or landing status
+  if (isLoading || hasSeenLanding === null) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -74,8 +102,18 @@ function AppContent() {
     );
   }
 
-  // If no user session, show only the login screen
+  // If no user session, check if they've seen the landing page
   if (!user) {
+    // Show landing page if user hasn't clicked "Start your path" yet
+    if (!hasSeenLanding) {
+      return (
+        <SafeAreaView style={styles.authContainer}>
+          <LandingScreen onGetStarted={handleGetStarted} />
+        </SafeAreaView>
+      );
+    }
+
+    // User has seen landing, show login screen
     return (
       <SafeAreaView style={styles.authContainer}>
         <LoginScreen />
