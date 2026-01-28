@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ETHERNAL PATHS - Pack Shop Screen
+// ETHERNAL PATHS - Pack Shop Screen (Light Theme)
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useRef } from 'react';
@@ -20,8 +20,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useGame } from '../game/GameProvider';
 import { PACK_TYPES } from '../game/config/packs';
-import { RARITY, getCollectionCompletion, getRarityDistribution } from '../game/config/cards';
-import { ScreenHeader, GlassCard } from '../components';
+import { RARITY, CARDS, getCollectionCompletion, getRarityDistribution } from '../game/config/cards';
+import { GlassCard } from '../components';
+import { COLORS, SHADOWS } from '../theme';
 import PackOpeningOverlay from '../components/PackOpeningOverlay';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -33,7 +34,7 @@ const PackCard = ({ packType, packKey, onBuy, canAfford, gems }) => {
   
   // Pulsing glow for premium packs
   React.useEffect(() => {
-    if (packType.id === 'legendary' || packType.id === 'mythic') {
+    if (packType.id === 'elite' || packType.id === 'mythic') {
       Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, {
@@ -53,7 +54,7 @@ const PackCard = ({ packType, packKey, onBuy, canAfford, gems }) => {
   
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
-      toValue: 0.95,
+      toValue: 0.97,
       useNativeDriver: true,
     }).start();
   };
@@ -93,22 +94,6 @@ const PackCard = ({ packType, packKey, onBuy, canAfford, gems }) => {
       onPress={handlePress}
     >
       <Animated.View style={[styles.packCard, { transform: [{ scale: scaleAnim }] }]}>
-        {/* Glow effect */}
-        {(packType.id === 'elite' || packType.id === 'mythic') && (
-          <Animated.View
-            style={[
-              styles.packGlow,
-              {
-                backgroundColor: packType.packRarity.glowColor,
-                opacity: glowAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.3, 0.6],
-                }),
-              },
-            ]}
-          />
-        )}
-        
         <LinearGradient
           colors={packType.packRarity.colors}
           style={styles.packGradient}
@@ -118,7 +103,7 @@ const PackCard = ({ packType, packKey, onBuy, canAfford, gems }) => {
           <View style={styles.packContent}>
             {/* Pack icon */}
             <View style={styles.packIconContainer}>
-              <Ionicons name={packType.icon} size={48} color="white" />
+              <Ionicons name={packType.icon} size={40} color="white" />
               <View style={styles.cardCountBadge}>
                 <Text style={styles.cardCountText}>{packType.cardCount}</Text>
               </View>
@@ -163,7 +148,7 @@ const PackCard = ({ packType, packKey, onBuy, canAfford, gems }) => {
             
             {/* Price button */}
             <View style={[styles.priceButton, !canAfford && styles.priceButtonDisabled]}>
-              <Ionicons name="diamond" size={18} color={canAfford ? '#38bdf8' : '#64748b'} />
+              <Ionicons name="diamond" size={16} color={canAfford ? COLORS.primary : COLORS.text.muted} />
               <Text style={[styles.priceText, !canAfford && styles.priceTextDisabled]}>
                 {packType.cost}
               </Text>
@@ -178,11 +163,10 @@ const PackCard = ({ packType, packKey, onBuy, canAfford, gems }) => {
 const PackShopScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { player, buyPack, openPack, collection, uniqueCards } = useGame();
-  const [selectedPack, setSelectedPack] = useState(null);
   
   // Collection stats
-  const collectionStats = getCollectionCompletion(uniqueCards);
-  const rarityDist = getRarityDistribution(uniqueCards);
+  const collectionStats = getCollectionCompletion(uniqueCards || []);
+  const rarityDist = getRarityDistribution(uniqueCards || []);
 
   const handleBuyPack = (packKey) => {
     const result = buyPack(packKey);
@@ -199,42 +183,41 @@ const PackShopScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Card Shop" />
-      
       <ScrollView 
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Gems Balance */}
+        {/* Header */}
+        <Text style={styles.headerTitle}>Card Shop</Text>
+        <Text style={styles.headerSubtitle}>Öffne Packs und sammle Karten!</Text>
+
+        {/* Gems Balance Card */}
         <View style={styles.balanceCard}>
-          <LinearGradient
-            colors={['#1e293b', '#0f172a']}
-            style={styles.balanceGradient}
-          >
-            <View style={styles.balanceContent}>
-              <View style={styles.balanceLeft}>
-                <Text style={styles.balanceLabel}>Dein Guthaben</Text>
-                <View style={styles.gemDisplay}>
-                  <Ionicons name="diamond" size={28} color="#38bdf8" />
-                  <Text style={styles.gemCount}>{player.gems}</Text>
-                </View>
+          <View style={styles.balanceContent}>
+            <View style={styles.balanceLeft}>
+              <View style={styles.gemIconWrapper}>
+                <Ionicons name="diamond" size={24} color={COLORS.primary} />
               </View>
-              <View style={styles.balanceRight}>
-                <Text style={styles.collectionLabel}>Sammlung</Text>
-                <Text style={styles.collectionCount}>
-                  {collectionStats.owned}/{collectionStats.total}
-                </Text>
-                <View style={styles.collectionBar}>
-                  <View 
-                    style={[
-                      styles.collectionProgress, 
-                      { width: `${collectionStats.percentage}%` }
-                    ]} 
-                  />
-                </View>
+              <View>
+                <Text style={styles.balanceLabel}>Dein Guthaben</Text>
+                <Text style={styles.gemCount}>{player.gems || 0}</Text>
               </View>
             </View>
-          </LinearGradient>
+            <View style={styles.balanceRight}>
+              <Text style={styles.collectionLabel}>Sammlung</Text>
+              <Text style={styles.collectionCount}>
+                {collectionStats.owned}/{collectionStats.total}
+              </Text>
+              <View style={styles.collectionBar}>
+                <View 
+                  style={[
+                    styles.collectionProgress, 
+                    { width: `${collectionStats.percentage}%` }
+                  ]} 
+                />
+              </View>
+            </View>
+          </View>
         </View>
 
         {/* Rarity Stats */}
@@ -245,15 +228,13 @@ const PackShopScreen = ({ navigation }) => {
               <Text style={styles.rarityStatText}>
                 {rarityDist[rarity.id] || 0}
               </Text>
+              <Text style={styles.rarityStatLabel}>{rarity.name}</Text>
             </View>
           ))}
         </View>
 
         {/* Section Header */}
         <Text style={styles.sectionTitle}>Kartenpacks</Text>
-        <Text style={styles.sectionSubtitle}>
-          Öffne Packs und sammle alle Karten!
-        </Text>
 
         {/* Pack Grid */}
         <View style={styles.packGrid}>
@@ -263,16 +244,16 @@ const PackShopScreen = ({ navigation }) => {
               packKey={key}
               packType={packType}
               onBuy={handleBuyPack}
-              canAfford={player.gems >= packType.cost}
-              gems={player.gems}
+              canAfford={(player.gems || 0) >= packType.cost}
+              gems={player.gems || 0}
             />
           ))}
         </View>
 
         {/* Info Section */}
-        <GlassCard style={styles.infoCard}>
+        <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
-            <Ionicons name="information-circle" size={24} color="#38bdf8" />
+            <Ionicons name="information-circle" size={20} color={COLORS.primary} />
             <Text style={styles.infoTitle}>Wie funktioniert's?</Text>
           </View>
           <Text style={styles.infoText}>
@@ -281,7 +262,7 @@ const PackShopScreen = ({ navigation }) => {
             • Öffne Packs und sammle seltene Karten{'\n'}
             • Duplikate werden automatisch in Gems umgewandelt
           </Text>
-        </GlassCard>
+        </View>
       </ScrollView>
       
       {/* Pack Opening Overlay */}
@@ -293,177 +274,191 @@ const PackShopScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
     padding: 20,
   },
-  balanceCard: {
-    marginBottom: 15,
-    borderRadius: 16,
-    overflow: 'hidden',
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.text.primary,
+    marginBottom: 4,
   },
-  balanceGradient: {
+  headerSubtitle: {
+    fontSize: 15,
+    color: COLORS.text.secondary,
+    marginBottom: 24,
+  },
+  balanceCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
     padding: 20,
+    marginBottom: 16,
+    ...SHADOWS.md,
   },
   balanceContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  balanceLeft: {},
-  balanceLabel: {
-    color: '#64748b',
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  gemDisplay: {
+  balanceLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
+  },
+  gemIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  balanceLabel: {
+    color: COLORS.text.secondary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   gemCount: {
-    color: 'white',
-    fontSize: 32,
+    color: COLORS.text.primary,
+    fontSize: 28,
     fontWeight: '800',
   },
   balanceRight: {
     alignItems: 'flex-end',
   },
   collectionLabel: {
-    color: '#64748b',
+    color: COLORS.text.secondary,
     fontSize: 12,
     fontWeight: '600',
-    marginBottom: 4,
   },
   collectionCount: {
-    color: 'white',
+    color: COLORS.text.primary,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 6,
   },
   collectionBar: {
-    width: 100,
+    width: 80,
     height: 4,
-    backgroundColor: '#334155',
+    backgroundColor: COLORS.border,
     borderRadius: 2,
     overflow: 'hidden',
   },
   collectionProgress: {
     height: '100%',
-    backgroundColor: '#10b981',
+    backgroundColor: COLORS.success,
     borderRadius: 2,
   },
   rarityStats: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 25,
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    ...SHADOWS.sm,
   },
   rarityStat: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   rarityDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
   rarityStatText: {
-    color: 'white',
-    fontSize: 14,
+    color: COLORS.text.primary,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  rarityStatLabel: {
+    color: COLORS.text.muted,
+    fontSize: 10,
     fontWeight: '600',
   },
   sectionTitle: {
-    color: 'white',
-    fontSize: 24,
+    color: COLORS.text.primary,
+    fontSize: 20,
     fontWeight: '800',
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    color: '#64748b',
-    fontSize: 14,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   packGrid: {
-    gap: 15,
+    gap: 16,
   },
   packCard: {
-    marginBottom: 5,
-  },
-  packGlow: {
-    position: 'absolute',
-    top: -10,
-    left: -10,
-    right: -10,
-    bottom: -10,
-    borderRadius: 26,
+    borderRadius: 20,
+    overflow: 'hidden',
+    ...SHADOWS.lg,
   },
   packGradient: {
-    borderRadius: 16,
-    overflow: 'hidden',
+    borderRadius: 20,
   },
   packContent: {
     padding: 20,
     alignItems: 'center',
   },
   packIconContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.25)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   cardCountBadge: {
     position: 'absolute',
-    bottom: -5,
-    right: -5,
-    backgroundColor: '#0f172a',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    bottom: -4,
+    right: -4,
+    backgroundColor: COLORS.surface,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
+    ...SHADOWS.sm,
   },
   cardCountText: {
-    color: 'white',
+    color: COLORS.text.primary,
     fontSize: 12,
     fontWeight: 'bold',
   },
   packName: {
     color: 'white',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
-    marginBottom: 6,
+    marginBottom: 4,
     textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   packDescription: {
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.9)',
     fontSize: 13,
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
   chancesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   chanceItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
   chanceDot: {
     width: 8,
@@ -471,63 +466,65 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   chanceText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'white',
     fontSize: 11,
+    fontWeight: '600',
   },
   guaranteeBadge: {
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 10,
-    marginBottom: 15,
+    borderRadius: 12,
+    marginBottom: 12,
   },
   guaranteeText: {
     color: 'white',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   priceButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(56, 189, 248, 0.5)',
+    borderRadius: 16,
+    ...SHADOWS.md,
   },
   priceButtonDisabled: {
-    borderColor: 'rgba(100, 116, 139, 0.3)',
-    opacity: 0.6,
+    backgroundColor: COLORS.surfaceAlt,
+    opacity: 0.7,
   },
   priceText: {
-    color: '#38bdf8',
-    fontSize: 20,
+    color: COLORS.primary,
+    fontSize: 18,
     fontWeight: '800',
   },
   priceTextDisabled: {
-    color: '#64748b',
+    color: COLORS.text.muted,
   },
   infoCard: {
-    marginTop: 30,
-    padding: 20,
+    marginTop: 24,
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: 16,
+    padding: 16,
   },
   infoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
+    gap: 8,
+    marginBottom: 10,
   },
   infoTitle: {
-    color: 'white',
-    fontSize: 16,
+    color: COLORS.primary,
+    fontSize: 14,
     fontWeight: '700',
   },
   infoText: {
-    color: '#94a3b8',
-    fontSize: 14,
-    lineHeight: 24,
+    color: COLORS.text.secondary,
+    fontSize: 13,
+    lineHeight: 22,
   },
 });
 

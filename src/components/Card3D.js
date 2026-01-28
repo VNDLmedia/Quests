@@ -336,14 +336,14 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#fbbf24',
         shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 30,
+        shadowOpacity: 0.6,
+        shadowRadius: 25,
       },
       android: {
-        elevation: 20,
+        elevation: 15,
       },
       web: {
-        boxShadow: '0 0 40px rgba(251, 191, 36, 0.6)',
+        boxShadow: '0 0 30px rgba(251, 191, 36, 0.5)',
       },
     }),
   },

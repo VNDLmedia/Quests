@@ -5,9 +5,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { GlassCard, GlassButton, Avatar, ScreenHeader } from '../components';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GlassCard, GlassButton } from '../components';
 import { useGame } from '../game/GameProvider';
 import { CARDS, RARITY, getCollectionCompletion, getRarityDistribution } from '../game/config/cards';
+import { COLORS, SHADOWS } from '../theme';
 import Card3D from '../components/Card3D';
 
 const { width, height } = Dimensions.get('window');
@@ -23,6 +25,7 @@ const TABS = [
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { player, collection, uniqueCards } = useGame();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
@@ -113,7 +116,7 @@ const ProfileScreen = () => {
           ) : (
             <View style={styles.lockedContent}>
               <View style={styles.lockCircle}>
-                <Ionicons name="lock-closed" size={20} color="#475569" />
+                <Ionicons name="lock-closed" size={20} color={COLORS.text.muted} />
               </View>
               <Text style={styles.levelReq}>Pack</Text>
             </View>
@@ -200,25 +203,29 @@ const ProfileScreen = () => {
     // Profile Tab
     return (
       <>
-        {/* PLAYER HEADER */}
-        <View style={styles.headerSection}>
-          <View style={styles.avatarContainer}>
-            <LinearGradient
-              colors={['#38bdf8', '#2563eb']}
-              style={styles.avatarBorder}
-            >
-               <Ionicons name="person" size={40} color="white" />
-            </LinearGradient>
-            <View style={styles.levelBadge}>
-              <Text style={styles.levelText}>{player.level}</Text>
+        {/* PLAYER HEADER CARD */}
+        <View style={styles.profileCard}>
+          <View style={styles.headerSection}>
+            <View style={styles.avatarContainer}>
+              <LinearGradient
+                colors={COLORS.gradients.primary}
+                style={styles.avatarBorder}
+              >
+                 <Ionicons name="person" size={36} color="white" />
+              </LinearGradient>
+              <View style={styles.levelBadge}>
+                <Text style={styles.levelText}>{player.level}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.playerInfo}>
+              <Text style={styles.playerName}>{player.displayName || player.username}</Text>
+              <Text style={styles.playerTitle}>{player.levelTitle?.title || 'Rookie'}</Text>
             </View>
           </View>
           
-          <View style={styles.playerInfo}>
-            <Text style={styles.playerName}>{player.displayName || player.username}</Text>
-            <Text style={styles.playerTitle}>{player.levelTitle?.title || 'Rookie'}</Text>
-            
-            {/* XP Bar */}
+          {/* XP Bar */}
+          <View style={styles.xpSection}>
             <View style={styles.xpBarContainer}>
               <View style={[styles.xpBarFill, { width: `${xpProgress || 0}%` }]} />
             </View>
@@ -228,10 +235,12 @@ const ProfileScreen = () => {
 
         {/* GEMS DISPLAY */}
         <TouchableOpacity onPress={() => navigation.navigate('Shop')}>
-          <GlassCard style={styles.gemsCard}>
+          <View style={styles.gemsCard}>
             <View style={styles.gemsContent}>
               <View style={styles.gemsLeft}>
-                <Ionicons name="diamond" size={32} color="#38bdf8" />
+                <View style={styles.gemIconWrapper}>
+                  <Ionicons name="diamond" size={24} color={COLORS.primary} />
+                </View>
                 <View>
                   <Text style={styles.gemsLabel}>Deine Gems</Text>
                   <Text style={styles.gemsCount}>{player.gems || 0}</Text>
@@ -239,20 +248,20 @@ const ProfileScreen = () => {
               </View>
               <View style={styles.shopButton}>
                 <Text style={styles.shopButtonText}>Shop</Text>
-                <Ionicons name="chevron-forward" size={18} color="#38bdf8" />
+                <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
               </View>
             </View>
-          </GlassCard>
+          </View>
         </TouchableOpacity>
 
         {/* Quick Collection Preview */}
         <TouchableOpacity onPress={() => setActiveTab('collection')}>
-          <GlassCard style={styles.collectionPreview}>
+          <View style={styles.collectionPreview}>
             <View style={styles.collectionHeader}>
               <Text style={styles.collectionTitle}>Meine Sammlung</Text>
               <View style={styles.viewAllBtn}>
                 <Text style={styles.viewAllText}>Alle ansehen</Text>
-                <Ionicons name="chevron-forward" size={16} color="#38bdf8" />
+                <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
               </View>
             </View>
             <View style={styles.previewCards}>
@@ -272,7 +281,7 @@ const ProfileScreen = () => {
               )}
               {unlockedCards.length === 0 && (
                 <View style={styles.emptyPreview}>
-                  <Ionicons name="gift-outline" size={24} color="#64748b" />
+                  <Ionicons name="gift-outline" size={24} color={COLORS.text.muted} />
                   <Text style={styles.emptyText}>Öffne Packs im Shop!</Text>
                 </View>
               )}
@@ -281,64 +290,65 @@ const ProfileScreen = () => {
               <View style={[styles.collectionBar, { width: `${collectionStats.percentage}%` }]} />
             </View>
             <Text style={styles.collectionSubtext}>{collectionStats.owned} von {collectionStats.total} Karten gesammelt</Text>
-          </GlassCard>
+          </View>
         </TouchableOpacity>
 
         {/* ACTIONS */}
-        <GlassCard style={styles.actionCard}>
+        <View style={styles.actionCard}>
           <TouchableOpacity style={styles.actionRow} onPress={() => setShowQR(true)}>
             <View style={styles.actionIcon}>
-              <Ionicons name="qr-code" size={24} color="#38bdf8" />
+              <Ionicons name="qr-code" size={22} color={COLORS.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.actionTitle}>Mein Quest-Code</Text>
               <Text style={styles.actionDesc}>Zeige deinen Code anderen Spielern</Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="#475569" />
+            <Ionicons name="chevron-forward" size={22} color={COLORS.text.muted} />
           </TouchableOpacity>
           
           <View style={styles.divider} />
           
           <TouchableOpacity style={styles.actionRow} onPress={startScan}>
-             <View style={[styles.actionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-              <Ionicons name="scan" size={24} color="#10b981" />
+             <View style={[styles.actionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+              <Ionicons name="scan" size={22} color={COLORS.success} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.actionTitle}>Spieler scannen</Text>
               <Text style={styles.actionDesc}>Finde NPCs oder Freunde</Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="#475569" />
+            <Ionicons name="chevron-forward" size={22} color={COLORS.text.muted} />
           </TouchableOpacity>
-        </GlassCard>
+        </View>
       </>
     );
   };
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title={activeTab === 'collection' ? 'Sammlung' : 'Profil'} />
-      
-      {/* Tab Switcher */}
-      <View style={styles.tabContainer}>
-        {TABS.map(tab => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[styles.tab, activeTab === tab.id && styles.tabActive]}
-            onPress={() => setActiveTab(tab.id)}
-          >
-            <Ionicons 
-              name={tab.icon} 
-              size={20} 
-              color={activeTab === tab.id ? '#38bdf8' : '#64748b'} 
-            />
-            <Text style={[styles.tabText, activeTab === tab.id && styles.tabTextActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 10 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Tab Switcher */}
+        <View style={styles.tabContainer}>
+          {TABS.map(tab => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.tab, activeTab === tab.id && styles.tabActive]}
+              onPress={() => setActiveTab(tab.id)}
+            >
+              <Ionicons 
+                name={tab.icon} 
+                size={18} 
+                color={activeTab === tab.id ? COLORS.primary : COLORS.text.muted} 
+              />
+              <Text style={[styles.tabText, activeTab === tab.id && styles.tabTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        
         {renderTabContent()}
       </ScrollView>
 
@@ -361,13 +371,15 @@ const ProfileScreen = () => {
       {/* QR MODAL */}
       <Modal visible={showQR} transparent animationType="fade" onRequestClose={() => setShowQR(false)}>
         <View style={styles.modalContainer}>
-          <GlassCard style={styles.qrCard}>
+          <View style={styles.qrCard}>
              <Text style={styles.qrTitle}>Dein Code</Text>
              <View style={styles.qrWrapper}>
                <QRCode value={`USER:${player.id || 'GUEST'}`} size={200} />
              </View>
-             <GlassButton title="Schließen" onPress={() => setShowQR(false)} />
-          </GlassCard>
+             <TouchableOpacity style={styles.qrCloseBtn} onPress={() => setShowQR(false)}>
+               <Text style={styles.qrCloseBtnText}>Schließen</Text>
+             </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -395,16 +407,20 @@ const ProfileScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
   },
   // Tab Styles
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#1e293b',
-    marginHorizontal: 20,
-    marginTop: 10,
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
     padding: 4,
+    marginBottom: 20,
+    ...SHADOWS.sm,
   },
   tab: {
     flex: 1,
@@ -416,86 +432,94 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tabActive: {
-    backgroundColor: '#0f172a',
+    backgroundColor: COLORS.primaryLight,
   },
   tabText: {
-    color: '#64748b',
+    color: COLORS.text.muted,
     fontSize: 14,
     fontWeight: '600',
   },
   tabTextActive: {
-    color: '#38bdf8',
+    color: COLORS.primary,
   },
-  scrollContent: {
+  // Profile Card
+  profileCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
     padding: 20,
-    paddingBottom: 100,
+    marginBottom: 16,
+    ...SHADOWS.md,
   },
-  // Profile Header
   headerSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   avatarContainer: {
-    marginRight: 20,
+    marginRight: 16,
   },
   avatarBorder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
   },
   levelBadge: {
     position: 'absolute',
-    bottom: -5,
-    right: -5,
-    backgroundColor: '#fbbf24',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    bottom: -4,
+    right: -4,
+    backgroundColor: COLORS.gold,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#0f172a',
+    borderWidth: 3,
+    borderColor: COLORS.surface,
   },
   levelText: {
-    color: '#0f172a',
+    color: 'white',
     fontWeight: 'bold',
-    fontSize: 14,
+    fontSize: 12,
   },
   playerInfo: {
     flex: 1,
   },
   playerName: {
-    color: 'white',
-    fontSize: 24,
-    fontWeight: 'bold',
+    color: COLORS.text.primary,
+    fontSize: 22,
+    fontWeight: '800',
   },
   playerTitle: {
-    color: '#94a3b8',
+    color: COLORS.text.secondary,
     fontSize: 14,
-    marginBottom: 8,
   },
+  xpSection: {},
   xpBarContainer: {
-    height: 6,
-    backgroundColor: '#334155',
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: COLORS.border,
+    borderRadius: 4,
     marginBottom: 6,
     overflow: 'hidden',
   },
   xpBarFill: {
     height: '100%',
-    backgroundColor: '#38bdf8',
+    backgroundColor: COLORS.primary,
+    borderRadius: 4,
   },
   xpText: {
-    color: '#64748b',
+    color: COLORS.text.secondary,
     fontSize: 12,
+    fontWeight: '600',
   },
   // Gems Card
   gemsCard: {
-    marginBottom: 20,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
     padding: 16,
+    marginBottom: 16,
+    ...SHADOWS.sm,
   },
   gemsContent: {
     flexDirection: 'row',
@@ -507,34 +531,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  gemIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   gemsLabel: {
-    color: '#64748b',
+    color: COLORS.text.secondary,
     fontSize: 12,
     fontWeight: '600',
   },
   gemsCount: {
-    color: 'white',
-    fontSize: 28,
+    color: COLORS.text.primary,
+    fontSize: 24,
     fontWeight: '800',
   },
   shopButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    paddingHorizontal: 16,
+    backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 20,
+    borderRadius: 12,
     gap: 4,
   },
   shopButtonText: {
-    color: '#38bdf8',
+    color: COLORS.primary,
     fontSize: 14,
     fontWeight: '700',
   },
   // Collection Preview
   collectionPreview: {
-    marginBottom: 20,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
     padding: 16,
+    marginBottom: 16,
+    ...SHADOWS.sm,
   },
   collectionHeader: {
     flexDirection: 'row',
@@ -543,7 +578,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   collectionTitle: {
-    color: 'white',
+    color: COLORS.text.primary,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -552,7 +587,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   viewAllText: {
-    color: '#38bdf8',
+    color: COLORS.primary,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -565,20 +600,20 @@ const styles = StyleSheet.create({
   previewCard: {
     width: 44,
     height: 56,
-    borderRadius: 8,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   moreCards: {
     width: 44,
     height: 56,
-    borderRadius: 8,
-    backgroundColor: '#334155',
+    borderRadius: 10,
+    backgroundColor: COLORS.surfaceAlt,
     justifyContent: 'center',
     alignItems: 'center',
   },
   moreText: {
-    color: '#94a3b8',
+    color: COLORS.text.secondary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -588,23 +623,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyText: {
-    color: '#64748b',
+    color: COLORS.text.muted,
     fontSize: 13,
   },
   collectionProgress: {
     height: 4,
-    backgroundColor: '#334155',
+    backgroundColor: COLORS.border,
     borderRadius: 2,
     marginBottom: 8,
     overflow: 'hidden',
   },
   collectionBar: {
     height: '100%',
-    backgroundColor: '#10b981',
+    backgroundColor: COLORS.success,
     borderRadius: 2,
   },
   collectionSubtext: {
-    color: '#64748b',
+    color: COLORS.text.secondary,
     fontSize: 12,
   },
   // Collection Tab
@@ -613,27 +648,28 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     marginBottom: 20,
   },
   statBox: {
     flex: 1,
     borderRadius: 14,
     overflow: 'hidden',
+    ...SHADOWS.sm,
   },
   statGradient: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 8,
   },
   statNumber: {
     color: 'white',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     marginTop: 6,
   },
   statLabel: {
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.9)',
     fontSize: 11,
     fontWeight: '600',
     marginTop: 2,
@@ -647,18 +683,19 @@ const styles = StyleSheet.create({
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e293b',
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: COLORS.border,
     gap: 6,
+    ...SHADOWS.sm,
   },
   filterChipActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    borderColor: '#38bdf8',
+    backgroundColor: COLORS.primaryLight,
+    borderColor: COLORS.primary,
   },
   filterDot: {
     width: 8,
@@ -666,22 +703,22 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   filterText: {
-    color: '#94a3b8',
+    color: COLORS.text.secondary,
     fontSize: 13,
     fontWeight: '600',
   },
   filterTextActive: {
-    color: '#38bdf8',
+    color: COLORS.primary,
   },
   filterCount: {
-    color: '#64748b',
+    color: COLORS.text.muted,
     fontSize: 12,
   },
   // Cards Grid
   sectionTitle: {
-    color: 'white',
+    color: COLORS.text.primary,
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginBottom: 15,
   },
   grid: {
@@ -697,14 +734,14 @@ const styles = StyleSheet.create({
   cardItem: {
     height: CARD_HEIGHT,
     borderRadius: 14,
-    backgroundColor: '#1e293b',
+    backgroundColor: COLORS.surface,
     marginBottom: 8,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: COLORS.border,
   },
   cardLocked: {
-    backgroundColor: '#0f172a',
+    backgroundColor: COLORS.surfaceAlt,
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
@@ -721,13 +758,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '40%',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   powerBadge: {
     position: 'absolute',
     top: 6,
     right: 6,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 3,
@@ -744,7 +781,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 6,
     left: 6,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 8,
     paddingHorizontal: 5,
     paddingVertical: 2,
@@ -768,7 +805,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#1e293b',
+    backgroundColor: COLORS.border,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
@@ -778,50 +815,53 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   levelReq: {
-    color: '#64748b',
+    color: COLORS.text.muted,
     fontSize: 11,
     fontWeight: '600',
   },
   cardName: {
-    color: '#e2e8f0',
+    color: COLORS.text.primary,
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
   },
   textLocked: {
-    color: '#475569',
+    color: COLORS.text.muted,
   },
   // Action Card
   actionCard: {
-    padding: 0,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
     overflow: 'hidden',
+    ...SHADOWS.sm,
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
+    padding: 16,
   },
   actionIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 14,
   },
   actionTitle: {
-    color: 'white',
-    fontSize: 16,
+    color: COLORS.text.primary,
+    fontSize: 15,
     fontWeight: '600',
   },
   actionDesc: {
-    color: '#94a3b8',
+    color: COLORS.text.secondary,
     fontSize: 12,
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: COLORS.border,
+    marginHorizontal: 16,
   },
   // Card Detail Modal
   cardModalOverlay: {
@@ -844,25 +884,39 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     padding: 20,
   },
   qrCard: {
-    width: '100%',
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
     alignItems: 'center',
     padding: 30,
+    width: '90%',
+    ...SHADOWS.lg,
   },
   qrTitle: {
-    color: 'white',
-    fontSize: 24,
+    color: COLORS.text.primary,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 30,
+    marginBottom: 24,
   },
   qrWrapper: {
-    padding: 15,
+    padding: 16,
     backgroundColor: 'white',
-    borderRadius: 20,
-    marginBottom: 30,
+    borderRadius: 16,
+    marginBottom: 24,
+  },
+  qrCloseBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  qrCloseBtnText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
   },
   // Camera
   cameraContainer: {
@@ -881,9 +935,9 @@ const styles = StyleSheet.create({
   scanFrame: {
     width: 250,
     height: 250,
-    borderWidth: 2,
-    borderColor: '#38bdf8',
-    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: COLORS.primary,
+    borderRadius: 24,
   },
   closeButton: {
     position: 'absolute',

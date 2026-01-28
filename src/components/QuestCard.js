@@ -64,10 +64,10 @@ const QuestCard = ({
                   {xpReward} XP
                 </Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+              <View style={[styles.badge, { backgroundColor: COLORS.primaryLight }]}>
                 <View style={styles.gemBadgeContent}>
-                  <Ionicons name="diamond" size={10} color="#38bdf8" />
-                  <Text style={[styles.badgeText, { color: '#38bdf8' }]}>
+                  <Ionicons name="diamond" size={10} color={COLORS.primary} />
+                  <Text style={[styles.badgeText, { color: COLORS.primary }]}>
                     {displayGemReward}
                   </Text>
                 </View>
