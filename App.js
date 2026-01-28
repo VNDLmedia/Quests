@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform, Text, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as NavigationBar from 'expo-navigation-bar';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GameProvider, useGame } from './src/game';
 import { AchievementToast, CardUnlockOverlay } from './src/components';
@@ -35,6 +36,14 @@ function AppContent() {
       }
     };
     checkLandingStatus();
+  }, []);
+
+  // Set Android navigation bar color to match app background
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setBackgroundColorAsync(COLORS.background);
+      NavigationBar.setButtonStyleAsync('dark');
+    }
   }, []);
 
   // Handle "Start your path" button press
