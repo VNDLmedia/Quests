@@ -435,11 +435,11 @@ const styles = StyleSheet.create({
   progressBar: { height: 6, backgroundColor: COLORS.surfaceAlt, borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
 
-  tabs: { flexDirection: 'row', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 20, maxWidth: 600, alignSelf: 'center', width: '100%' },
-  tab: { marginRight: 24, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabActive: { borderBottomColor: COLORS.text.primary },
-  tabText: { fontSize: 15, fontWeight: '600', color: COLORS.text.muted },
-  tabTextActive: { color: COLORS.text.primary },
+  tabs: { flexDirection: 'row', marginHorizontal: 20, backgroundColor: COLORS.surface, borderRadius: 14, padding: 4, marginBottom: 20, maxWidth: 600, alignSelf: 'center', width: 'auto', ...SHADOWS.sm },
+  tab: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  tabActive: { backgroundColor: COLORS.primaryLight },
+  tabText: { fontSize: 14, fontWeight: '600', color: COLORS.text.muted },
+  tabTextActive: { color: COLORS.primary },
   tabContent: { paddingHorizontal: 20, maxWidth: 600, alignSelf: 'center', width: '100%' },
 
   actionGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 },
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
   actionIcon: { width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center', ...SHADOWS.sm },
   actionLabel: { fontSize: 12, fontWeight: '600', color: COLORS.text.primary },
 
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text.primary, marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text.primary, marginBottom: 16 },
   ticketItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.sm },
   ticketLeft: { alignItems: 'center', paddingRight: 12, borderRightWidth: 1, borderRightColor: COLORS.border, marginRight: 12 },
   dateDay: { fontSize: 18, fontWeight: '800', color: COLORS.text.primary },

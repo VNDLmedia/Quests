@@ -148,4 +148,62 @@ export const GAME_COLORS = {
   social: '#3B82F6',
 };
 
-export default { BRAND, COLORS, CATEGORIES, REWARDS, SHADOWS, RADII, TYPOGRAPHY, ACHIEVEMENT_COLORS, GAME_COLORS };
+// Layout Constants for consistent spacing
+export const LAYOUT = {
+  screenPadding: 20,
+  cardBorderRadius: 20,
+  cardPadding: 20,
+  sectionGap: 24,
+  tabBorderRadius: 14,
+  tabPadding: 4,
+  tabItemRadius: 10,
+  iconSize: {
+    sm: 18,
+    md: 24,
+    lg: 32,
+  },
+  avatarSize: {
+    sm: 32,
+    md: 44,
+    lg: 70,
+  },
+};
+
+// Common Styles for reuse
+export const COMMON_STYLES = {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+    marginBottom: 16,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    borderRadius: LAYOUT.tabBorderRadius,
+    padding: LAYOUT.tabPadding,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: LAYOUT.tabItemRadius,
+    gap: 6,
+  },
+  tabActive: {
+    backgroundColor: COLORS.primaryLight,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text.muted,
+  },
+  tabTextActive: {
+    color: COLORS.primary,
+  },
+};
+
+export default { BRAND, COLORS, CATEGORIES, REWARDS, SHADOWS, RADII, TYPOGRAPHY, ACHIEVEMENT_COLORS, GAME_COLORS, LAYOUT, COMMON_STYLES };

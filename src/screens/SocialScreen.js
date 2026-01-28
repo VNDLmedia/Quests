@@ -129,11 +129,11 @@ const SocialScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      <View style={[styles.tabs, { marginTop: insets.top + 20 }]}>
+      <View style={[styles.tabs, { marginTop: insets.top + 10 }]}>
         {[
-          { key: 'leaderboard', label: 'Leaderboard', icon: 'podium' },
+          { key: 'leaderboard', label: 'Ranking', icon: 'podium' },
           { key: 'challenges', label: 'Challenges', icon: 'flash', badge: pendingChallenges.length },
-          { key: 'activity', label: 'Activity', icon: 'pulse' },
+          { key: 'activity', label: 'Aktivität', icon: 'pulse' },
         ].map((tab) => (
           <TouchableOpacity
             key={tab.key}
@@ -434,12 +434,15 @@ const styles = StyleSheet.create({
     ...SHADOWS.sm,
   },
 
-  // Tabs
+  // Tabs - unified pill-container style
   tabs: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    gap: 8,
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    padding: 4,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    ...SHADOWS.sm,
   },
   tab: {
     flex: 1,
@@ -448,15 +451,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    ...SHADOWS.sm,
+    borderRadius: 10,
   },
   tabActive: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: COLORS.primaryLight,
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.text.muted,
   },
@@ -532,7 +533,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: COLORS.text.primary,
   },

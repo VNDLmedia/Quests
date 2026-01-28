@@ -187,10 +187,6 @@ const PackShopScreen = ({ navigation }) => {
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <Text style={styles.headerTitle}>Card Shop</Text>
-        <Text style={styles.headerSubtitle}>Öffne Packs und sammle Karten!</Text>
-
         {/* Gems Balance Card */}
         <View style={styles.balanceCard}>
           <View style={styles.balanceContent}>
@@ -279,17 +275,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.text.primary,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    color: COLORS.text.secondary,
-    marginBottom: 24,
-  },
   balanceCard: {
     backgroundColor: COLORS.surface,
     borderRadius: 20,
@@ -308,9 +293,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   gemIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -322,7 +307,7 @@ const styles = StyleSheet.create({
   },
   gemCount: {
     color: COLORS.text.primary,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
   },
   balanceRight: {
@@ -381,8 +366,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: COLORS.text.primary,
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     marginBottom: 16,
   },
   packGrid: {
