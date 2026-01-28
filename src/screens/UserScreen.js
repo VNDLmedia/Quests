@@ -14,7 +14,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
-import { GlassCard, ScreenHeader } from '../components';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GlassCard } from '../components';
 import { useGame } from '../game/GameProvider';
 import { LEVEL_CONFIG } from '../game/config/rewards';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../theme';
@@ -95,10 +96,10 @@ const WebQRScanner = ({ onScan, onClose }) => {
     return (
       <View style={webStyles.errorContainer}>
         <Ionicons name="camera-off" size={48} color="#94A3B8" />
-        <Text style={webStyles.errorText}>Kamera nicht verfügbar</Text>
-        <Text style={webStyles.errorSubtext}>Bitte erlaube den Kamerazugriff</Text>
+        <Text style={webStyles.errorText}>Camera not available</Text>
+        <Text style={webStyles.errorSubtext}>Please allow camera access</Text>
         <TouchableOpacity style={webStyles.closeBtn} onPress={onClose}>
-          <Text style={webStyles.closeBtnText}>Schließen</Text>
+          <Text style={webStyles.closeBtnText}>Close</Text>
         </TouchableOpacity>
       </View>
     );
@@ -118,7 +119,7 @@ const WebQRScanner = ({ onScan, onClose }) => {
           <View style={[webStyles.corner, {bottom:0, left:0, borderBottomWidth:4, borderLeftWidth:4}]} />
           <View style={[webStyles.corner, {bottom:0, right:0, borderBottomWidth:4, borderRightWidth:4}]} />
         </View>
-        <Text style={webStyles.scanText}>QR-Code scannen...</Text>
+        <Text style={webStyles.scanText}>Scanning QR code...</Text>
       </View>
     </View>
   );
@@ -141,6 +142,7 @@ const webStyles = StyleSheet.create({
 });
 
 const UserScreen = () => {
+  const insets = useSafeAreaInsets();
   const { user, player, signOut } = useGame();
   const [showQR, setShowQR] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -174,7 +176,7 @@ const UserScreen = () => {
       setIsScanning(true);
     } else {
       if (!cameraPermission) {
-        Alert.alert('Berechtigung benötigt', 'Kameraberechtigung wird für das Scannen benötigt.');
+        Alert.alert('Permission required', 'Camera permission is required for scanning.');
         return;
       }
       setIsScanning(true);
@@ -200,10 +202,8 @@ const UserScreen = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Profil" />
-      
       <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* MEMBER CARD */}
@@ -272,7 +272,7 @@ const UserScreen = () => {
               style={[styles.xpBarFill, { width: `${xpProgress}%` }]}
             />
           </View>
-          <Text style={styles.totalXP}>Gesamt: {player.xp} XP</Text>
+          <Text style={styles.totalXP}>Total: {player.xp} XP</Text>
         </View>
 
         {/* Quick Actions */}
@@ -281,27 +281,27 @@ const UserScreen = () => {
             <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
               <Ionicons name="qr-code" size={24} color="#4F46E5" />
             </View>
-            <Text style={styles.actionLabel}>Mein Code</Text>
+            <Text style={styles.actionLabel}>My Code</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.actionCard} onPress={startScan}>
             <View style={[styles.actionIcon, { backgroundColor: '#ECFDF5' }]}>
               <Ionicons name="scan" size={24} color="#10B981" />
             </View>
-            <Text style={styles.actionLabel}>Scannen</Text>
+            <Text style={styles.actionLabel}>Scan</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.actionCard}>
             <View style={[styles.actionIcon, { backgroundColor: '#FEF3C7' }]}>
               <Ionicons name="share-outline" size={24} color="#F59E0B" />
             </View>
-            <Text style={styles.actionLabel}>Teilen</Text>
+            <Text style={styles.actionLabel}>Share</Text>
           </TouchableOpacity>
         </View>
 
         {/* Stats Card */}
         <GlassCard style={styles.card}>
-          <Text style={styles.sectionTitle}>Statistiken</Text>
+          <Text style={styles.sectionTitle}>Statistics</Text>
           
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
@@ -325,7 +325,7 @@ const UserScreen = () => {
                 <Ionicons name="people" size={24} color="#3b82f6" />
               </View>
               <Text style={styles.statValue}>{player.friendsCount || 0}</Text>
-              <Text style={styles.statLabel}>Freunde</Text>
+              <Text style={styles.statLabel}>Friends</Text>
             </View>
 
             <View style={styles.statItem}>
@@ -344,7 +344,7 @@ const UserScreen = () => {
           
           <View style={styles.accountItem}>
             <Ionicons name="mail-outline" size={20} color={COLORS.text.secondary} />
-            <Text style={styles.accountEmail}>{user?.email || 'Nicht angemeldet'}</Text>
+            <Text style={styles.accountEmail}>{user?.email || 'Not logged in'}</Text>
           </View>
         </GlassCard>
 
@@ -367,7 +367,7 @@ const UserScreen = () => {
             </TouchableOpacity>
             
             <Text style={styles.modalTitle}>Member Card</Text>
-            <Text style={styles.modalSubtitle}>Zeige diesen Code zum Scannen</Text>
+            <Text style={styles.modalSubtitle}>Show this code for scanning</Text>
             
             <View style={styles.qrBox}>
               <QRCode value={memberId} size={200} />
@@ -407,7 +407,7 @@ const UserScreen = () => {
                     <View style={[styles.corner, {bottom:0, left:0, borderBottomWidth:4, borderLeftWidth:4}]} />
                     <View style={[styles.corner, {bottom:0, right:0, borderBottomWidth:4, borderRightWidth:4}]} />
                   </View>
-                  <Text style={styles.scanText}>QR-Code scannen...</Text>
+                  <Text style={styles.scanText}>Scanning QR code...</Text>
                 </View>
               </CameraView>
             </View>
@@ -416,7 +416,7 @@ const UserScreen = () => {
               <Ionicons name="camera-off" size={48} color="#94A3B8" />
               <Text style={styles.noCameraText}>Kamera nicht verfügbar</Text>
               <TouchableOpacity style={styles.closeCameraBtn} onPress={() => setIsScanning(false)}>
-                <Text style={styles.closeCameraBtnText}>Schließen</Text>
+                <Text style={styles.closeCameraBtnText}>Close</Text>
               </TouchableOpacity>
             </View>
           )

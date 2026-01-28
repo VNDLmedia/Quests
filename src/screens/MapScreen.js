@@ -54,10 +54,10 @@ const MapScreen = () => {
     return (
       <View style={styles.container}>
         <View style={styles.webPlaceholder}>
-          <Text style={styles.title}>Quest Map (Web Vorschau)</Text>
+          <Text style={styles.title}>Quest Map (Web Preview)</Text>
           <Text style={styles.subtitle}>
-            Die interaktive RPG-Karte ist für mobile Geräte optimiert. 
-            Bitte nutze die Expo Go App auf deinem Smartphone.
+            The interactive RPG map is optimized for mobile devices. 
+            Please use the Expo Go app on your smartphone.
           </Text>
           <View style={styles.miniMap}>
             <View style={[styles.dot, { top: '40%', left: '30%' }]} />

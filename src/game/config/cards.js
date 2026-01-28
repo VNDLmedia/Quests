@@ -72,7 +72,7 @@ export const CARDS = [
   {
     id: 'card_001',
     name: 'Urban Explorer',
-    description: 'Der Anfang jeder Reise. Du hast deine ersten Schritte in der Stadt gemacht.',
+    description: 'The beginning of every journey. You took your first steps in the city.',
     rarity: RARITY.COMMON,
     icon: 'map-pin',
     power: 10,
@@ -83,7 +83,7 @@ export const CARDS = [
   {
     id: 'card_002',
     name: 'Night Walker',
-    description: 'Die Stadt schläft nie, und du auch nicht. Ein Geist der Nacht.',
+    description: 'The city never sleeps, and neither do you. A ghost of the night.',
     rarity: RARITY.COMMON,
     icon: 'moon',
     power: 12,
@@ -94,7 +94,7 @@ export const CARDS = [
   {
     id: 'card_003',
     name: 'Street Wanderer',
-    description: 'Jede Gasse erzählt eine Geschichte. Du hörst ihnen zu.',
+    description: 'Every alley tells a story. You listen to them.',
     rarity: RARITY.COMMON,
     icon: 'walk',
     power: 8,
@@ -105,7 +105,7 @@ export const CARDS = [
   {
     id: 'card_004',
     name: 'Coffee Addict',
-    description: 'Kein Abenteuer ohne Koffein. Du kennst jeden Coffeeshop.',
+    description: 'No adventure without caffeine. You know every coffee shop.',
     rarity: RARITY.COMMON,
     icon: 'cafe',
     power: 11,
@@ -116,7 +116,7 @@ export const CARDS = [
   {
     id: 'card_005',
     name: 'Park Chiller',
-    description: 'Manchmal ist der beste Spot einfach eine Bank im Grünen.',
+    description: 'Sometimes the best spot is just a bench in the park.',
     rarity: RARITY.COMMON,
     icon: 'leaf',
     power: 9,
@@ -127,7 +127,7 @@ export const CARDS = [
   {
     id: 'card_006',
     name: 'Transit Pro',
-    description: 'U-Bahn, Bus, Tram - du beherrschst sie alle.',
+    description: 'Subway, bus, tram - you master them all.',
     rarity: RARITY.COMMON,
     icon: 'bus',
     power: 10,
@@ -138,7 +138,7 @@ export const CARDS = [
   {
     id: 'card_007',
     name: 'Foodie Scout',
-    description: 'Dein Magen ist dein Kompass zu den besten Spots.',
+    description: 'Your stomach is your compass to the best spots.',
     rarity: RARITY.COMMON,
     icon: 'restaurant',
     power: 13,
@@ -149,7 +149,7 @@ export const CARDS = [
   {
     id: 'card_008',
     name: 'Snapshot Hunter',
-    description: 'Ein Moment, ein Klick, eine Erinnerung für immer.',
+    description: 'A moment, a click, a memory forever.',
     rarity: RARITY.COMMON,
     icon: 'camera',
     power: 11,
@@ -160,7 +160,7 @@ export const CARDS = [
   {
     id: 'card_009',
     name: 'Sunrise Seeker',
-    description: 'Die frühen Stunden gehören den Mutigen.',
+    description: 'The early hours belong to the brave.',
     rarity: RARITY.COMMON,
     icon: 'sunny',
     power: 10,
@@ -171,7 +171,7 @@ export const CARDS = [
   {
     id: 'card_010',
     name: 'Graffiti Spotter',
-    description: 'Kunst ist überall, wenn man nur hinschaut.',
+    description: 'Art is everywhere if you just look.',
     rarity: RARITY.COMMON,
     icon: 'color-palette',
     power: 12,
@@ -182,7 +182,7 @@ export const CARDS = [
   {
     id: 'card_011',
     name: 'Rainy Day Warrior',
-    description: 'Ein bisschen Regen hält dich nicht auf.',
+    description: 'A little rain won\'t stop you.',
     rarity: RARITY.COMMON,
     icon: 'rainy',
     power: 9,
@@ -193,7 +193,7 @@ export const CARDS = [
   {
     id: 'card_012',
     name: 'Market Maven',
-    description: 'Flohmärkte, Wochenmärkte - du findest die Schätze.',
+    description: 'Flea markets, farmers markets - you find the treasures.',
     rarity: RARITY.COMMON,
     icon: 'cart',
     power: 11,
@@ -208,7 +208,7 @@ export const CARDS = [
   {
     id: 'card_013',
     name: 'Neon Sprinter',
-    description: 'Schneller als das Licht der Reklametafeln.',
+    description: 'Faster than the neon lights.',
     rarity: RARITY.RARE,
     icon: 'flash',
     power: 35,
@@ -219,7 +219,7 @@ export const CARDS = [
   {
     id: 'card_014',
     name: 'Social Butterfly',
-    description: 'Du kennst jeden Winkel und jeden NPC dieser Stadt.',
+    description: 'You know every corner and every NPC in this city.',
     rarity: RARITY.RARE,
     icon: 'people',
     power: 40,
@@ -230,7 +230,7 @@ export const CARDS = [
   {
     id: 'card_015',
     name: 'Rooftop Dreamer',
-    description: 'Die beste Aussicht hat, wer am höchsten klettert.',
+    description: 'The best view belongs to those who climb the highest.',
     rarity: RARITY.RARE,
     icon: 'business',
     power: 38,
@@ -241,7 +241,7 @@ export const CARDS = [
   {
     id: 'card_016',
     name: 'Underground Guide',
-    description: 'Du kennst Wege, die auf keiner Karte stehen.',
+    description: 'You know paths that aren\'t on any map.',
     rarity: RARITY.RARE,
     icon: 'subway',
     power: 42,
@@ -252,7 +252,7 @@ export const CARDS = [
   {
     id: 'card_017',
     name: 'Night Owl',
-    description: 'Wenn andere schlafen, erwacht dein Abenteuer.',
+    description: 'When others sleep, your adventure awakens.',
     rarity: RARITY.RARE,
     icon: 'moon',
     power: 36,
@@ -263,7 +263,7 @@ export const CARDS = [
   {
     id: 'card_018',
     name: 'Culinary Artist',
-    description: 'Jedes Gericht erzählt eine Geschichte.',
+    description: 'Every dish tells a story.',
     rarity: RARITY.RARE,
     icon: 'nutrition',
     power: 34,
@@ -274,7 +274,7 @@ export const CARDS = [
   {
     id: 'card_019',
     name: 'Event Crasher',
-    description: 'Keine Party ist komplett ohne dich.',
+    description: 'No party is complete without you.',
     rarity: RARITY.RARE,
     icon: 'musical-notes',
     power: 37,
@@ -285,7 +285,7 @@ export const CARDS = [
   {
     id: 'card_020',
     name: 'Vintage Hunter',
-    description: 'Die Vergangenheit birgt die schönsten Schätze.',
+    description: 'The past holds the most beautiful treasures.',
     rarity: RARITY.RARE,
     icon: 'time',
     power: 33,
@@ -296,7 +296,7 @@ export const CARDS = [
   {
     id: 'card_021',
     name: 'Streak Master',
-    description: '30 Tage am Stück - Disziplin ist dein zweiter Vorname.',
+    description: '30 days straight - Discipline is your middle name.',
     rarity: RARITY.RARE,
     icon: 'flame',
     power: 45,
@@ -307,7 +307,7 @@ export const CARDS = [
   {
     id: 'card_022',
     name: 'Challenge Champion',
-    description: 'Keine Herausforderung ist dir zu groß.',
+    description: 'No challenge is too big for you.',
     rarity: RARITY.RARE,
     icon: 'trophy',
     power: 41,
@@ -322,7 +322,7 @@ export const CARDS = [
   {
     id: 'card_023',
     name: 'Vibe Master',
-    description: 'Du kontrollierst den Rhythmus der Straße.',
+    description: 'You control the rhythm of the street.',
     rarity: RARITY.EPIC,
     icon: 'musical-note',
     power: 75,
@@ -333,7 +333,7 @@ export const CARDS = [
   {
     id: 'card_024',
     name: 'Glitch Hunter',
-    description: 'Du hast Dinge gesehen, die andere für Fehler halten.',
+    description: 'You\'ve seen things others mistake for glitches.',
     rarity: RARITY.EPIC,
     icon: 'code-slash',
     power: 80,
@@ -344,7 +344,7 @@ export const CARDS = [
   {
     id: 'card_025',
     name: 'Urban Shaman',
-    description: 'Die Stadt spricht zu dir in einer Sprache, die nur du verstehst.',
+    description: 'The city speaks to you in a language only you understand.',
     rarity: RARITY.EPIC,
     icon: 'eye',
     power: 78,
@@ -355,7 +355,7 @@ export const CARDS = [
   {
     id: 'card_026',
     name: 'Shadow Walker',
-    description: 'Unsichtbar in der Masse, unaufhaltbar im Schatten.',
+    description: 'Invisible in the crowd, unstoppable in the shadows.',
     rarity: RARITY.EPIC,
     icon: 'contrast',
     power: 82,
@@ -366,7 +366,7 @@ export const CARDS = [
   {
     id: 'card_027',
     name: 'Quest Overlord',
-    description: '100 Quests abgeschlossen. Eine lebende Legende.',
+    description: '100 quests completed. A living legend.',
     rarity: RARITY.EPIC,
     icon: 'ribbon',
     power: 85,
@@ -381,7 +381,7 @@ export const CARDS = [
   {
     id: 'card_028',
     name: 'City Legend',
-    description: 'Dein Name wird in goldenen Lettern an den Wolkenkratzern stehen.',
+    description: 'Your name will be written in golden letters on the skyscrapers.',
     rarity: RARITY.LEGENDARY,
     icon: 'crown',
     power: 100,
@@ -392,7 +392,7 @@ export const CARDS = [
   {
     id: 'card_029',
     name: 'Time Traveler',
-    description: 'Vergangenheit und Zukunft sind für dich eins.',
+    description: 'Past and future are one to you.',
     rarity: RARITY.LEGENDARY,
     icon: 'hourglass',
     power: 95,
@@ -403,7 +403,7 @@ export const CARDS = [
   {
     id: 'card_030',
     name: 'Ethernal One',
-    description: 'Du hast den Pfad gemeistert. Du bist Ethernal.',
+    description: 'You have mastered the path. You are Ethernal.',
     rarity: RARITY.LEGENDARY,
     icon: 'infinite',
     power: 120,

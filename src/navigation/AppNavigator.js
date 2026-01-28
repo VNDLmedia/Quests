@@ -79,7 +79,7 @@ const AppNavigator = () => {
               else if (route.name === 'Quests') iconName = focused ? 'layers' : 'layers-outline';
               else if (route.name === 'Shop') iconName = focused ? 'gift' : 'gift-outline';
               else if (route.name === 'Social') iconName = focused ? 'people' : 'people-outline';
-              else if (route.name === 'Profil') iconName = focused ? 'person' : 'person-outline';
+              else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
               
               return <Ionicons name={iconName} size={24} color={color} />;
             },
@@ -88,7 +88,7 @@ const AppNavigator = () => {
           <Tab.Screen 
             name="Map" 
             component={MapScreenWrapped} 
-            options={{ tabBarLabel: 'Karte' }}
+            options={{ tabBarLabel: 'Map' }}
           />
           <Tab.Screen 
             name="Quests" 
@@ -109,9 +109,9 @@ const AppNavigator = () => {
             options={{ tabBarLabel: 'Social' }}
           />
           <Tab.Screen 
-            name="Profil" 
+            name="Profile" 
             component={UserScreenWrapped} 
-            options={{ tabBarLabel: 'Profil' }}
+            options={{ tabBarLabel: 'Profile' }}
           />
         </Tab.Navigator>
       </NavigationContainer>

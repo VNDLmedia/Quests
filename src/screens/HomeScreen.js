@@ -8,13 +8,13 @@ const HomeScreen = () => {
     <View style={styles.container}>
       <StatusBar style="auto" />
       <Card>
-        <Text style={styles.title}>Willkommen zu Ethernal Paths!</Text>
+        <Text style={styles.title}>Welcome to Ethernal Paths!</Text>
         <Text style={styles.subtitle}>
-          Dein React Native Projekt ist bereit.
+          Your React Native project is ready.
         </Text>
       </Card>
       <Button
-        title="Los geht's"
+        title="Let's go"
         onPress={() => console.log('Button pressed')}
       />
     </View>

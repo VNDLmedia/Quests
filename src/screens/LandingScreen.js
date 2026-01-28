@@ -18,23 +18,23 @@ const { width } = Dimensions.get('window');
 const FEATURES = [
   {
     icon: 'compass',
-    title: 'Entdecke',
-    description: 'Erkunde deine Stadt und finde versteckte Orte',
+    title: 'Discover',
+    description: 'Explore your city and find hidden places',
   },
   {
     icon: 'layers',
     title: 'Quests',
-    description: 'Absolviere Abenteuer und sammle Belohnungen',
+    description: 'Complete adventures and collect rewards',
   },
   {
     icon: 'people',
     title: 'Community',
-    description: 'Verbinde dich mit anderen Entdeckern',
+    description: 'Connect with other explorers',
   },
   {
     icon: 'trophy',
-    title: 'Erfolge',
-    description: 'Schalte Achievements frei und steige auf',
+    title: 'Achievements',
+    description: 'Unlock achievements and level up',
   },
 ];
 
@@ -80,14 +80,14 @@ const LandingScreen = ({ onGetStarted }) => {
 
           {/* Hero Description */}
           <Text style={styles.heroDescription}>
-            Verwandle deinen Alltag in ein Abenteuer. Entdecke neue Orte, 
-            schließe Quests ab und werde Teil einer Community von Entdeckern.
+            Turn your everyday life into an adventure. Discover new places, 
+            complete quests and become part of a community of explorers.
           </Text>
         </View>
 
         {/* Features Section */}
         <View style={styles.featuresSection}>
-          <Text style={styles.sectionTitle}>Was dich erwartet</Text>
+          <Text style={styles.sectionTitle}>What awaits you</Text>
           
           <View style={styles.featuresGrid}>
             {FEATURES.map((feature, index) => (

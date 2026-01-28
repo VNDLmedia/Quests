@@ -17,10 +17,10 @@ const COLUMN_COUNT = 3;
 const CARD_WIDTH = (width - 60) / COLUMN_COUNT;
 const CARD_HEIGHT = CARD_WIDTH * 1.4;
 
-// Tabs für die Profilseite
+// Tabs for profile page
 const TABS = [
-  { id: 'profile', label: 'Profil', icon: 'person' },
-  { id: 'collection', label: 'Sammlung', icon: 'albums' },
+  { id: 'profile', label: 'Profile', icon: 'person' },
+  { id: 'collection', label: 'Collection', icon: 'albums' },
 ];
 
 const ProfileScreen = () => {
@@ -77,7 +77,7 @@ const ProfileScreen = () => {
 
   const handleBarCodeScanned = ({ data }) => {
     setIsScanning(false);
-    alert(`NPC rekrutiert: ${data}`);
+    alert(`NPC recruited: ${data}`);
   };
 
   const renderCollectionItem = (card) => {
@@ -140,7 +140,7 @@ const ProfileScreen = () => {
               <LinearGradient colors={['#3b82f6', '#60a5fa']} style={styles.statGradient}>
                 <Ionicons name="albums" size={20} color="white" />
                 <Text style={styles.statNumber}>{collectionStats.owned}/{collectionStats.total}</Text>
-                <Text style={styles.statLabel}>Karten</Text>
+                <Text style={styles.statLabel}>Cards</Text>
               </LinearGradient>
             </View>
             <View style={styles.statBox}>
@@ -154,7 +154,7 @@ const ProfileScreen = () => {
               <LinearGradient colors={['#8b5cf6', '#a78bfa']} style={styles.statGradient}>
                 <Ionicons name="diamond" size={20} color="white" />
                 <Text style={styles.statNumber}>{(rarityStats.legendary || 0) + (rarityStats.epic || 0)}</Text>
-                <Text style={styles.statLabel}>Selten</Text>
+                <Text style={styles.statLabel}>Rare</Text>
               </LinearGradient>
             </View>
           </View>
@@ -165,7 +165,7 @@ const ProfileScreen = () => {
               style={[styles.filterChip, rarityFilter === 'all' && styles.filterChipActive]}
               onPress={() => setRarityFilter('all')}
             >
-              <Text style={[styles.filterText, rarityFilter === 'all' && styles.filterTextActive]}>Alle</Text>
+              <Text style={[styles.filterText, rarityFilter === 'all' && styles.filterTextActive]}>All</Text>
             </TouchableOpacity>
             {Object.entries(RARITY).map(([key, rarity]) => (
               <TouchableOpacity 
@@ -191,7 +191,7 @@ const ProfileScreen = () => {
 
           {/* Cards Grid */}
           <Text style={styles.sectionTitle}>
-            {rarityFilter === 'all' ? 'Alle Karten' : RARITY[rarityFilter.toUpperCase()]?.name || 'Karten'}
+            {rarityFilter === 'all' ? 'All Cards' : RARITY[rarityFilter.toUpperCase()]?.name || 'Cards'}
           </Text>
           <View style={styles.grid}>
             {filteredCards.map(renderCollectionItem)}
@@ -242,7 +242,7 @@ const ProfileScreen = () => {
                   <Ionicons name="diamond" size={24} color={COLORS.primary} />
                 </View>
                 <View>
-                  <Text style={styles.gemsLabel}>Deine Gems</Text>
+                  <Text style={styles.gemsLabel}>Your Gems</Text>
                   <Text style={styles.gemsCount}>{player.gems || 0}</Text>
                 </View>
               </View>
@@ -258,9 +258,9 @@ const ProfileScreen = () => {
         <TouchableOpacity onPress={() => setActiveTab('collection')}>
           <View style={styles.collectionPreview}>
             <View style={styles.collectionHeader}>
-              <Text style={styles.collectionTitle}>Meine Sammlung</Text>
+              <Text style={styles.collectionTitle}>My Collection</Text>
               <View style={styles.viewAllBtn}>
-                <Text style={styles.viewAllText}>Alle ansehen</Text>
+                <Text style={styles.viewAllText}>View all</Text>
                 <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
               </View>
             </View>
@@ -282,14 +282,14 @@ const ProfileScreen = () => {
               {unlockedCards.length === 0 && (
                 <View style={styles.emptyPreview}>
                   <Ionicons name="gift-outline" size={24} color={COLORS.text.muted} />
-                  <Text style={styles.emptyText}>Öffne Packs im Shop!</Text>
+                  <Text style={styles.emptyText}>Open packs in the shop!</Text>
                 </View>
               )}
             </View>
             <View style={styles.collectionProgress}>
               <View style={[styles.collectionBar, { width: `${collectionStats.percentage}%` }]} />
             </View>
-            <Text style={styles.collectionSubtext}>{collectionStats.owned} von {collectionStats.total} Karten gesammelt</Text>
+            <Text style={styles.collectionSubtext}>{collectionStats.owned} of {collectionStats.total} cards collected</Text>
           </View>
         </TouchableOpacity>
 
@@ -300,8 +300,8 @@ const ProfileScreen = () => {
               <Ionicons name="qr-code" size={22} color={COLORS.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.actionTitle}>Mein Quest-Code</Text>
-              <Text style={styles.actionDesc}>Zeige deinen Code anderen Spielern</Text>
+              <Text style={styles.actionTitle}>My Quest Code</Text>
+              <Text style={styles.actionDesc}>Show your code to other players</Text>
             </View>
             <Ionicons name="chevron-forward" size={22} color={COLORS.text.muted} />
           </TouchableOpacity>
@@ -313,8 +313,8 @@ const ProfileScreen = () => {
               <Ionicons name="scan" size={22} color={COLORS.success} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.actionTitle}>Spieler scannen</Text>
-              <Text style={styles.actionDesc}>Finde NPCs oder Freunde</Text>
+              <Text style={styles.actionTitle}>Scan Players</Text>
+              <Text style={styles.actionDesc}>Find NPCs or friends</Text>
             </View>
             <Ionicons name="chevron-forward" size={22} color={COLORS.text.muted} />
           </TouchableOpacity>
@@ -372,12 +372,12 @@ const ProfileScreen = () => {
       <Modal visible={showQR} transparent animationType="fade" onRequestClose={() => setShowQR(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.qrCard}>
-             <Text style={styles.qrTitle}>Dein Code</Text>
+             <Text style={styles.qrTitle}>Your Code</Text>
              <View style={styles.qrWrapper}>
                <QRCode value={`USER:${player.id || 'GUEST'}`} size={200} />
              </View>
              <TouchableOpacity style={styles.qrCloseBtn} onPress={() => setShowQR(false)}>
-               <Text style={styles.qrCloseBtnText}>Schließen</Text>
+               <Text style={styles.qrCloseBtnText}>Close</Text>
              </TouchableOpacity>
           </View>
         </View>

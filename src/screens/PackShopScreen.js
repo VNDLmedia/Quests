@@ -70,7 +70,7 @@ const PackCard = ({ packType, packKey, onBuy, canAfford, gems }) => {
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (!canAfford) {
-      Alert.alert('Nicht genug Gems', `Du brauchst ${packType.cost} Gems für dieses Pack.`);
+      Alert.alert('Not enough gems', `You need ${packType.cost} gems for this pack.`);
       return;
     }
     onBuy(packKey);
@@ -130,17 +130,17 @@ const PackCard = ({ packType, packKey, onBuy, canAfford, gems }) => {
               <View style={styles.guaranteeBadge}>
                 {packType.guarantees.minLegendary > 0 && (
                   <Text style={styles.guaranteeText}>
-                    <Ionicons name="checkmark-circle" size={12} color="#fbbf24" /> Garantiert Legendary
+                    <Ionicons name="checkmark-circle" size={12} color="#fbbf24" /> Guaranteed Legendary
                   </Text>
                 )}
                 {packType.guarantees.minEpic > 0 && !packType.guarantees.minLegendary && (
                   <Text style={styles.guaranteeText}>
-                    <Ionicons name="checkmark-circle" size={12} color="#a78bfa" /> Garantiert Epic+
+                    <Ionicons name="checkmark-circle" size={12} color="#a78bfa" /> Guaranteed Epic+
                   </Text>
                 )}
                 {packType.guarantees.minRare > 0 && !packType.guarantees.minEpic && (
                   <Text style={styles.guaranteeText}>
-                    <Ionicons name="checkmark-circle" size={12} color="#60a5fa" /> Garantiert Rare+
+                    <Ionicons name="checkmark-circle" size={12} color="#60a5fa" /> Guaranteed Rare+
                   </Text>
                 )}
               </View>
@@ -172,7 +172,7 @@ const PackShopScreen = ({ navigation }) => {
     const result = buyPack(packKey);
     
     if (result?.error) {
-      Alert.alert('Fehler', result.error);
+      Alert.alert('Error', result.error);
       return;
     }
     
@@ -195,12 +195,12 @@ const PackShopScreen = ({ navigation }) => {
                 <Ionicons name="diamond" size={24} color={COLORS.primary} />
               </View>
               <View>
-                <Text style={styles.balanceLabel}>Dein Guthaben</Text>
+                <Text style={styles.balanceLabel}>Your Balance</Text>
                 <Text style={styles.gemCount}>{player.gems || 0}</Text>
               </View>
             </View>
             <View style={styles.balanceRight}>
-              <Text style={styles.collectionLabel}>Sammlung</Text>
+              <Text style={styles.collectionLabel}>Collection</Text>
               <Text style={styles.collectionCount}>
                 {collectionStats.owned}/{collectionStats.total}
               </Text>
@@ -230,7 +230,7 @@ const PackShopScreen = ({ navigation }) => {
         </View>
 
         {/* Section Header */}
-        <Text style={styles.sectionTitle}>Kartenpacks</Text>
+        <Text style={styles.sectionTitle}>Card Packs</Text>
 
         {/* Pack Grid */}
         <View style={styles.packGrid}>
@@ -250,13 +250,13 @@ const PackShopScreen = ({ navigation }) => {
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
             <Ionicons name="information-circle" size={20} color={COLORS.primary} />
-            <Text style={styles.infoTitle}>Wie funktioniert's?</Text>
+            <Text style={styles.infoTitle}>How does it work?</Text>
           </View>
           <Text style={styles.infoText}>
-            • Schließe Quests ab, um Gems zu verdienen{'\n'}
-            • Kaufe Packs mit deinen Gems{'\n'}
-            • Öffne Packs und sammle seltene Karten{'\n'}
-            • Duplikate werden automatisch in Gems umgewandelt
+            • Complete quests to earn gems{'\n'}
+            • Buy packs with your gems{'\n'}
+            • Open packs and collect rare cards{'\n'}
+            • Duplicates are automatically converted to gems
           </Text>
         </View>
       </ScrollView>

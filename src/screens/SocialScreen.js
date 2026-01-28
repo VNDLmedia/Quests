@@ -133,7 +133,7 @@ const SocialScreen = () => {
         {[
           { key: 'leaderboard', label: 'Ranking', icon: 'podium' },
           { key: 'challenges', label: 'Challenges', icon: 'flash', badge: pendingChallenges.length },
-          { key: 'activity', label: 'Aktivität', icon: 'pulse' },
+          { key: 'activity', label: 'Activity', icon: 'pulse' },
         ].map((tab) => (
           <TouchableOpacity
             key={tab.key}

@@ -37,7 +37,7 @@ export const PACK_TYPES = {
   STARTER: {
     id: 'starter',
     name: 'Starter Pack',
-    description: '3 zufällige Karten - perfekt für Anfänger',
+    description: '3 random cards - perfect for beginners',
     cost: 100,
     cardCount: 3,
     packRarity: PACK_RARITY.BASIC,
@@ -56,7 +56,7 @@ export const PACK_TYPES = {
   PREMIUM: {
     id: 'premium',
     name: 'Premium Pack',
-    description: '5 Karten mit garantierter Rare!',
+    description: '5 cards with guaranteed Rare!',
     cost: 300,
     cardCount: 5,
     packRarity: PACK_RARITY.PREMIUM,
@@ -74,7 +74,7 @@ export const PACK_TYPES = {
   ELITE: {
     id: 'elite',
     name: 'Elite Pack',
-    description: '5 Karten mit garantierter Epic!',
+    description: '5 cards with guaranteed Epic!',
     cost: 750,
     cardCount: 5,
     packRarity: PACK_RARITY.LEGENDARY,
@@ -92,7 +92,7 @@ export const PACK_TYPES = {
   MYTHIC: {
     id: 'mythic',
     name: 'Mythic Pack',
-    description: 'Das Beste vom Besten - garantierte Legendary!',
+    description: 'The best of the best - guaranteed Legendary!',
     cost: 2000,
     cardCount: 5,
     packRarity: PACK_RARITY.MYTHIC,
