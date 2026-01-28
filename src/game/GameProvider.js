@@ -406,6 +406,7 @@ export function GameProvider({ children }) {
             streakFreezeCount: profile.streak_freeze_count || 0,
             totalQuestsCompleted: profile.total_quests_completed || 0,
             totalDistanceWalked: profile.total_distance_walked || 0,
+            admin: profile.admin || false,
           },
         });
       }
@@ -424,45 +425,34 @@ export function GameProvider({ children }) {
     if (!isSupabaseConfigured()) return;
     
     try {
-      const [questsResult, locationsResult] = await Promise.all([
-        supabase.from('quests').select('*'),
-        supabase.from('locations').select('*')
-      ]);
+      const { data: quests, error } = await supabase.from('quests').select('*');
       
-      if (questsResult.error) console.error('Error fetching quests:', questsResult.error);
-      if (locationsResult.error) console.error('Error fetching locations:', locationsResult.error);
+      if (error) {
+        console.error('Error fetching quests:', error);
+        return { quests: [], locations: {} };
+      }
       
-      const quests = questsResult.data || [];
-      const locations = locationsResult.data || [];
-      
-      // Transform quests to match internal format if needed
-      // (Supabase returns snake_case, app might use camelCase - sticking to mixed for now to minimize refactor)
-      // But let's normalize 'xp_reward' to 'xpReward' etc to match QUEST_TEMPLATES structure
-      const normalizedQuests = quests.map(q => ({
+      // Transform quests to match internal format
+      // Normalize snake_case to camelCase
+      const normalizedQuests = (quests || []).map(q => ({
         ...q,
         xpReward: q.xp_reward,
         timeLimit: q.time_limit,
         expiresIn: q.expires_in,
         requiresScan: q.requires_scan,
         target: q.target_value,
-        location: q.location_id,
-        locations: q.multi_locations,
-        // Keep original keys too just in case
+        // Coordinates are now directly on the quest
+        lat: q.latitude,
+        lng: q.longitude,
       }));
-      
-      // Transform locations to object map for easy lookup
-      const locationsMap = locations.reduce((acc, loc) => {
-        acc[loc.id] = loc;
-        return acc;
-      }, {});
       
       dispatch({ 
         type: ACTIONS.SET_GAME_DATA, 
-        payload: { quests: normalizedQuests, locations: locationsMap } 
+        payload: { quests: normalizedQuests, locations: {} } 
       });
       
-      console.log('Game data loaded:', normalizedQuests.length, 'quests', Object.keys(locationsMap).length, 'locations');
-      return { quests: normalizedQuests, locations: locationsMap };
+      console.log('Game data loaded:', normalizedQuests.length, 'quests');
+      return { quests: normalizedQuests, locations: {} };
     } catch (error) {
       console.error('Failed to fetch game data:', error);
       return { quests: [], locations: {} };
@@ -606,10 +596,7 @@ export function GameProvider({ children }) {
             streakFreezeCount: 0,
             totalQuestsCompleted: 0,
             totalDistanceWalked: 0,
-            friendsCount: 0,
-            challengesWon: 0,
-            challengeWinStreak: 0,
-            rewardsRedeemed: 0,
+            admin: false,
           },
         });
         // Clear quests

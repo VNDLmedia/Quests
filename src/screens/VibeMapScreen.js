@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
+import { supabase, isSupabaseConfigured, getSession, onAuthStateChange } from '../config/supabase';
 import { 
   View, 
   StyleSheet, 
@@ -8,7 +9,10 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
-  Alert
+  Alert,
+  Modal,
+  TextInput,
+  Switch
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview'; 
@@ -520,6 +524,42 @@ window.addEventListener('message', e => {
     const [y, x] = gpsToPixel(e.data.lat, e.data.lng);
     map.setView([y, x], 5);
   }
+  else if (e.data.type === 'GET_CENTER') {
+    const center = map.getCenter();
+    // Reverse transform: Map Pixel -> GPS
+    // This is the inverse of gpsToPixel
+    
+    // 1. Remove offset
+    const x = center.lng - offsetX;
+    const y = center.lat - offsetY;
+    
+    // 2. Un-scale
+    const ux = x / (MAP_WIDTH * scaleX);
+    const uy = y / (MAP_HEIGHT * scaleY);
+    
+    // 3. Un-rotate around pivot
+    const cx_plus_pivot = ux;
+    const cy_plus_pivot = uy;
+    
+    const cx = cx_plus_pivot - pivotX;
+    const cy = cy_plus_pivot - pivotY;
+    
+    const rad = -rotation * Math.PI / 180; // Negative rotation to undo
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const rx = cx * cos - cy * sin;
+    const ry = cx * sin + cy * cos;
+    
+    // 4. Un-center pivot
+    const xPct = rx + pivotX;
+    const yPct = ry + pivotY;
+    
+    // 5. Convert back to GPS
+    const lng = xPct * (GPS_BOUNDS.maxLng - GPS_BOUNDS.minLng) + GPS_BOUNDS.minLng;
+    const lat = yPct * (GPS_BOUNDS.maxLat - GPS_BOUNDS.minLat) + GPS_BOUNDS.minLat;
+    
+    sendMsg({ type: 'CENTER_COORDS', lat, lng });
+  }
 });
 
 // Debug tile loading
@@ -553,7 +593,7 @@ const MapScreen = () => {
   const slideAnim = useRef(new Animated.Value(height)).current;
   const locationWatchId = useRef(null);
   
-  const { updateLocation, quests: allQuests, locations: allLocations } = useGame();
+  const { updateLocation, quests: allQuests, locations: allLocations, fetchGameData, player } = useGame();
   const { activeQuests, startQuest } = useQuests();
   
   const [selectedQuest, setSelectedQuest] = useState(null);
@@ -561,22 +601,44 @@ const MapScreen = () => {
   const [userLoc, setUserLoc] = useState(DEFAULT_LOCATION);
   const [locationStatus, setLocationStatus] = useState('searching');
   const [availableQuests, setAvailableQuests] = useState([]);
+  const [isCreatorEnabled, setIsCreatorEnabled] = useState(false);
+  const [creatorModalVisible, setCreatorModalVisible] = useState(false);
+  const [newQuestData, setNewQuestData] = useState({
+    title: '',
+    description: '',
+    xp_reward: '50',
+    type: 'visit',
+    target_value: '1',
+    icon: 'flag',
+    color: '#4F46E5'
+  });
   const mapReadyRef = useRef(false);
   const hasInitiallyCenteredRef = useRef(false);
 
   // Generate nearby quests - defined first so it can be used by other hooks
   const generateNearbyQuests = useCallback((coords) => {
     // Check if we have quests loaded
-    if (!allQuests || allQuests.length === 0) return;
+    if (!allQuests || allQuests.length === 0) {
+      setAvailableQuests([]);
+      return;
+    }
 
     const generatedQuests = allQuests.map((template) => {
       let questLat, questLng;
       
-      if (template.location && allLocations && allLocations[template.location]) {
+      // Use direct latitude/longitude if available (refactored schema)
+      if (template.latitude !== undefined && template.latitude !== null) {
+        questLat = template.latitude;
+        questLng = template.longitude;
+      } 
+      // Fallback to locations map for backward compatibility
+      else if (template.location && allLocations && allLocations[template.location]) {
         const loc = allLocations[template.location];
         questLat = loc.lat;
         questLng = loc.lng;
-      } else {
+      } 
+      // Random spawn for templates without fixed location
+      else {
         questLat = coords.latitude + (Math.random() - 0.5) * 0.008;
         questLng = coords.longitude + (Math.random() - 0.5) * 0.008;
       }
@@ -670,16 +732,28 @@ const MapScreen = () => {
     });
     
     activeQuests.forEach(q => {
-      const loc = allLocations[q.location];
-      if (loc) {
+      // Check for direct coordinates first
+      if (q.latitude !== undefined && q.latitude !== null) {
         quests.push({
           ...q,
-          lat: loc.lat,
-          lng: loc.lng,
+          lat: q.latitude,
+          lng: q.longitude,
           status: 'active',
           canInteract: true,
-          distance: Math.round(calculateDistance(userLoc.latitude, userLoc.longitude, loc.lat, loc.lng)),
+          distance: Math.round(calculateDistance(userLoc.latitude, userLoc.longitude, q.latitude, q.longitude)),
         });
+      } else {
+        const loc = allLocations[q.location];
+        if (loc) {
+          quests.push({
+            ...q,
+            lat: loc.lat,
+            lng: loc.lng,
+            status: 'active',
+            canInteract: true,
+            distance: Math.round(calculateDistance(userLoc.latitude, userLoc.longitude, loc.lat, loc.lng)),
+          });
+        }
       }
     });
     
@@ -874,6 +948,91 @@ const MapScreen = () => {
     }
   };
 
+  const handleCreateQuestPress = () => {
+    if (Platform.OS === 'web') {
+      document.querySelector('iframe[title="Quest Map"]')?.contentWindow?.postMessage({ type: 'GET_CENTER' }, '*');
+    } else {
+      webviewRef.current?.injectJavaScript(`
+        (function(){
+          const center = window.map.getCenter();
+          // Use the same logic as in the HTML script
+          const x = center.lng - ${53.1}; // offsetX
+          const y = center.lat - ${-100.4}; // offsetY
+          const ux = x / (${120} * ${0.597}); // MAP_WIDTH * scaleX
+          const uy = y / (${152} * ${0.467}); // MAP_HEIGHT * scaleY
+          const cx = ux - ${0.45565}; // pivotX
+          const cy = uy - ${-0.0584}; // pivotY
+          const rad = -${91} * Math.PI / 180;
+          const cos = Math.cos(rad);
+          const sin = Math.sin(rad);
+          const rx = cx * cos - cy * sin;
+          const ry = cx * sin + cy * cos;
+          const xPct = rx + ${0.45565};
+          const yPct = ry + ${-0.0584};
+          const lng = xPct * (${7.7320} - ${7.7140}) + ${7.7140};
+          const lat = yPct * (${48.2740} - ${48.2620}) + ${48.2620};
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'CENTER_COORDS', lat, lng }));
+        })();
+        true;
+      `);
+    }
+  };
+
+  const saveQuestToDb = async () => {
+    const { title, description, xp_reward, type, target_value, icon, color, lat, lng } = newQuestData;
+    
+    if (!title || !description) {
+      Alert.alert('Fehler', 'Titel und Beschreibung werden benötigt.');
+      return;
+    }
+
+    try {
+      console.log('Attempting to create quest with data:', {
+        title,
+        description,
+        xp_reward: parseInt(xp_reward),
+        type,
+        target_value: parseInt(target_value),
+        icon,
+        color,
+        latitude: lat,
+        longitude: lng
+      });
+
+      // Auto-generate a key (slug) from the title
+      const key = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+      const { data, error } = await supabase
+        .from('quests')
+        .insert({
+          title,
+          description,
+          xp_reward: parseInt(xp_reward),
+          type,
+          target_value: parseInt(target_value),
+          icon,
+          color,
+          latitude: lat,
+          longitude: lng,
+          key: key + '-' + Date.now().toString().slice(-6), // Ensure uniqueness
+          category: 'general', // Default category
+        })
+        .select();
+
+      if (error) {
+        console.error('Supabase error details:', error);
+        throw error;
+      }
+
+      Alert.alert('Erfolg', 'Quest wurde erstellt!');
+      setCreatorModalVisible(false);
+      fetchGameData(); // Refresh quests
+    } catch (error) {
+      console.error('Error creating quest:', error);
+      Alert.alert('Fehler', error.message);
+    }
+  };
+
   // Web Message Handler - einmal registrieren
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -883,12 +1042,15 @@ const MapScreen = () => {
           setMapReady(true);
         } else if (e.data?.type === 'QUEST_TAP') {
           openQuestDetail(e.data.quest);
+        } else if (e.data?.type === 'CENTER_COORDS') {
+          setNewQuestData(prev => ({ ...prev, lat: e.data.lat, lng: e.data.lng }));
+          setCreatorModalVisible(true);
         }
       };
       window.addEventListener('message', handler);
       return () => window.removeEventListener('message', handler);
     }
-  }, []);
+  }, [fetchGameData]);
 
   // Center on user location when map is ready and real location is found
   useEffect(() => {
@@ -937,7 +1099,12 @@ const MapScreen = () => {
                 if (d.type === 'MAP_READY' && !mapReadyRef.current) {
                   mapReadyRef.current = true;
                   setMapReady(true);
-                } else if (d.type === 'QUEST_TAP') openQuestDetail(d.quest);
+                } else if (d.type === 'QUEST_TAP') {
+                  openQuestDetail(d.quest);
+                } else if (d.type === 'CENTER_COORDS') {
+                  setNewQuestData(prev => ({ ...prev, lat: d.lat, lng: d.lng }));
+                  setCreatorModalVisible(true);
+                }
               } catch (err) {}
             }} 
           />
@@ -1026,10 +1193,141 @@ const MapScreen = () => {
             <Text style={styles.statLabel}>Erreichbar</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.locateBtn} onPress={centerOnUser}>
-          <Ionicons name="locate" size={20} color={COLORS.text.primary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={styles.locateBtn} onPress={centerOnUser}>
+            <Ionicons name="locate" size={20} color={COLORS.text.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Admin Quest Creator Toggle */}
+      {player?.admin && (
+        <TouchableOpacity 
+          style={[styles.adminToggleBtn, { bottom: bottomBarBottom + 80 }]} 
+          onPress={() => setIsCreatorEnabled(!isCreatorEnabled)}
+        >
+          <LinearGradient 
+            colors={isCreatorEnabled ? ['#EF4444', '#B91C1C'] : ['#4F46E5', '#7C3AED']} 
+            style={styles.adminToggleGradient}
+          >
+            <Ionicons name={isCreatorEnabled ? "close" : "add"} size={28} color="#FFF" />
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+
+      {/* Quest Creator Crosshair & Button */}
+      {isCreatorEnabled && (
+        <>
+          <View style={styles.crosshairContainer} pointerEvents="none">
+            <View style={styles.crosshairV} />
+            <View style={styles.crosshairH} />
+            <View style={styles.crosshairCenter} />
+          </View>
+          <TouchableOpacity 
+            style={[styles.createBtn, { bottom: bottomBarBottom + 70 }]}
+            onPress={handleCreateQuestPress}
+          >
+            <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.createBtnGradient}>
+              <Ionicons name="add" size={24} color="#FFF" />
+              <Text style={styles.createBtnText}>Quest erstellen</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {/* Quest Creator Modal */}
+      <Modal
+        visible={creatorModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setCreatorModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Neue Quest erstellen</Text>
+              <TouchableOpacity onPress={() => setCreatorModalVisible(false)}>
+                <Ionicons name="close" size={24} color={COLORS.text.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalForm}>
+              <Text style={styles.inputLabel}>Titel</Text>
+              <TextInput 
+                style={styles.input}
+                value={newQuestData.title}
+                onChangeText={(text) => setNewQuestData(prev => ({ ...prev, title: text }))}
+                placeholder="z.B. Silver Star Ride"
+              />
+
+              <Text style={styles.inputLabel}>Beschreibung</Text>
+              <TextInput 
+                style={[styles.input, { height: 80 }]}
+                value={newQuestData.description}
+                onChangeText={(text) => setNewQuestData(prev => ({ ...prev, description: text }))}
+                placeholder="Was muss der Spieler tun?"
+                multiline
+              />
+
+              <View style={styles.inputRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>XP Belohnung</Text>
+                  <TextInput 
+                    style={styles.input}
+                    value={newQuestData.xp_reward}
+                    onChangeText={(text) => setNewQuestData(prev => ({ ...prev, xp_reward: text }))}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.inputLabel}>Zielwert</Text>
+                  <TextInput 
+                    style={styles.input}
+                    value={newQuestData.target_value}
+                    onChangeText={(text) => setNewQuestData(prev => ({ ...prev, target_value: text }))}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.inputLabel}>Typ</Text>
+              <View style={styles.typeRow}>
+                {['visit', 'ride', 'scan'].map(t => (
+                  <TouchableOpacity 
+                    key={t}
+                    style={[styles.typeBtn, newQuestData.type === t && styles.typeBtnActive]}
+                    onPress={() => setNewQuestData(prev => ({ ...prev, type: t }))}
+                  >
+                    <Text style={[styles.typeBtnText, newQuestData.type === t && styles.typeBtnTextActive]}>{t}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.inputLabel}>Icon (Ionicons Name)</Text>
+              <TextInput 
+                style={styles.input}
+                value={newQuestData.icon}
+                onChangeText={(text) => setNewQuestData(prev => ({ ...prev, icon: text }))}
+              />
+
+              <Text style={styles.inputLabel}>Farbe (Hex)</Text>
+              <TextInput 
+                style={styles.input}
+                value={newQuestData.color}
+                onChangeText={(text) => setNewQuestData(prev => ({ ...prev, color: text }))}
+              />
+
+              <View style={styles.coordsBox}>
+                <Text style={styles.coordsText}>GPS: {newQuestData.lat?.toFixed(6)}, {newQuestData.lng?.toFixed(6)}</Text>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity style={styles.saveBtn} onPress={saveQuestToDb}>
+              <Text style={styles.saveBtnText}>In Datenbank speichern</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Quest Detail Sheet */}
       <Animated.View style={[styles.bottomSheet, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 70 : 20, transform: [{ translateY: slideAnim }] }]}>
@@ -1147,6 +1445,38 @@ const styles = StyleSheet.create({
   sheetBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
   activeQuestBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#EEF2FF', paddingVertical: 12, borderRadius: 12 },
   activeQuestBadgeText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+  
+  // Quest Creator
+  crosshairContainer: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
+  crosshairV: { width: 1, height: 40, backgroundColor: '#4F46E5', opacity: 0.8 },
+  crosshairH: { width: 40, height: 1, backgroundColor: '#4F46E5', opacity: 0.8, position: 'absolute' },
+  crosshairCenter: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#4F46E5', position: 'absolute' },
+  createBtn: { position: 'absolute', alignSelf: 'center', zIndex: 10 },
+  createBtnGradient: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25, gap: 8, ...SHADOWS.lg },
+  createBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  
+  // Admin Toggle
+  adminToggleBtn: { position: 'absolute', right: 16, zIndex: 100 },
+  adminToggleGradient: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', ...SHADOWS.lg },
+  
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '85%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text.primary },
+  modalForm: { marginBottom: 20 },
+  inputLabel: { fontSize: 12, fontWeight: '700', color: COLORS.text.muted, marginBottom: 6, marginTop: 12, textTransform: 'uppercase' },
+  input: { backgroundColor: '#F1F5F9', borderRadius: 10, padding: 12, fontSize: 15, color: COLORS.text.primary },
+  inputRow: { flexDirection: 'row' },
+  typeRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  typeBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#F1F5F9', alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
+  typeBtnActive: { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' },
+  typeBtnText: { fontSize: 13, fontWeight: '600', color: COLORS.text.secondary },
+  typeBtnTextActive: { color: '#4F46E5' },
+  coordsBox: { marginTop: 20, padding: 12, backgroundColor: '#F8FAFC', borderRadius: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#CBD5E1' },
+  coordsText: { fontSize: 12, fontFamily: 'monospace', color: COLORS.text.muted, textAlign: 'center' },
+  saveBtn: { backgroundColor: '#4F46E5', paddingVertical: 16, borderRadius: 14, alignItems: 'center', ...SHADOWS.md },
+  saveBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
 });
 
 export default MapScreen;
