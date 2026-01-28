@@ -7,7 +7,8 @@ import { supabase, isSupabaseConfigured, getSession, onAuthStateChange } from '.
 import { LEVEL_CONFIG, calculateFinalXP, DAILY_REWARDS } from './config/rewards';
 import { ACHIEVEMENTS, getAllAchievements } from './config/achievements';
 import { QUEST_TEMPLATES } from './config/quests';
-import { getCardByLevel } from './config/cards';
+import { CARDS, getCardById } from './config/cards';
+import { PACK_TYPES, generatePackCards } from './config/packs';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INITIAL STATE
@@ -26,6 +27,7 @@ const initialState = {
     avatarUrl: null,
     xp: 0,
     level: 1,
+    gems: 100, // Starting gems for new players
     loginStreak: 0,
     lastLoginDate: null,
     streakFreezeCount: 0,
@@ -35,11 +37,18 @@ const initialState = {
     challengesWon: 0,
     challengeWinStreak: 0,
     rewardsRedeemed: 0,
+    totalPacksOpened: 0,
+    packsSinceLastLegendary: 0,
   },
   
   // Collection
-  collection: [], 
+  collection: [], // Array of owned card IDs (can have duplicates for count)
+  uniqueCards: [], // Array of unique card IDs owned
   justUnlockedCard: null,
+  
+  // Pack Opening
+  packOpeningResult: null, // { packType, cards: [] } - set when opening a pack
+  ownedPacks: [], // Packs bought but not yet opened
 
   // Achievements
   achievements: [], // Unlocked achievement keys
@@ -87,6 +96,14 @@ const ACTIONS = {
   UPDATE_PLAYER: 'UPDATE_PLAYER',
   ADD_XP: 'ADD_XP',
   LEVEL_UP: 'LEVEL_UP',
+  
+  // Gems & Packs
+  ADD_GEMS: 'ADD_GEMS',
+  SPEND_GEMS: 'SPEND_GEMS',
+  BUY_PACK: 'BUY_PACK',
+  OPEN_PACK: 'OPEN_PACK',
+  CLEAR_PACK_RESULT: 'CLEAR_PACK_RESULT',
+  ADD_CARDS_TO_COLLECTION: 'ADD_CARDS_TO_COLLECTION',
   
   UNLOCK_ACHIEVEMENT: 'UNLOCK_ACHIEVEMENT',
   UPDATE_ACHIEVEMENT_PROGRESS: 'UPDATE_ACHIEVEMENT_PROGRESS',
@@ -146,18 +163,6 @@ function gameReducer(state, action) {
       const newLevel = LEVEL_CONFIG.getLevelFromXP(newXP);
       const leveledUp = newLevel > state.player.level;
       
-      // Check for Card Unlock
-      let newUnlockedCard = null;
-      let newCollection = state.collection;
-      
-      if (leveledUp) {
-        const cardReward = getCardByLevel(newLevel);
-        if (cardReward && !state.collection.includes(cardReward.id)) {
-          newUnlockedCard = cardReward;
-          newCollection = [...state.collection, cardReward.id];
-        }
-      }
-      
       return {
         ...state,
         player: {
@@ -165,11 +170,97 @@ function gameReducer(state, action) {
           xp: newXP,
           level: newLevel,
         },
-        collection: newCollection,
-        justUnlockedCard: newUnlockedCard,
         toasts: leveledUp 
           ? [...state.toasts, { id: Date.now(), type: 'level_up', level: newLevel }]
           : state.toasts,
+      };
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // GEMS & PACKS
+    // ─────────────────────────────────────────────────────────────────────────
+    case ACTIONS.ADD_GEMS: {
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          gems: state.player.gems + action.payload,
+        },
+        toasts: [...state.toasts, { 
+          id: Date.now(), 
+          type: 'gems_earned', 
+          amount: action.payload 
+        }],
+      };
+    }
+    
+    case ACTIONS.SPEND_GEMS: {
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          gems: Math.max(0, state.player.gems - action.payload),
+        },
+      };
+    }
+    
+    case ACTIONS.BUY_PACK: {
+      const packType = PACK_TYPES[action.payload];
+      if (!packType) return state;
+      
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          gems: state.player.gems - packType.cost,
+        },
+        ownedPacks: [...state.ownedPacks, { 
+          id: `pack_${Date.now()}`, 
+          type: action.payload, 
+          purchasedAt: new Date().toISOString() 
+        }],
+      };
+    }
+    
+    case ACTIONS.OPEN_PACK: {
+      const { packId, cards } = action.payload;
+      const hasLegendary = cards.some(c => c.rarity.id === 'legendary');
+      
+      // Calculate new card IDs
+      const newCardIds = cards.map(c => c.id);
+      const updatedCollection = [...state.collection, ...newCardIds];
+      const updatedUniqueCards = [...new Set(updatedCollection)];
+      
+      return {
+        ...state,
+        ownedPacks: state.ownedPacks.filter(p => p.id !== packId),
+        collection: updatedCollection,
+        uniqueCards: updatedUniqueCards,
+        packOpeningResult: { packId, cards },
+        player: {
+          ...state.player,
+          totalPacksOpened: state.player.totalPacksOpened + 1,
+          packsSinceLastLegendary: hasLegendary ? 0 : state.player.packsSinceLastLegendary + 1,
+        },
+      };
+    }
+    
+    case ACTIONS.CLEAR_PACK_RESULT: {
+      return {
+        ...state,
+        packOpeningResult: null,
+      };
+    }
+    
+    case ACTIONS.ADD_CARDS_TO_COLLECTION: {
+      const cardIds = action.payload;
+      const updatedCollection = [...state.collection, ...cardIds];
+      const updatedUniqueCards = [...new Set(updatedCollection)];
+      
+      return {
+        ...state,
+        collection: updatedCollection,
+        uniqueCards: updatedUniqueCards,
       };
     }
     
@@ -401,13 +492,27 @@ export function GameProvider({ children }) {
             avatarUrl: profile.avatar_url,
             xp: profile.xp || 0,
             level: profile.level || 1,
+            gems: profile.gems || 100, // Default starting gems
             loginStreak: profile.login_streak || 0,
             lastLoginDate: profile.last_login_date,
             streakFreezeCount: profile.streak_freeze_count || 0,
             totalQuestsCompleted: profile.total_quests_completed || 0,
             totalDistanceWalked: profile.total_distance_walked || 0,
+            totalPacksOpened: profile.total_packs_opened || 0,
+            packsSinceLastLegendary: profile.packs_since_last_legendary || 0,
           },
         });
+        
+        // Load user's card collection
+        if (profile.card_collection) {
+          const collection = typeof profile.card_collection === 'string' 
+            ? JSON.parse(profile.card_collection) 
+            : profile.card_collection;
+          dispatch({
+            type: ACTIONS.ADD_CARDS_TO_COLLECTION,
+            payload: collection || [],
+          });
+        }
       }
 
       return { profile, error: null };
@@ -436,18 +541,16 @@ export function GameProvider({ children }) {
       const locations = locationsResult.data || [];
       
       // Transform quests to match internal format if needed
-      // (Supabase returns snake_case, app might use camelCase - sticking to mixed for now to minimize refactor)
-      // But let's normalize 'xp_reward' to 'xpReward' etc to match QUEST_TEMPLATES structure
       const normalizedQuests = quests.map(q => ({
         ...q,
         xpReward: q.xp_reward,
+        gemReward: q.gem_reward || Math.floor(q.xp_reward / 2), // Default gem reward
         timeLimit: q.time_limit,
         expiresIn: q.expires_in,
         requiresScan: q.requires_scan,
         target: q.target_value,
         location: q.location_id,
         locations: q.multi_locations,
-        // Keep original keys too just in case
       }));
       
       // Transform locations to object map for easy lookup
@@ -496,17 +599,16 @@ export function GameProvider({ children }) {
       
       for (const uq of userQuests || []) {
         const questData = {
-          id: uq.id, // Use user_quest ID as the unique identifier
-          questId: uq.quest_id, // Original quest template ID
-          ...uq.quest, // Spread quest template data
-          // Normalize snake_case to camelCase
+          id: uq.id,
+          questId: uq.quest_id,
+          ...uq.quest,
           xpReward: uq.quest?.xp_reward,
+          gemReward: uq.quest?.gem_reward || Math.floor((uq.quest?.xp_reward || 0) / 2),
           timeLimit: uq.quest?.time_limit,
           expiresIn: uq.quest?.expires_in,
           requiresScan: uq.quest?.requires_scan,
           target: uq.quest?.target_value || 1,
           location: uq.quest?.location_id,
-          // User-specific data
           progress: uq.progress || 0,
           status: uq.status,
           startedAt: uq.started_at,
@@ -601,6 +703,7 @@ export function GameProvider({ children }) {
             avatarUrl: null,
             xp: 0,
             level: 1,
+            gems: 100,
             loginStreak: 0,
             lastLoginDate: null,
             streakFreezeCount: 0,
@@ -610,6 +713,8 @@ export function GameProvider({ children }) {
             challengesWon: 0,
             challengeWinStreak: 0,
             rewardsRedeemed: 0,
+            totalPacksOpened: 0,
+            packsSinceLastLegendary: 0,
           },
         });
         // Clear quests
@@ -726,7 +831,6 @@ export function GameProvider({ children }) {
           if (profileError) {
             console.error('Failed to load profile after signup:', profileError);
           }
-          // User starts with no quests, nothing to fetch
         }, 500);
       }
 
@@ -810,6 +914,122 @@ export function GameProvider({ children }) {
     return finalXP;
   }, [state.player.loginStreak, state.player.xp, state.user]);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // GEMS MANAGEMENT
+  // ─────────────────────────────────────────────────────────────────────────
+  
+  // Add gems to player
+  const addGems = useCallback((amount, reason = '') => {
+    dispatch({ type: ACTIONS.ADD_GEMS, payload: amount });
+    
+    // Sync to Supabase
+    if (isSupabaseConfigured() && state.user) {
+      supabase
+        .from('profiles')
+        .update({ gems: state.player.gems + amount })
+        .eq('id', state.user.id);
+    }
+    
+    return amount;
+  }, [state.player.gems, state.user]);
+  
+  // Spend gems (returns true if successful, false if not enough)
+  const spendGems = useCallback((amount) => {
+    if (state.player.gems < amount) {
+      return false;
+    }
+    
+    dispatch({ type: ACTIONS.SPEND_GEMS, payload: amount });
+    
+    // Sync to Supabase
+    if (isSupabaseConfigured() && state.user) {
+      supabase
+        .from('profiles')
+        .update({ gems: state.player.gems - amount })
+        .eq('id', state.user.id);
+    }
+    
+    return true;
+  }, [state.player.gems, state.user]);
+  
+  // ─────────────────────────────────────────────────────────────────────────
+  // PACK MANAGEMENT
+  // ─────────────────────────────────────────────────────────────────────────
+  
+  // Buy a pack (returns pack or null if failed)
+  const buyPack = useCallback((packTypeKey) => {
+    const packType = PACK_TYPES[packTypeKey];
+    if (!packType) {
+      console.error('Invalid pack type:', packTypeKey);
+      return null;
+    }
+    
+    if (state.player.gems < packType.cost) {
+      return { error: 'Nicht genug Gems!' };
+    }
+    
+    dispatch({ type: ACTIONS.BUY_PACK, payload: packTypeKey });
+    
+    // Return the pack info
+    const newPack = {
+      id: `pack_${Date.now()}`,
+      type: packTypeKey,
+      packType: packType,
+    };
+    
+    // Sync to Supabase
+    if (isSupabaseConfigured() && state.user) {
+      supabase
+        .from('profiles')
+        .update({ gems: state.player.gems - packType.cost })
+        .eq('id', state.user.id);
+    }
+    
+    return newPack;
+  }, [state.player.gems, state.user]);
+  
+  // Open a pack and get cards
+  const openPack = useCallback((packTypeKey) => {
+    const packType = PACK_TYPES[packTypeKey];
+    if (!packType) {
+      console.error('Invalid pack type for opening:', packTypeKey);
+      return null;
+    }
+    
+    // Generate cards for the pack
+    const cards = generatePackCards(packTypeKey, CARDS);
+    
+    // Dispatch the open pack action
+    dispatch({
+      type: ACTIONS.OPEN_PACK,
+      payload: {
+        packId: `opened_${Date.now()}`,
+        cards: cards,
+      },
+    });
+    
+    // Sync collection to Supabase
+    if (isSupabaseConfigured() && state.user) {
+      const newCardIds = cards.map(c => c.id);
+      const updatedCollection = [...state.collection, ...newCardIds];
+      
+      supabase
+        .from('profiles')
+        .update({ 
+          card_collection: updatedCollection,
+          total_packs_opened: state.player.totalPacksOpened + 1,
+        })
+        .eq('id', state.user.id);
+    }
+    
+    return cards;
+  }, [state.collection, state.player.totalPacksOpened, state.user]);
+  
+  // Clear pack opening result (after animation is done)
+  const clearPackResult = useCallback(() => {
+    dispatch({ type: ACTIONS.CLEAR_PACK_RESULT });
+  }, []);
+
   // Claim daily reward
   const claimDailyReward = useCallback(async () => {
     if (state.hasClaimedDailyReward) return null;
@@ -839,16 +1059,19 @@ export function GameProvider({ children }) {
     const streakDay = ((newStreak - 1) % 7);
     const reward = DAILY_REWARDS[streakDay];
     const xpReward = calculateFinalXP(reward.xp, newStreak);
+    const gemReward = reward.gems || Math.floor(reward.xp / 2); // Gems from daily reward
     
     const rewardData = {
       ...reward,
       xpReward,
+      gemReward,
       newStreak,
       streakDay: streakDay + 1,
     };
     
     dispatch({ type: ACTIONS.CLAIM_DAILY_REWARD, payload: rewardData });
     dispatch({ type: ACTIONS.ADD_XP, payload: xpReward });
+    dispatch({ type: ACTIONS.ADD_GEMS, payload: gemReward });
     
     // Check streak achievements
     checkAchievements({ loginStreak: newStreak });
@@ -862,13 +1085,17 @@ export function GameProvider({ children }) {
   }, [state.hasClaimedDailyReward, state.player, state.user]);
 
   // Complete a quest
-  const completeQuest = useCallback(async (questId, xpReward) => {
+  const completeQuest = useCallback(async (questId, xpReward, gemReward = 0) => {
     const quest = state.activeQuests.find(q => q.id === questId);
+    
+    // Calculate gem reward if not provided
+    const finalGemReward = gemReward || quest?.gemReward || Math.floor(xpReward / 2);
     
     // Update local state first (optimistic)
     dispatch({ type: ACTIONS.COMPLETE_QUEST, payload: questId });
     
     const finalXP = addXP(xpReward, 'Quest completed');
+    addGems(finalGemReward, 'Quest completed');
     
     // Update Supabase
     if (isSupabaseConfigured() && state.user) {
@@ -886,7 +1113,8 @@ export function GameProvider({ children }) {
           .from('profiles')
           .update({ 
             total_quests_completed: state.player.totalQuestsCompleted + 1,
-            xp: state.player.xp + finalXP
+            xp: state.player.xp + finalXP,
+            gems: state.player.gems + finalGemReward,
           })
           .eq('id', state.user.id);
       } catch (error) {
@@ -905,12 +1133,13 @@ export function GameProvider({ children }) {
         type: 'quest_complete',
         title: `Completed "${quest.title}"`,
         xp: finalXP,
+        gems: finalGemReward,
         timestamp: new Date().toISOString(),
       }});
     }
     
-    return finalXP;
-  }, [addXP, state.player.totalQuestsCompleted, state.player.xp, state.activeQuests, state.user]);
+    return { xp: finalXP, gems: finalGemReward };
+  }, [addXP, addGems, state.player.totalQuestsCompleted, state.player.xp, state.player.gems, state.activeQuests, state.user]);
 
   // Check and unlock achievements
   const checkAchievements = useCallback((stats) => {
@@ -949,6 +1178,9 @@ export function GameProvider({ children }) {
         case 'rewards_redeemed':
           currentValue = playerStats.rewardsRedeemed;
           break;
+        case 'packs_opened':
+          currentValue = playerStats.totalPacksOpened;
+          break;
         default:
           continue;
       }
@@ -963,6 +1195,11 @@ export function GameProvider({ children }) {
       if (currentValue >= value) {
         dispatch({ type: ACTIONS.UNLOCK_ACHIEVEMENT, payload: achievement.key });
         
+        // Award gems for achievement
+        if (achievement.gems) {
+          addGems(achievement.gems, `Achievement: ${achievement.name}`);
+        }
+        
         // Post to activity feed
         if (isSupabaseConfigured() && state.user) {
           supabase.from('activity_feed').insert({
@@ -974,7 +1211,7 @@ export function GameProvider({ children }) {
         }
       }
     }
-  }, [state.achievements, state.player, state.user]);
+  }, [state.achievements, state.player, state.user, addGems]);
 
   // Add friend
   const addFriend = useCallback(async (friendId) => {
@@ -1015,6 +1252,7 @@ export function GameProvider({ children }) {
         opponent_id: opponentId,
         quest_key: questKey,
         xp_reward: quest.xpReward * 2, // Double XP for challenges
+        gem_reward: quest.gemReward * 2, // Double gems for challenges
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       })
       .select()
@@ -1105,6 +1343,11 @@ export function GameProvider({ children }) {
     
     // Actions
     addXP,
+    addGems,
+    spendGems,
+    buyPack,
+    openPack,
+    clearPackResult,
     claimDailyReward,
     completeQuest,
     checkAchievements,
@@ -1127,6 +1370,11 @@ export function GameProvider({ children }) {
     signUp,
     signOut,
     addXP,
+    addGems,
+    spendGems,
+    buyPack,
+    openPack,
+    clearPackResult,
     claimDailyReward,
     completeQuest,
     checkAchievements,
@@ -1161,4 +1409,3 @@ export function useGame() {
 }
 
 export default GameProvider;
-

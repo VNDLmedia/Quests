@@ -15,6 +15,7 @@ const QuestCard = ({
     title, 
     description, 
     xpReward, 
+    gemReward,
     progress = 0, 
     target = 1, 
     icon = 'flag', 
@@ -22,6 +23,9 @@ const QuestCard = ({
     difficulty = 'easy',
     type
   } = quest;
+
+  // Calculate gem reward if not provided (based on XP)
+  const displayGemReward = gemReward || Math.floor(xpReward / 2);
 
   const progressPercent = Math.min(100, Math.max(0, (progress / target) * 100));
   const isCompleted = progress >= target;
@@ -59,6 +63,14 @@ const QuestCard = ({
                 <Text style={[styles.badgeText, { color: '#3B82F6' }]}>
                   {xpReward} XP
                 </Text>
+              </View>
+              <View style={[styles.badge, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+                <View style={styles.gemBadgeContent}>
+                  <Ionicons name="diamond" size={10} color="#38bdf8" />
+                  <Text style={[styles.badgeText, { color: '#38bdf8' }]}>
+                    {displayGemReward}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -98,6 +110,14 @@ const QuestCard = ({
             )}
           </TouchableOpacity>
         )}
+
+        {/* Completed badge */}
+        {isCompleted && (
+          <View style={styles.completedBanner}>
+            <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+            <Text style={styles.completedText}>Abgeschlossen!</Text>
+          </View>
+        )}
       </TouchableOpacity>
     </GlassCard>
   );
@@ -134,7 +154,8 @@ const styles = StyleSheet.create({
   },
   badges: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
   },
   badge: {
     paddingHorizontal: 8,
@@ -144,6 +165,11 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  gemBadgeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
   description: {
     fontSize: 14,
@@ -183,6 +209,21 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  completedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: 10,
+  },
+  completedText: {
+    color: '#10B981',
     fontSize: 14,
     fontWeight: '700',
   },

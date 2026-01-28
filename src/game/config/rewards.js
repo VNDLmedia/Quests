@@ -2,15 +2,15 @@
 // PULSE - Rewards & Daily Bonus Configuration
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Daily login rewards (7-day cycle)
+// Daily login rewards (7-day cycle) - Now includes gems!
 export const DAILY_REWARDS = [
-  { day: 1, xp: 50, bonus: null, icon: 'star' },
-  { day: 2, xp: 75, bonus: null, icon: 'star' },
-  { day: 3, xp: 100, bonus: null, icon: 'star' },
-  { day: 4, xp: 150, bonus: null, icon: 'star-half' },
-  { day: 5, xp: 200, bonus: null, icon: 'star-half' },
-  { day: 6, xp: 300, bonus: null, icon: 'stars' },
-  { day: 7, xp: 500, bonus: { type: 'streak_freeze', count: 1 }, icon: 'gift' },
+  { day: 1, xp: 50, gems: 25, bonus: null, icon: 'star' },
+  { day: 2, xp: 75, gems: 35, bonus: null, icon: 'star' },
+  { day: 3, xp: 100, gems: 50, bonus: null, icon: 'star' },
+  { day: 4, xp: 150, gems: 75, bonus: null, icon: 'star-half' },
+  { day: 5, xp: 200, gems: 100, bonus: null, icon: 'star-half' },
+  { day: 6, xp: 300, gems: 150, bonus: null, icon: 'stars' },
+  { day: 7, xp: 500, gems: 300, bonus: { type: 'streak_freeze', count: 1 }, icon: 'gift' },
 ];
 
 // Streak multipliers for XP gains
@@ -78,17 +78,20 @@ export const getLevelTitle = (level) => {
   return LEVEL_TITLES[0];
 };
 
-// Level-up rewards
+// Level-up rewards - Now includes gems!
 export const LEVEL_REWARDS = {
-  5: { xpBonus: 500, badge: 'level_up' },
-  10: { xpBonus: 1000, badge: 'elite_status', streakFreeze: 1 },
-  15: { xpBonus: 1500, badge: null, streakFreeze: 2 },
-  20: { xpBonus: 2000, badge: null, streakFreeze: 3 },
-  25: { xpBonus: 5000, badge: 'legend', streakFreeze: 5 },
+  5: { xpBonus: 500, gems: 100, badge: 'level_up' },
+  10: { xpBonus: 1000, gems: 250, badge: 'elite_status', streakFreeze: 1 },
+  15: { xpBonus: 1500, gems: 500, badge: null, streakFreeze: 2 },
+  20: { xpBonus: 2000, gems: 1000, badge: null, streakFreeze: 3 },
+  25: { xpBonus: 5000, gems: 2000, badge: 'legend', streakFreeze: 5 },
 };
 
-// Weekly challenge bonus XP
-export const WEEKLY_CHALLENGE_BONUS = 1000;
+// Weekly challenge bonus XP and gems
+export const WEEKLY_CHALLENGE_BONUS = {
+  xp: 1000,
+  gems: 200,
+};
 
 // Special event multipliers
 export const EVENT_MULTIPLIERS = {
@@ -116,14 +119,41 @@ export const calculateFinalXP = (baseXP, streak = 0) => {
   return Math.floor(baseXP * streakMult * eventMult);
 };
 
+// Calculate final gems with streak bonus
+export const calculateFinalGems = (baseGems, streak = 0) => {
+  // Gems get a smaller streak bonus (half of XP multiplier)
+  const streakMult = 1 + (getStreakMultiplier(streak) - 1) / 2;
+  return Math.floor(baseGems * streakMult);
+};
+
+// Quest difficulty gem multipliers
+export const QUEST_GEM_REWARDS = {
+  easy: 10,
+  medium: 25,
+  hard: 50,
+  legendary: 100,
+};
+
+// Achievement gem rewards
+export const ACHIEVEMENT_GEM_REWARDS = {
+  common: 25,
+  uncommon: 50,
+  rare: 100,
+  epic: 250,
+  legendary: 500,
+};
+
 export default {
   DAILY_REWARDS,
   STREAK_MULTIPLIERS,
   LEVEL_CONFIG,
   LEVEL_TITLES,
   LEVEL_REWARDS,
+  WEEKLY_CHALLENGE_BONUS,
+  QUEST_GEM_REWARDS,
+  ACHIEVEMENT_GEM_REWARDS,
   getStreakMultiplier,
   getLevelTitle,
   calculateFinalXP,
+  calculateFinalGems,
 };
-

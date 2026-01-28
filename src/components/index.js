@@ -23,6 +23,7 @@ export { default as StoryBubble, StoryBubbleRow } from './StoryBubble';
 // Overlays & Modals
 export { default as MatchOverlay } from './MatchOverlay';
 export { CardUnlockOverlay } from './CardUnlockOverlay';
+export { default as PackOpeningOverlay } from './PackOpeningOverlay';
 
 // Game UI Components
 export { default as AchievementToast } from './AchievementToast';
@@ -32,3 +33,6 @@ export { default as LiveLeaderboard } from './LiveLeaderboard';
 export { default as ChallengeCard } from './ChallengeCard';
 export { default as ActivityFeed } from './ActivityFeed';
 export { default as QuestCard } from './QuestCard';
+
+// Card Components
+export { default as Card3D } from './Card3D';

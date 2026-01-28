@@ -1,13 +1,14 @@
 import React, { useState, useRef } from 'react';
-import { View, StyleSheet, Text, Modal, TouchableOpacity, ScrollView, Dimensions, Image, Animated, Pressable } from 'react-native';
+import { View, StyleSheet, Text, Modal, TouchableOpacity, ScrollView, Dimensions, Animated, Pressable } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { useNavigation } from '@react-navigation/native';
 import { GlassCard, GlassButton, Avatar, ScreenHeader } from '../components';
 import { useGame } from '../game/GameProvider';
-import { CARDS, RARITY } from '../game/config/cards';
+import { CARDS, RARITY, getCollectionCompletion, getRarityDistribution } from '../game/config/cards';
+import Card3D from '../components/Card3D';
 
 const { width, height } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -21,7 +22,8 @@ const TABS = [
 ];
 
 const ProfileScreen = () => {
-  const { player, collection } = useGame();
+  const navigation = useNavigation();
+  const { player, collection, uniqueCards } = useGame();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -33,15 +35,11 @@ const ProfileScreen = () => {
   // Calculate Progress
   const xpProgress = (player.xpInCurrentLevel / player.xpNeededForNext) * 100;
   
-  // Collection Stats
-  const unlockedCards = CARDS.filter(c => collection.includes(c.id));
+  // Collection Stats using new helper functions
+  const collectionStats = getCollectionCompletion(uniqueCards || []);
+  const rarityStats = getRarityDistribution(uniqueCards || []);
+  const unlockedCards = CARDS.filter(c => (uniqueCards || []).includes(c.id));
   const totalPower = unlockedCards.reduce((sum, c) => sum + c.power, 0);
-  const rarityStats = {
-    common: unlockedCards.filter(c => c.rarity.id === 'common').length,
-    rare: unlockedCards.filter(c => c.rarity.id === 'rare').length,
-    epic: unlockedCards.filter(c => c.rarity.id === 'epic').length,
-    legendary: unlockedCards.filter(c => c.rarity.id === 'legendary').length,
-  };
   
   // Filtered Cards
   const filteredCards = rarityFilter === 'all' 
@@ -80,7 +78,8 @@ const ProfileScreen = () => {
   };
 
   const renderCollectionItem = (card) => {
-    const isUnlocked = collection.includes(card.id);
+    const isUnlocked = (uniqueCards || []).includes(card.id);
+    const duplicateCount = (collection || []).filter(id => id === card.id).length;
 
     return (
       <Pressable 
@@ -102,6 +101,11 @@ const ProfileScreen = () => {
                 <Ionicons name="flash" size={10} color="#fbbf24" />
                 <Text style={styles.powerText}>{card.power}</Text>
               </View>
+              {duplicateCount > 1 && (
+                <View style={styles.duplicateBadge}>
+                  <Text style={styles.duplicateText}>x{duplicateCount}</Text>
+                </View>
+              )}
               <View style={styles.rarityIndicator}>
                 <View style={[styles.rarityDot, { backgroundColor: card.rarity.color[1] }]} />
               </View>
@@ -111,7 +115,7 @@ const ProfileScreen = () => {
               <View style={styles.lockCircle}>
                 <Ionicons name="lock-closed" size={20} color="#475569" />
               </View>
-              <Text style={styles.levelReq}>Lvl {card.unlockLevel}</Text>
+              <Text style={styles.levelReq}>Pack</Text>
             </View>
           )}
         </View>
@@ -132,7 +136,7 @@ const ProfileScreen = () => {
             <View style={styles.statBox}>
               <LinearGradient colors={['#3b82f6', '#60a5fa']} style={styles.statGradient}>
                 <Ionicons name="albums" size={20} color="white" />
-                <Text style={styles.statNumber}>{unlockedCards.length}/{CARDS.length}</Text>
+                <Text style={styles.statNumber}>{collectionStats.owned}/{collectionStats.total}</Text>
                 <Text style={styles.statLabel}>Karten</Text>
               </LinearGradient>
             </View>
@@ -146,7 +150,7 @@ const ProfileScreen = () => {
             <View style={styles.statBox}>
               <LinearGradient colors={['#8b5cf6', '#a78bfa']} style={styles.statGradient}>
                 <Ionicons name="diamond" size={20} color="white" />
-                <Text style={styles.statNumber}>{rarityStats.legendary + rarityStats.epic}</Text>
+                <Text style={styles.statNumber}>{(rarityStats.legendary || 0) + (rarityStats.epic || 0)}</Text>
                 <Text style={styles.statLabel}>Selten</Text>
               </LinearGradient>
             </View>
@@ -176,7 +180,7 @@ const ProfileScreen = () => {
                   rarityFilter === rarity.id && styles.filterTextActive
                 ]}>{rarity.name}</Text>
                 <Text style={styles.filterCount}>({
-                  CARDS.filter(c => c.rarity.id === rarity.id).filter(c => collection.includes(c.id)).length
+                  CARDS.filter(c => c.rarity.id === rarity.id).filter(c => (uniqueCards || []).includes(c.id)).length
                 })</Text>
               </TouchableOpacity>
             ))}
@@ -211,16 +215,35 @@ const ProfileScreen = () => {
           </View>
           
           <View style={styles.playerInfo}>
-            <Text style={styles.playerName}>{player.username}</Text>
+            <Text style={styles.playerName}>{player.displayName || player.username}</Text>
             <Text style={styles.playerTitle}>{player.levelTitle?.title || 'Rookie'}</Text>
             
             {/* XP Bar */}
             <View style={styles.xpBarContainer}>
-              <View style={[styles.xpBarFill, { width: `${xpProgress}%` }]} />
+              <View style={[styles.xpBarFill, { width: `${xpProgress || 0}%` }]} />
             </View>
-            <Text style={styles.xpText}>{Math.floor(player.xpInCurrentLevel)} / {Math.floor(player.xpNeededForNext)} XP</Text>
+            <Text style={styles.xpText}>{Math.floor(player.xpInCurrentLevel || 0)} / {Math.floor(player.xpNeededForNext || 100)} XP</Text>
           </View>
         </View>
+
+        {/* GEMS DISPLAY */}
+        <TouchableOpacity onPress={() => navigation.navigate('Shop')}>
+          <GlassCard style={styles.gemsCard}>
+            <View style={styles.gemsContent}>
+              <View style={styles.gemsLeft}>
+                <Ionicons name="diamond" size={32} color="#38bdf8" />
+                <View>
+                  <Text style={styles.gemsLabel}>Deine Gems</Text>
+                  <Text style={styles.gemsCount}>{player.gems || 0}</Text>
+                </View>
+              </View>
+              <View style={styles.shopButton}>
+                <Text style={styles.shopButtonText}>Shop</Text>
+                <Ionicons name="chevron-forward" size={18} color="#38bdf8" />
+              </View>
+            </View>
+          </GlassCard>
+        </TouchableOpacity>
 
         {/* Quick Collection Preview */}
         <TouchableOpacity onPress={() => setActiveTab('collection')}>
@@ -247,11 +270,17 @@ const ProfileScreen = () => {
                   <Text style={styles.moreText}>+{unlockedCards.length - 4}</Text>
                 </View>
               )}
+              {unlockedCards.length === 0 && (
+                <View style={styles.emptyPreview}>
+                  <Ionicons name="gift-outline" size={24} color="#64748b" />
+                  <Text style={styles.emptyText}>Öffne Packs im Shop!</Text>
+                </View>
+              )}
             </View>
             <View style={styles.collectionProgress}>
-              <View style={[styles.collectionBar, { width: `${(unlockedCards.length / CARDS.length) * 100}%` }]} />
+              <View style={[styles.collectionBar, { width: `${collectionStats.percentage}%` }]} />
             </View>
-            <Text style={styles.collectionSubtext}>{unlockedCards.length} von {CARDS.length} Karten gesammelt</Text>
+            <Text style={styles.collectionSubtext}>{collectionStats.owned} von {collectionStats.total} Karten gesammelt</Text>
           </GlassCard>
         </TouchableOpacity>
 
@@ -319,49 +348,10 @@ const ProfileScreen = () => {
           <Animated.View style={[styles.cardDetailContainer, { transform: [{ scale: cardScale }] }]}>
             {selectedCard && (
               <Pressable onPress={(e) => e.stopPropagation()}>
-                <LinearGradient
-                  colors={selectedCard.rarity.color}
-                  style={styles.cardDetailGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <View style={styles.cardDetailShine} />
-                  
-                  {/* Rarity Badge */}
-                  <View style={styles.rarityBadge}>
-                    <Text style={styles.rarityBadgeText}>{selectedCard.rarity.name}</Text>
-                  </View>
-                  
-                  {/* Card Icon */}
-                  <View style={styles.cardIconContainer}>
-                    <Ionicons name={selectedCard.icon} size={64} color="white" />
-                  </View>
-                  
-                  {/* Card Name */}
-                  <Text style={styles.cardDetailName}>{selectedCard.name}</Text>
-                  
-                  {/* Power */}
-                  <View style={styles.cardDetailPower}>
-                    <Ionicons name="flash" size={24} color="#fbbf24" />
-                    <Text style={styles.cardDetailPowerText}>{selectedCard.power}</Text>
-                  </View>
-                  
-                  {/* Description */}
-                  <View style={styles.cardDescBox}>
-                    <Text style={styles.cardDetailDesc}>{selectedCard.description}</Text>
-                  </View>
-                  
-                  {/* Unlock Info */}
-                  <View style={styles.unlockInfo}>
-                    <Ionicons name="lock-open" size={16} color="rgba(255,255,255,0.7)" />
-                    <Text style={styles.unlockInfoText}>Freigeschaltet bei Level {selectedCard.unlockLevel}</Text>
-                  </View>
-                  
-                  {/* Close Button */}
-                  <TouchableOpacity style={styles.cardCloseBtn} onPress={closeCardDetail}>
-                    <Ionicons name="close-circle" size={32} color="rgba(255,255,255,0.8)" />
-                  </TouchableOpacity>
-                </LinearGradient>
+                <Card3D card={selectedCard} size="large" interactive={true} />
+                <TouchableOpacity style={styles.cardCloseBtn} onPress={closeCardDetail}>
+                  <Ionicons name="close-circle" size={32} color="rgba(255,255,255,0.8)" />
+                </TouchableOpacity>
               </Pressable>
             )}
           </Animated.View>
@@ -444,7 +434,7 @@ const styles = StyleSheet.create({
   headerSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   avatarContainer: {
     marginRight: 20,
@@ -502,6 +492,45 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontSize: 12,
   },
+  // Gems Card
+  gemsCard: {
+    marginBottom: 20,
+    padding: 16,
+  },
+  gemsContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  gemsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  gemsLabel: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  gemsCount: {
+    color: 'white',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  shopButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 4,
+  },
+  shopButtonText: {
+    color: '#38bdf8',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   // Collection Preview
   collectionPreview: {
     marginBottom: 20,
@@ -531,6 +560,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginBottom: 12,
+    minHeight: 56,
   },
   previewCard: {
     width: 44,
@@ -551,6 +581,15 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 14,
     fontWeight: '600',
+  },
+  emptyPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    color: '#64748b',
+    fontSize: 13,
   },
   collectionProgress: {
     height: 4,
@@ -701,6 +740,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
   },
+  duplicateBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  duplicateText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
   rarityIndicator: {
     position: 'absolute',
     bottom: 6,
@@ -779,94 +832,12 @@ const styles = StyleSheet.create({
     padding: 30,
   },
   cardDetailContainer: {
-    width: width * 0.75,
-  },
-  cardDetailGradient: {
-    borderRadius: 24,
-    padding: 24,
     alignItems: 'center',
-    minHeight: 380,
-    overflow: 'hidden',
-  },
-  cardDetailShine: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '35%',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  rarityBadge: {
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  rarityBadgeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  cardIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  cardDetailName: {
-    color: 'white',
-    fontSize: 26,
-    fontWeight: '800',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  cardDetailPower: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    gap: 6,
-    marginBottom: 20,
-  },
-  cardDetailPowerText: {
-    color: '#fbbf24',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  cardDescBox: {
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 16,
-  },
-  cardDetailDesc: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  unlockInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  unlockInfoText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
   },
   cardCloseBtn: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: -20,
+    right: -20,
   },
   // QR Modal
   modalContainer: {
