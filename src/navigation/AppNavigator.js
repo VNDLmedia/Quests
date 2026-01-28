@@ -54,10 +54,22 @@ const AppNavigator = () => {
     <>
       <StatusBar 
         barStyle="dark-content" 
-        backgroundColor="transparent" 
-        translucent={Platform.OS === 'android'}
+        backgroundColor={COLORS.background}
+        translucent={false}
       />
-      <NavigationContainer>
+      <NavigationContainer
+        theme={{
+          dark: false,
+          colors: {
+            primary: COLORS.primary,
+            background: COLORS.background,
+            card: COLORS.surface,
+            text: COLORS.text.primary,
+            border: COLORS.border,
+            notification: COLORS.primary,
+          },
+        }}
+      >
         <Tab.Navigator
           screenOptions={({ route }) => ({
             headerShown: false,
