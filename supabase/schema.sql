@@ -16,11 +16,15 @@ CREATE TABLE IF NOT EXISTS profiles (
   avatar_url TEXT,
   xp INTEGER DEFAULT 0,
   level INTEGER DEFAULT 1,
+  gems INTEGER DEFAULT 100,
   login_streak INTEGER DEFAULT 0,
   last_login_date DATE,
   streak_freeze_count INTEGER DEFAULT 0,
   total_quests_completed INTEGER DEFAULT 0,
   total_distance_walked REAL DEFAULT 0,
+  total_packs_opened INTEGER DEFAULT 0,
+  packs_since_last_legendary INTEGER DEFAULT 0,
+  card_collection JSONB DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -74,30 +78,81 @@ CREATE POLICY "Users can insert own achievements" ON achievements
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- QUESTS TABLE
+-- LOCATIONS TABLE (POIs auf der Karte)
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS locations (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT DEFAULT 'explore',
+  lat REAL NOT NULL,
+  lng REAL NOT NULL,
+  address TEXT,
+  image_url TEXT,
+  icon TEXT DEFAULT 'location',
+  is_active BOOLEAN DEFAULT true,
+  crowd_level TEXT DEFAULT 'low' CHECK (crowd_level IN ('low', 'medium', 'high')),
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Locations are public" ON locations
+  FOR SELECT USING (true);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- QUESTS TABLE (Quest-Vorlagen)
 -- ═══════════════════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS quests (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  quest_key TEXT NOT NULL,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed', 'expired')),
-  progress INTEGER DEFAULT 0,
-  target INTEGER DEFAULT 1,
+  title TEXT NOT NULL,
+  description TEXT,
+  type TEXT DEFAULT 'explore' CHECK (type IN ('daily', 'explore', 'social', 'challenge', 'special')),
+  category TEXT DEFAULT 'explore',
+  icon TEXT DEFAULT 'compass',
   xp_reward INTEGER DEFAULT 100,
-  started_at TIMESTAMPTZ DEFAULT NOW(),
-  completed_at TIMESTAMPTZ,
-  expires_at TIMESTAMPTZ,
-  location_lat REAL,
-  location_lng REAL,
-  metadata JSONB DEFAULT '{}'
+  gem_reward INTEGER DEFAULT 50,
+  target_value INTEGER DEFAULT 1,
+  time_limit INTEGER, -- in minutes
+  expires_in INTEGER, -- in hours
+  requires_scan BOOLEAN DEFAULT false,
+  location_id UUID REFERENCES locations(id),
+  multi_locations UUID[],
+  is_active BOOLEAN DEFAULT true,
+  difficulty TEXT DEFAULT 'easy' CHECK (difficulty IN ('easy', 'medium', 'hard', 'epic')),
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE quests ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own quests" ON quests
+CREATE POLICY "Quests are public" ON quests
+  FOR SELECT USING (true);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- USER_QUESTS TABLE (Benutzer-Quest-Fortschritt)
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS user_quests (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  quest_id UUID REFERENCES quests(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed', 'expired')),
+  progress INTEGER DEFAULT 0,
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  metadata JSONB DEFAULT '{}',
+  UNIQUE(user_id, quest_id)
+);
+
+ALTER TABLE user_quests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own user_quests" ON user_quests
   FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can manage own quests" ON quests
+CREATE POLICY "Users can manage own user_quests" ON user_quests
   FOR ALL USING (auth.uid() = user_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -317,12 +372,18 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ALTER PUBLICATION supabase_realtime ADD TABLE leaderboard;
 ALTER PUBLICATION supabase_realtime ADD TABLE activity_feed;
 ALTER PUBLICATION supabase_realtime ADD TABLE challenges;
+ALTER PUBLICATION supabase_realtime ADD TABLE user_quests;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- INDEXES FOR PERFORMANCE
 -- ═══════════════════════════════════════════════════════════════════════════
 CREATE INDEX IF NOT EXISTS idx_achievements_user ON achievements(user_id);
-CREATE INDEX IF NOT EXISTS idx_quests_user_status ON quests(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_user_quests_user_status ON user_quests(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_user_quests_quest ON user_quests(quest_id);
+CREATE INDEX IF NOT EXISTS idx_quests_type ON quests(type);
+CREATE INDEX IF NOT EXISTS idx_quests_active ON quests(is_active);
+CREATE INDEX IF NOT EXISTS idx_locations_category ON locations(category);
+CREATE INDEX IF NOT EXISTS idx_locations_active ON locations(is_active);
 CREATE INDEX IF NOT EXISTS idx_friendships_user ON friendships(user_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_friend ON friendships(friend_id);
 CREATE INDEX IF NOT EXISTS idx_leaderboard_weekly ON leaderboard(weekly_xp DESC);

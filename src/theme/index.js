@@ -108,6 +108,9 @@ SHADOWS.soft = Platform.OS === 'web'
   ? { boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.08)' }
   : { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 32, elevation: 5 };
 
+// Alias for backwards compatibility (some components use 'medium' instead of 'md')
+SHADOWS.medium = SHADOWS.md;
+
 // Border radii
 export const RADII = {
   sm: 8,
