@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ETHERNAL PATHS - Pack Opening Overlay with Dopamine-Maximizing Animations
+// ETHERNAL PATHS - Pack Opening Overlay (Simplified & Robust)
 // ═══════════════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -18,426 +18,106 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useGame } from '../game/GameProvider';
-import { PACK_TYPES } from '../game/config/packs';
 import Card3D from './Card3D';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Animation phases
-const PHASES = {
-  IDLE: 'idle',
-  PACK_ENTRANCE: 'pack_entrance',
-  PACK_SHAKE: 'pack_shake',
-  PACK_EXPLODE: 'pack_explode',
-  CARDS_FLY_OUT: 'cards_fly_out',
-  CARD_REVEAL: 'card_reveal',
-  COMPLETE: 'complete',
-};
-
-// Particle component for explosion effects
-const Particle = ({ delay, color, startX, startY }) => {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
-  const scale = useRef(new Animated.Value(1)).current;
-  
-  const angle = Math.random() * Math.PI * 2;
-  const distance = 100 + Math.random() * 200;
-  const endX = Math.cos(angle) * distance;
-  const endY = Math.sin(angle) * distance;
-  
-  useEffect(() => {
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(translateX, {
-          toValue: endX,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: endY,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scale, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, delay);
-  }, []);
-  
-  return (
-    <Animated.View
-      style={[
-        styles.particle,
-        {
-          backgroundColor: color,
-          left: startX,
-          top: startY,
-          opacity,
-          transform: [{ translateX }, { translateY }, { scale }],
-        },
-      ]}
-    />
-  );
-};
-
-// Sparkle component for card reveals
-const Sparkle = ({ x, y, delay }) => {
-  const scale = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
-  const rotation = useRef(new Animated.Value(0)).current;
-  
-  useEffect(() => {
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(scale, {
-            toValue: 1,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-          Animated.timing(scale, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.timing(rotation, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, delay);
-  }, []);
-  
-  return (
-    <Animated.View
-      style={[
-        styles.sparkle,
-        {
-          left: x,
-          top: y,
-          opacity,
-          transform: [
-            { scale },
-            {
-              rotate: rotation.interpolate({
-                inputRange: [0, 1],
-                outputRange: ['0deg', '180deg'],
-              }),
-            },
-          ],
-        },
-      ]}
-    >
-      <Ionicons name="sparkles" size={24} color="#fbbf24" />
-    </Animated.View>
-  );
-};
-
-export const PackOpeningOverlay = () => {
+const PackOpeningOverlay = () => {
   const { packOpeningResult, clearPackResult } = useGame();
-  const [phase, setPhase] = useState(PHASES.IDLE);
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [particles, setParticles] = useState([]);
-  const [sparkles, setSparkles] = useState([]);
-  const [showLegendaryFlash, setShowLegendaryFlash] = useState(false);
-  const [revealedCards, setRevealedCards] = useState(new Set());
+  const [step, setStep] = useState(0); // 0=pack, 1=revealing, 2=done
+  const [revealedCount, setRevealedCount] = useState(0);
   
-  // Use ref to track phase for setTimeout callbacks
-  const phaseRef = useRef(PHASES.IDLE);
-  
-  // Animation refs
   const packScale = useRef(new Animated.Value(0)).current;
-  const packRotate = useRef(new Animated.Value(0)).current;
-  const packY = useRef(new Animated.Value(50)).current;
-  const packOpacity = useRef(new Animated.Value(1)).current;
-  const packShake = useRef(new Animated.Value(0)).current;
-  const flashOpacity = useRef(new Animated.Value(0)).current;
-  const cardsContainerOpacity = useRef(new Animated.Value(0)).current;
-  const cardScales = useRef([]).current;
-  const cardFlips = useRef([]).current;
-  const backgroundGlow = useRef(new Animated.Value(0)).current;
-  
-  // Keep phase ref in sync
-  useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
-  
-  // Initialize card animations when result changes
-  useEffect(() => {
-    if (packOpeningResult?.cards) {
-      cardScales.length = 0;
-      cardFlips.length = 0;
-      packOpeningResult.cards.forEach(() => {
-        cardScales.push(new Animated.Value(0));
-        cardFlips.push(new Animated.Value(0));
-      });
-    }
-  }, [packOpeningResult]);
+  const packShakeX = useRef(new Animated.Value(0)).current;
+  const cardsOpacity = useRef(new Animated.Value(0)).current;
 
-  // Main animation sequence
+  // Reset when new pack
   useEffect(() => {
     if (packOpeningResult) {
-      setPhase(PHASES.PACK_ENTRANCE);
-      setCurrentCardIndex(0);
-      runPackEntrance();
-    } else {
-      resetAnimations();
-    }
-  }, [packOpeningResult]);
-
-  const resetAnimations = () => {
-    setPhase(PHASES.IDLE);
-    phaseRef.current = PHASES.IDLE;
-    packScale.setValue(0);
-    packRotate.setValue(0);
-    packY.setValue(50);
-    packOpacity.setValue(1);
-    packShake.setValue(0);
-    flashOpacity.setValue(0);
-    cardsContainerOpacity.setValue(0);
-    backgroundGlow.setValue(0);
-    setParticles([]);
-    setSparkles([]);
-    setShowLegendaryFlash(false);
-    setCurrentCardIndex(0);
-    setRevealedCards(new Set());
-  };
-
-  // Phase 1: Pack entrance with dramatic appearance
-  const runPackEntrance = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    Animated.parallel([
+      setStep(0);
+      setRevealedCount(0);
+      packScale.setValue(0);
+      packShakeX.setValue(0);
+      cardsOpacity.setValue(0);
+      
+      // Animate pack in
       Animated.spring(packScale, {
         toValue: 1,
         friction: 6,
-        tension: 40,
         useNativeDriver: true,
-      }),
-      Animated.timing(packY, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backgroundGlow, {
-        toValue: 0.3,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setPhase(PHASES.PACK_SHAKE);
-      phaseRef.current = PHASES.PACK_SHAKE;
-      // Auto-start shake after a moment
-      setTimeout(() => {
-        if (phaseRef.current === PHASES.PACK_SHAKE) {
-          runPackShake();
-        }
-      }, 500);
-    });
-  };
-
-  // Phase 2: Pack shakes with anticipation
-  const runPackShake = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    // Shake animation
-    const shakeSequence = Animated.sequence([
-      ...Array(6).fill(null).map((_, i) => 
-        Animated.timing(packShake, {
-          toValue: i % 2 === 0 ? 10 : -10,
-          duration: 50,
-          useNativeDriver: true,
-        })
-      ),
-      Animated.timing(packShake, {
-        toValue: 0,
-        duration: 50,
-        useNativeDriver: true,
-      }),
-    ]);
-
-    // Increase intensity
-    Animated.sequence([
-      shakeSequence,
-      Animated.delay(200),
-      Animated.parallel([
-        Animated.timing(packScale, {
-          toValue: 1.1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        shakeSequence,
-      ]),
-    ]).start();
-  };
-
-  // Phase 3: Pack explodes on tap
-  const handlePackTap = useCallback(() => {
-    if (phaseRef.current !== PHASES.PACK_SHAKE) return;
-    
-    setPhase(PHASES.PACK_EXPLODE);
-    phaseRef.current = PHASES.PACK_EXPLODE;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    // Generate explosion particles
-    const packColors = ['#fbbf24', '#f59e0b', '#ef4444', '#ffffff', '#38bdf8'];
-    const newParticles = [];
-    for (let i = 0; i < 40; i++) {
-      newParticles.push({
-        id: i,
-        color: packColors[Math.floor(Math.random() * packColors.length)],
-        startX: SCREEN_WIDTH / 2 - 5,
-        startY: SCREEN_HEIGHT / 2 - 100,
-        delay: Math.random() * 200,
+      }).start(() => {
+        // Start shake
+        startShake();
       });
     }
-    setParticles(newParticles);
+  }, [packOpeningResult]);
+
+  const startShake = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(packShakeX, { toValue: 8, duration: 60, useNativeDriver: true }),
+        Animated.timing(packShakeX, { toValue: -8, duration: 60, useNativeDriver: true }),
+        Animated.timing(packShakeX, { toValue: 6, duration: 50, useNativeDriver: true }),
+        Animated.timing(packShakeX, { toValue: -6, duration: 50, useNativeDriver: true }),
+        Animated.timing(packShakeX, { toValue: 0, duration: 40, useNativeDriver: true }),
+        Animated.delay(300),
+      ]),
+      { iterations: -1 }
+    ).start();
+  };
+
+  const handleOpenPack = () => {
+    if (step !== 0) return;
     
-    // Pack explosion animation
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    // Explode pack
     Animated.parallel([
-      Animated.timing(packScale, {
-        toValue: 2,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(packOpacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(flashOpacity, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
+      Animated.timing(packScale, { toValue: 3, duration: 300, useNativeDriver: true }),
+      Animated.timing(packShakeX, { toValue: 0, duration: 100, useNativeDriver: true }),
     ]).start(() => {
-      Animated.timing(flashOpacity, {
-        toValue: 0,
+      packScale.setValue(0);
+      setStep(1);
+      
+      // Show cards
+      Animated.timing(cardsOpacity, {
+        toValue: 1,
         duration: 400,
         useNativeDriver: true,
-      }).start();
-      
-      setTimeout(() => {
-        setPhase(PHASES.CARDS_FLY_OUT);
-        phaseRef.current = PHASES.CARDS_FLY_OUT;
-        runCardsAppear();
-      }, 300);
+      }).start(() => {
+        // Auto-reveal cards one by one
+        revealCards();
+      });
     });
-  }, [phase]);
-
-  // Phase 4: Cards appear and fan out
-  const runCardsAppear = () => {
-    Animated.timing(cardsContainerOpacity, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-    
-    // Stagger card appearances
-    packOpeningResult?.cards.forEach((card, index) => {
-      setTimeout(() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        
-        Animated.spring(cardScales[index], {
-          toValue: 1,
-          friction: 5,
-          tension: 40,
-          useNativeDriver: true,
-        }).start();
-      }, index * 200);
-    });
-    
-    // After all cards appear, start reveal phase
-    setTimeout(() => {
-      setPhase(PHASES.CARD_REVEAL);
-      phaseRef.current = PHASES.CARD_REVEAL;
-      revealNextCard(0);
-    }, (packOpeningResult?.cards.length || 0) * 200 + 500);
   };
 
-  // Phase 5: Cards flip to reveal
-  const revealNextCard = (index) => {
-    if (!packOpeningResult?.cards || index >= packOpeningResult.cards.length) {
-      setPhase(PHASES.COMPLETE);
-      phaseRef.current = PHASES.COMPLETE;
-      // Mark all cards as revealed
-      setRevealedCards(new Set(packOpeningResult.cards.map((_, i) => i)));
-      return;
-    }
+  const revealCards = () => {
+    const cards = packOpeningResult?.cards || [];
+    let count = 0;
     
-    const card = packOpeningResult.cards[index];
-    setCurrentCardIndex(index);
-    
-    // Heavy haptic for legendary/epic
-    if (card.rarity.id === 'legendary') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setShowLegendaryFlash(true);
-      
-      // Gold flash effect
-      Animated.sequence([
-        Animated.timing(flashOpacity, {
-          toValue: 1,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(flashOpacity, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start(() => setShowLegendaryFlash(false));
-      
-      // Generate sparkles
-      const newSparkles = [];
-      for (let i = 0; i < 15; i++) {
-        newSparkles.push({
-          id: `sparkle_${index}_${i}`,
-          x: Math.random() * SCREEN_WIDTH,
-          y: Math.random() * SCREEN_HEIGHT,
-          delay: Math.random() * 500,
-        });
+    const revealNext = () => {
+      if (count >= cards.length) {
+        setStep(2);
+        return;
       }
-      setSparkles(prev => [...prev, ...newSparkles]);
-    } else if (card.rarity.id === 'epic') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+      
+      const card = cards[count];
+      if (card.rarity?.id === 'legendary' || card.rarity?.id === 'epic') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      
+      count++;
+      setRevealedCount(count);
+      
+      setTimeout(revealNext, 400);
+    };
     
-    // Mark this card as revealed
-    setRevealedCards(prev => new Set([...prev, index]));
-    
-    // Flip animation
-    Animated.timing(cardFlips[index], {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start(() => {
-      setTimeout(() => {
-        if (phaseRef.current === PHASES.CARD_REVEAL) {
-          revealNextCard(index + 1);
-        }
-      }, 800);
-    });
+    setTimeout(revealNext, 300);
   };
 
-  // Handle close
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     clearPackResult();
@@ -446,131 +126,69 @@ export const PackOpeningOverlay = () => {
   if (!packOpeningResult) return null;
 
   const cards = packOpeningResult.cards || [];
-  const hasLegendary = cards.some(c => c.rarity.id === 'legendary');
-  const hasEpic = cards.some(c => c.rarity.id === 'epic');
 
   return (
-    <Modal transparent visible={!!packOpeningResult} animationType="fade">
-      <View style={styles.container}>
-        <BlurView intensity={95} tint="dark" style={StyleSheet.absoluteFill} />
+    <Modal transparent visible={true} animationType="fade">
+      <View style={styles.overlay}>
+        <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
         
-        {/* Background glow */}
-        <Animated.View
-          style={[
-            styles.backgroundGlow,
-            {
-              opacity: backgroundGlow,
-              backgroundColor: hasLegendary ? '#fbbf24' : hasEpic ? '#8b5cf6' : '#3b82f6',
-            },
-          ]}
-        />
-        
-        {/* Flash effect */}
-        <Animated.View
-          style={[
-            styles.flashOverlay,
-            {
-              opacity: flashOpacity,
-              backgroundColor: showLegendaryFlash ? '#fbbf24' : '#ffffff',
-            },
-          ]}
-        />
-        
-        {/* Particles */}
-        {particles.map((p) => (
-          <Particle key={p.id} {...p} />
-        ))}
-        
-        {/* Sparkles */}
-        {sparkles.map((s) => (
-          <Sparkle key={s.id} {...s} />
-        ))}
-
-        {/* Pack (Phase 1-2) */}
-        {(phase === PHASES.PACK_ENTRANCE || phase === PHASES.PACK_SHAKE || phase === PHASES.PACK_EXPLODE) && (
-          <TouchableOpacity
+        {/* Pack Phase */}
+        {step === 0 && (
+          <TouchableOpacity 
+            style={styles.packTouchable} 
+            onPress={handleOpenPack}
             activeOpacity={0.9}
-            onPress={handlePackTap}
-            disabled={phase !== PHASES.PACK_SHAKE}
           >
-            <Animated.View
+            <Animated.View 
               style={[
-                styles.packContainer,
+                styles.packWrapper,
                 {
-                  opacity: packOpacity,
                   transform: [
                     { scale: packScale },
-                    { translateY: packY },
-                    { translateX: packShake },
-                    {
-                      rotateZ: packRotate.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0deg', '360deg'],
-                      }),
-                    },
+                    { translateX: packShakeX },
                   ],
-                },
+                }
               ]}
             >
               <LinearGradient
-                colors={['#4f46e5', '#7c3aed', '#8b5cf6']}
+                colors={['#8B5CF6', '#6D28D9', '#5B21B6']}
                 style={styles.pack}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <View style={styles.packInner}>
-                  <Ionicons name="gift" size={60} color="white" />
-                  <Text style={styles.packText}>TIPPEN ZUM ÖFFNEN</Text>
+                <View style={styles.packShine} />
+                <View style={styles.packContent}>
+                  <Ionicons name="gift" size={64} color="#FFF" />
+                  <Text style={styles.packLabel}>TIPPEN</Text>
                 </View>
               </LinearGradient>
             </Animated.View>
           </TouchableOpacity>
         )}
 
-        {/* Cards (Phase 3-5) */}
-        {(phase === PHASES.CARDS_FLY_OUT || phase === PHASES.CARD_REVEAL || phase === PHASES.COMPLETE) && (
-          <Animated.View style={[styles.cardsContainer, { opacity: cardsContainerOpacity }]}>
-            <Text style={styles.headerText}>
-              {phase === PHASES.COMPLETE ? 'DEINE NEUEN KARTEN!' : 'ENTHÜLLEN...'}
+        {/* Cards Phase */}
+        {step >= 1 && (
+          <Animated.View style={[styles.cardsArea, { opacity: cardsOpacity }]}>
+            <Text style={styles.title}>
+              {step === 2 ? '🎉 DEINE KARTEN!' : 'Öffne...'}
             </Text>
             
-            <View style={styles.cardsRow}>
-              {cards.map((card, index) => {
-                const isRevealed = phase === PHASES.COMPLETE || revealedCards.has(index);
-                
+            <View style={styles.cardsGrid}>
+              {cards.map((card, i) => {
+                const isRevealed = i < revealedCount;
                 return (
-                  <Animated.View
-                    key={`card_${index}`}
+                  <Animated.View 
+                    key={i} 
                     style={[
-                      styles.cardWrapper,
-                      {
-                        transform: [
-                          { scale: cardScales[index] || new Animated.Value(0) },
-                          {
-                            rotateY: (cardFlips[index] || new Animated.Value(0)).interpolate({
-                              inputRange: [0, 1],
-                              outputRange: ['180deg', '360deg'],
-                            }),
-                          },
-                        ],
-                      },
+                      styles.cardSlot,
+                      isRevealed && styles.cardRevealed,
                     ]}
                   >
                     {isRevealed ? (
-                      <Card3D 
-                        card={card} 
-                        size="small" 
-                        interactive={false}
-                        showDetails={false}
-                      />
+                      <Card3D card={card} size="small" interactive={false} showDetails={false} />
                     ) : (
-                      <View style={styles.cardBack}>
-                        <LinearGradient
-                          colors={['#1e293b', '#0f172a']}
-                          style={styles.cardBackGradient}
-                        >
-                          <Ionicons name="help" size={30} color="#475569" />
-                        </LinearGradient>
+                      <View style={styles.cardHidden}>
+                        <Ionicons name="help" size={28} color="#475569" />
                       </View>
                     )}
                   </Animated.View>
@@ -578,28 +196,28 @@ export const PackOpeningOverlay = () => {
               })}
             </View>
 
-            {/* Summary when complete */}
-            {phase === PHASES.COMPLETE && (
+            {/* Summary */}
+            {step === 2 && (
               <View style={styles.summary}>
-                <View style={styles.rarityCount}>
-                  {Object.entries(
-                    cards.reduce((acc, card) => {
-                      acc[card.rarity.name] = (acc[card.rarity.name] || 0) + 1;
-                      return acc;
-                    }, {})
-                  ).map(([rarity, count]) => (
-                    <View key={rarity} style={styles.rarityItem}>
-                      <Text style={styles.rarityCountText}>{count}x</Text>
-                      <Text style={styles.rarityName}>{rarity}</Text>
-                    </View>
-                  ))}
+                <View style={styles.rarityRow}>
+                  {['legendary', 'epic', 'rare', 'common'].map(rarity => {
+                    const count = cards.filter(c => c.rarity?.id === rarity).length;
+                    if (count === 0) return null;
+                    return (
+                      <View key={rarity} style={styles.rarityBadge}>
+                        <Text style={styles.rarityCount}>{count}x</Text>
+                        <Text style={styles.rarityLabel}>{rarity}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
                 
-                <TouchableOpacity style={styles.collectButton} onPress={handleClose}>
+                <TouchableOpacity style={styles.collectBtn} onPress={handleClose}>
                   <LinearGradient
-                    colors={['#10b981', '#059669']}
+                    colors={['#10B981', '#059669']}
                     style={styles.collectGradient}
                   >
+                    <Ionicons name="checkmark-circle" size={22} color="#FFF" />
                     <Text style={styles.collectText}>EINSAMMELN</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -613,156 +231,142 @@ export const PackOpeningOverlay = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  backgroundGlow: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.3,
+  
+  // Pack
+  packTouchable: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  flashOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 100,
-  },
-  particle: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    zIndex: 50,
-  },
-  sparkle: {
-    position: 'absolute',
-    zIndex: 60,
-  },
-  packContainer: {
+  packWrapper: {
     alignItems: 'center',
   },
   pack: {
-    width: 200,
-    height: 280,
-    borderRadius: 20,
-    padding: 4,
+    width: 180,
+    height: 240,
+    borderRadius: 24,
+    overflow: 'hidden',
     ...Platform.select({
-      ios: {
-        shadowColor: '#8b5cf6',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 30,
-      },
-      android: {
-        elevation: 20,
-      },
-      web: {
-        boxShadow: '0 0 60px rgba(139, 92, 246, 0.6)',
-      },
+      ios: { shadowColor: '#8B5CF6', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 40 },
+      android: { elevation: 24 },
+      web: { boxShadow: '0 0 80px rgba(139, 92, 246, 0.7)' },
     }),
   },
-  packInner: {
+  packShine: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 100,
+    height: 300,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    transform: [{ rotate: '25deg' }],
+  },
+  packContent: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    gap: 16,
   },
-  packText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 20,
-    letterSpacing: 2,
+  packLabel: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 4,
   },
-  cardsContainer: {
+  
+  // Cards
+  cardsArea: {
     alignItems: 'center',
     width: '100%',
     paddingHorizontal: 20,
   },
-  headerText: {
-    color: '#fbbf24',
-    fontSize: 24,
+  title: {
+    color: '#FFF',
+    fontSize: 28,
     fontWeight: '900',
-    letterSpacing: 2,
-    marginBottom: 30,
+    marginBottom: 24,
     textShadowColor: 'rgba(251, 191, 36, 0.5)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 20,
   },
-  cardsRow: {
+  cardsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 15,
-    marginBottom: 30,
+    gap: 12,
+    marginBottom: 32,
   },
-  cardWrapper: {
-    backfaceVisibility: 'hidden',
-  },
-  cardBack: {
+  cardSlot: {
     width: 80,
     height: 112,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
   },
-  cardBackGradient: {
+  cardRevealed: {
+    transform: [{ scale: 1 }],
+  },
+  cardHidden: {
     flex: 1,
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#334155',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 10,
   },
+  
+  // Summary
   summary: {
     alignItems: 'center',
-    marginTop: 20,
+    gap: 20,
+  },
+  rarityRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  rarityBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
   rarityCount: {
-    flexDirection: 'row',
-    gap: 20,
-    marginBottom: 30,
-  },
-  rarityItem: {
-    alignItems: 'center',
-  },
-  rarityCountText: {
-    color: 'white',
+    color: '#FFF',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
-  rarityName: {
-    color: '#94a3b8',
-    fontSize: 12,
+  rarityLabel: {
+    color: '#94A3B8',
+    fontSize: 11,
     fontWeight: '600',
+    textTransform: 'capitalize',
   },
-  collectButton: {
-    borderRadius: 25,
+  collectBtn: {
+    borderRadius: 20,
     overflow: 'hidden',
     ...Platform.select({
-      ios: {
-        shadowColor: '#10b981',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 10,
-      },
-      web: {
-        boxShadow: '0 0 30px rgba(16, 185, 129, 0.5)',
-      },
+      ios: { shadowColor: '#10B981', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 20 },
+      android: { elevation: 10 },
+      web: { boxShadow: '0 0 30px rgba(16, 185, 129, 0.5)' },
     }),
   },
   collectGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     paddingVertical: 16,
-    paddingHorizontal: 50,
+    paddingHorizontal: 40,
   },
   collectText: {
-    color: 'white',
+    color: '#FFF',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1,
   },
 });
