@@ -41,7 +41,7 @@ function AppContent() {
   // Set Android navigation bar color to match app background
   useEffect(() => {
     if (Platform.OS === 'android') {
-      NavigationBar.setBackgroundColorAsync(COLORS.background);
+      NavigationBar.setBackgroundColorAsync('#FFFFFF');
       NavigationBar.setButtonStyleAsync('dark');
     }
   }, []);
@@ -162,17 +162,17 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FFFFFF',
   },
   authContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FFFFFF',
   },
   loadingText: {
     marginTop: 16,

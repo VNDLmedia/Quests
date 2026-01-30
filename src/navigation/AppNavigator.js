@@ -52,7 +52,7 @@ const AppNavigator = () => {
     <>
       <StatusBar 
         barStyle="dark-content" 
-        backgroundColor={COLORS.background}
+        backgroundColor="#FFFFFF"
         translucent={false}
       />
       <NavigationContainer
