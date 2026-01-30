@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -9,8 +9,7 @@ import {
   Platform,
   Dimensions,
   Alert,
-  Linking,
-  ActivityIndicator
+  Linking
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,9 +19,7 @@ import { GlassCard } from '../components';
 import { useGame } from '../game/GameProvider';
 import { LEVEL_CONFIG } from '../game/config/rewards';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../theme';
-
-// Lazy load PackShopScreen for modal
-const PackShopScreen = lazy(() => import('./PackShopScreen'));
+import PackShopScreen from './PackShopScreen';
 
 const { width } = Dimensions.get('window');
 
@@ -399,13 +396,7 @@ const UserScreen = () => {
               <Ionicons name="close" size={24} color={COLORS.text.primary} />
             </TouchableOpacity>
           </View>
-          <Suspense fallback={
-            <View style={styles.shopLoading}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-            </View>
-          }>
-            <PackShopScreen />
-          </Suspense>
+          <PackShopScreen />
         </View>
       </Modal>
 
@@ -630,7 +621,6 @@ const styles = StyleSheet.create({
   },
   shopModalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text.primary },
   shopCloseBtn: { padding: 8 },
-  shopLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Camera
   cameraContainer: { flex: 1, backgroundColor: '#000' },
