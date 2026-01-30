@@ -35,8 +35,11 @@ const MAP_HTML = `<!DOCTYPE html><html><head>
 *{margin:0;padding:0}body{font-family:-apple-system,system-ui,sans-serif}
 #map{width:100%;height:100vh;background:#F8FAFC}
 .leaflet-control-attribution,.leaflet-control-zoom{display:none}
-.user-core{width:16px;height:16px;background:#4F46E5;border:3px solid #FFF;border-radius:50%;box-shadow:0 2px 10px rgba(79,70,229,0.5)}
-@keyframes pulse{0%{transform:scale(0.8);opacity:0.8}50%{transform:scale(1.2);opacity:0.4}100%{transform:scale(0.8);opacity:0.8}}
+.player-wrapper{position:relative;display:flex;align-items:center;justify-content:center}
+.user-core{width:18px;height:18px;background:#4F46E5;border:3px solid #FFF;border-radius:50%;box-shadow:0 2px 10px rgba(79,70,229,0.5);position:relative;z-index:3}
+.user-pulse{position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(79,70,229,0.3);animation:pulse 2s ease-out infinite;z-index:1}
+.user-pulse2{position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(79,70,229,0.2);animation:pulse 2s ease-out infinite;animation-delay:0.5s;z-index:1}
+@keyframes pulse{0%{transform:scale(0.5);opacity:1}100%{transform:scale(2);opacity:0}}
 .quest-container{display:flex;flex-direction:column;align-items:center;transform:translateY(-30px);cursor:pointer}
 .quest-container.disabled{opacity:0.5;filter:grayscale(0.4)}
 .quest-pill{background:#FFF;padding:5px 8px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,0.12);display:flex;align-items:center;gap:6px;white-space:nowrap;border:2px solid}
@@ -51,22 +54,19 @@ window.map=map;
 // Positron (no labels) - cleaner map without street names
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);
 const sendMsg=d=>{window.ReactNativeWebView?window.ReactNativeWebView.postMessage(JSON.stringify(d)):window.parent.postMessage(d,'*')};
-let playerMarker=null,playerCircleRange=null,playerCirclePulse=null,questMarkers=[];
+let playerMarker=null,playerCircleRange=null,questMarkers=[];
 const INTERACTION_RADIUS=100; // meters
 window.updatePlayer=function(player){
 const lat=player.latitude||player.lat,lng=player.longitude||player.lng;
 if(!playerMarker){
-// Range circle (100m) - zoom independent
+// Range circle (100m) - zoom independent, stays 100m in real world
 playerCircleRange=L.circle([lat,lng],{radius:INTERACTION_RADIUS,color:'#4F46E5',weight:2,opacity:0.3,fillColor:'#4F46E5',fillOpacity:0.05,dashArray:'8,8'}).addTo(map);
-// Pulse circle (smaller, animated via CSS workaround using a small circle)
-playerCirclePulse=L.circle([lat,lng],{radius:20,color:'#4F46E5',weight:0,fillColor:'#4F46E5',fillOpacity:0.25,className:'pulse-circle'}).addTo(map);
-// Player dot marker
-playerMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="user-core"></div>',iconSize:[16,16],iconAnchor:[8,8]}),zIndexOffset:1000}).addTo(map);
+// Player marker with pulsing animation (CSS-based, centered)
+playerMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="player-wrapper"><div class="user-pulse"></div><div class="user-pulse2"></div><div class="user-core"></div></div>',iconSize:[60,60],iconAnchor:[30,30]}),zIndexOffset:1000}).addTo(map);
 map.setView([lat,lng],17);
 }else{
 playerMarker.setLatLng([lat,lng]);
 playerCircleRange.setLatLng([lat,lng]);
-playerCirclePulse.setLatLng([lat,lng]);
 }
 };
 window.updateQuests=function(quests){
