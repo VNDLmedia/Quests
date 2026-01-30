@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
-  Alert
+  Alert,
+  PanResponder
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview'; 
@@ -25,6 +26,7 @@ const QUEST_INTERACTION_RADIUS = 100;
 const DEFAULT_LOCATION = { latitude: 47.8224, longitude: 13.0456 };
 
 // Map HTML als Blob URL - wird nur EINMAL erstellt
+// Custom map style ohne Straßennamen + Meter-basierte Kreise
 const MAP_HTML = `<!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -33,10 +35,8 @@ const MAP_HTML = `<!DOCTYPE html><html><head>
 *{margin:0;padding:0}body{font-family:-apple-system,system-ui,sans-serif}
 #map{width:100%;height:100vh;background:#F8FAFC}
 .leaflet-control-attribution,.leaflet-control-zoom{display:none}
-.user-core{width:18px;height:18px;background:#4F46E5;border:3px solid #FFF;border-radius:50%;box-shadow:0 2px 10px rgba(79,70,229,0.5);position:relative;z-index:2}
-.user-pulse{position:absolute;top:50%;left:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(79,70,229,0.2);animation:pulse 2s infinite}
-.user-range{position:absolute;top:50%;left:50%;width:160px;height:160px;margin:-80px 0 0 -80px;border-radius:50%;background:rgba(79,70,229,0.06);border:2px dashed rgba(79,70,229,0.25)}
-@keyframes pulse{0%{transform:scale(0.5);opacity:0}50%{opacity:1}100%{transform:scale(1.5);opacity:0}}
+.user-core{width:16px;height:16px;background:#4F46E5;border:3px solid #FFF;border-radius:50%;box-shadow:0 2px 10px rgba(79,70,229,0.5)}
+@keyframes pulse{0%{transform:scale(0.8);opacity:0.8}50%{transform:scale(1.2);opacity:0.4}100%{transform:scale(0.8);opacity:0.8}}
 .quest-container{display:flex;flex-direction:column;align-items:center;transform:translateY(-30px);cursor:pointer}
 .quest-container.disabled{opacity:0.5;filter:grayscale(0.4)}
 .quest-pill{background:#FFF;padding:5px 8px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,0.12);display:flex;align-items:center;gap:6px;white-space:nowrap;border:2px solid}
@@ -47,15 +47,27 @@ const MAP_HTML = `<!DOCTYPE html><html><head>
 .quest-point{width:10px;height:10px;background:#FFF;border:3px solid;border-radius:50%;margin-top:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2)}
 </style></head><body><div id="map"></div><script>
 const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([47.8224,13.0456],17);
-window.map=map;L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);
+window.map=map;
+// Positron (no labels) - cleaner map without street names
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);
 const sendMsg=d=>{window.ReactNativeWebView?window.ReactNativeWebView.postMessage(JSON.stringify(d)):window.parent.postMessage(d,'*')};
-let playerMarker=null,questMarkers=[];
+let playerMarker=null,playerCircleRange=null,playerCirclePulse=null,questMarkers=[];
+const INTERACTION_RADIUS=100; // meters
 window.updatePlayer=function(player){
 const lat=player.latitude||player.lat,lng=player.longitude||player.lng;
 if(!playerMarker){
-playerMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="position:relative"><div class="user-range"></div><div class="user-pulse"></div><div class="user-core"></div></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000}).addTo(map);
+// Range circle (100m) - zoom independent
+playerCircleRange=L.circle([lat,lng],{radius:INTERACTION_RADIUS,color:'#4F46E5',weight:2,opacity:0.3,fillColor:'#4F46E5',fillOpacity:0.05,dashArray:'8,8'}).addTo(map);
+// Pulse circle (smaller, animated via CSS workaround using a small circle)
+playerCirclePulse=L.circle([lat,lng],{radius:20,color:'#4F46E5',weight:0,fillColor:'#4F46E5',fillOpacity:0.25,className:'pulse-circle'}).addTo(map);
+// Player dot marker
+playerMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="user-core"></div>',iconSize:[16,16],iconAnchor:[8,8]}),zIndexOffset:1000}).addTo(map);
 map.setView([lat,lng],17);
-}else{playerMarker.setLatLng([lat,lng])}
+}else{
+playerMarker.setLatLng([lat,lng]);
+playerCircleRange.setLatLng([lat,lng]);
+playerCirclePulse.setLatLng([lat,lng]);
+}
 };
 window.updateQuests=function(quests){
 questMarkers.forEach(m=>map.removeLayer(m));questMarkers=[];
@@ -87,6 +99,43 @@ const MapScreen = () => {
   const webviewRef = useRef(null);
   const slideAnim = useRef(new Animated.Value(height)).current;
   const locationWatchId = useRef(null);
+  const dragStartY = useRef(0);
+  
+  // PanResponder for draggable bottom sheet
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to vertical gestures
+        return Math.abs(gestureState.dy) > 10;
+      },
+      onPanResponderGrant: () => {
+        dragStartY.current = 0;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Only allow dragging down (positive dy)
+        if (gestureState.dy > 0) {
+          slideAnim.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // If dragged more than 100px down or velocity is high, close
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          Animated.timing(slideAnim, { 
+            toValue: height, 
+            duration: 200, 
+            useNativeDriver: true 
+          }).start(() => setSelectedQuest(null));
+        } else {
+          // Snap back
+          Animated.spring(slideAnim, { 
+            toValue: 0, 
+            useNativeDriver: true 
+          }).start();
+        }
+      },
+    })
+  ).current;
   
   const { updateLocation, quests: allQuests, locations: allLocations } = useGame();
   const { activeQuests, startQuest } = useQuests();
@@ -548,8 +597,11 @@ const MapScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Quest Detail Sheet */}
-      <Animated.View style={[styles.bottomSheet, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 70 : 20, transform: [{ translateY: slideAnim }] }]}>
+      {/* Quest Detail Sheet - Draggable */}
+      <Animated.View 
+        style={[styles.bottomSheet, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 70 : 20, transform: [{ translateY: slideAnim }] }]}
+        {...panResponder.panHandlers}
+      >
         {selectedQuest && (
           <>
             <View style={styles.sheetHandle} />

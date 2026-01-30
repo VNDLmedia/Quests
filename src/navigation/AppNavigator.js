@@ -9,7 +9,6 @@ import { COLORS } from '../theme';
 // Lazy load screens
 const MapScreen = lazy(() => import('../screens/VibeMapScreen'));
 const AdventuresScreen = lazy(() => import('../screens/QuestLogScreen'));
-const PackShopScreen = lazy(() => import('../screens/PackShopScreen'));
 const SocialScreen = lazy(() => import('../screens/SocialScreen'));
 const UserScreen = lazy(() => import('../screens/UserScreen'));
 
@@ -30,7 +29,6 @@ const withSuspense = (Component) => (props) => (
 // Define screens outside component to prevent remounting on re-renders
 const MapScreenWrapped = withSuspense(MapScreen);
 const AdventuresScreenWrapped = withSuspense(AdventuresScreen);
-const PackShopScreenWrapped = withSuspense(PackShopScreen);
 const SocialScreenWrapped = withSuspense(SocialScreen);
 const UserScreenWrapped = withSuspense(UserScreen);
 
@@ -91,7 +89,6 @@ const AppNavigator = () => {
               let iconName;
               if (route.name === 'Map') iconName = focused ? 'compass' : 'compass-outline';
               else if (route.name === 'Quests') iconName = focused ? 'layers' : 'layers-outline';
-              else if (route.name === 'Shop') iconName = focused ? 'gift' : 'gift-outline';
               else if (route.name === 'Social') iconName = focused ? 'people' : 'people-outline';
               else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
               
@@ -108,14 +105,6 @@ const AppNavigator = () => {
             name="Quests" 
             component={AdventuresScreenWrapped} 
             options={{ tabBarLabel: 'Quests' }}
-          />
-          <Tab.Screen 
-            name="Shop" 
-            component={PackShopScreenWrapped} 
-            options={{ 
-              tabBarLabel: 'Shop',
-              tabBarBadge: undefined, // Could show available packs count
-            }}
           />
           <Tab.Screen 
             name="Social" 

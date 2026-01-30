@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,8 @@ import {
   Platform,
   Dimensions,
   Alert,
-  Linking
+  Linking,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +20,9 @@ import { GlassCard } from '../components';
 import { useGame } from '../game/GameProvider';
 import { LEVEL_CONFIG } from '../game/config/rewards';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../theme';
+
+// Lazy load PackShopScreen for modal
+const PackShopScreen = lazy(() => import('./PackShopScreen'));
 
 const { width } = Dimensions.get('window');
 
@@ -146,6 +150,7 @@ const UserScreen = () => {
   const { user, player, signOut } = useGame();
   const [showQR, setShowQR] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [showShop, setShowShop] = useState(false);
   
   // Dynamischer Import für Native Camera
   const [CameraView, setCameraView] = useState(null);
@@ -277,6 +282,13 @@ const UserScreen = () => {
 
         {/* Quick Actions */}
         <View style={styles.actionsRow}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => setShowShop(true)}>
+            <View style={[styles.actionIcon, { backgroundColor: '#FDF2F8' }]}>
+              <Ionicons name="gift" size={24} color="#EC4899" />
+            </View>
+            <Text style={styles.actionLabel}>Shop</Text>
+          </TouchableOpacity>
+          
           <TouchableOpacity style={styles.actionCard} onPress={() => setShowQR(true)}>
             <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
               <Ionicons name="qr-code" size={24} color="#4F46E5" />
@@ -289,13 +301,6 @@ const UserScreen = () => {
               <Ionicons name="scan" size={24} color="#10B981" />
             </View>
             <Text style={styles.actionLabel}>Scan</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.actionCard}>
-            <View style={[styles.actionIcon, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="share-outline" size={24} color="#F59E0B" />
-            </View>
-            <Text style={styles.actionLabel}>Share</Text>
           </TouchableOpacity>
         </View>
 
@@ -382,6 +387,25 @@ const UserScreen = () => {
               </View>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Shop Modal */}
+      <Modal visible={showShop} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.shopModalContainer}>
+          <View style={styles.shopModalHeader}>
+            <Text style={styles.shopModalTitle}>Card Shop</Text>
+            <TouchableOpacity onPress={() => setShowShop(false)} style={styles.shopCloseBtn}>
+              <Ionicons name="close" size={24} color={COLORS.text.primary} />
+            </TouchableOpacity>
+          </View>
+          <Suspense fallback={
+            <View style={styles.shopLoading}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
+          }>
+            <PackShopScreen />
+          </Suspense>
         </View>
       </Modal>
 
@@ -590,6 +614,23 @@ const styles = StyleSheet.create({
   memberIdText: { fontSize: 14, color: COLORS.text.secondary, marginTop: 4, letterSpacing: 1 },
   memberLevel: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   memberLevelText: { fontSize: 13, fontWeight: '600', color: '#F59E0B' },
+
+  // Shop Modal
+  shopModalContainer: { flex: 1, backgroundColor: COLORS.background },
+  shopModalHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingBottom: 10,
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  shopModalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text.primary },
+  shopCloseBtn: { padding: 8 },
+  shopLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Camera
   cameraContainer: { flex: 1, backgroundColor: '#000' },

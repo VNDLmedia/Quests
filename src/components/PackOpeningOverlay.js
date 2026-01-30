@@ -156,6 +156,10 @@ export const PackOpeningOverlay = () => {
   const [particles, setParticles] = useState([]);
   const [sparkles, setSparkles] = useState([]);
   const [showLegendaryFlash, setShowLegendaryFlash] = useState(false);
+  const [revealedCards, setRevealedCards] = useState(new Set());
+  
+  // Use ref to track phase for setTimeout callbacks
+  const phaseRef = useRef(PHASES.IDLE);
   
   // Animation refs
   const packScale = useRef(new Animated.Value(0)).current;
@@ -168,6 +172,11 @@ export const PackOpeningOverlay = () => {
   const cardScales = useRef([]).current;
   const cardFlips = useRef([]).current;
   const backgroundGlow = useRef(new Animated.Value(0)).current;
+  
+  // Keep phase ref in sync
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
   
   // Initialize card animations when result changes
   useEffect(() => {
@@ -194,6 +203,7 @@ export const PackOpeningOverlay = () => {
 
   const resetAnimations = () => {
     setPhase(PHASES.IDLE);
+    phaseRef.current = PHASES.IDLE;
     packScale.setValue(0);
     packRotate.setValue(0);
     packY.setValue(50);
@@ -206,6 +216,7 @@ export const PackOpeningOverlay = () => {
     setSparkles([]);
     setShowLegendaryFlash(false);
     setCurrentCardIndex(0);
+    setRevealedCards(new Set());
   };
 
   // Phase 1: Pack entrance with dramatic appearance
@@ -231,9 +242,10 @@ export const PackOpeningOverlay = () => {
       }),
     ]).start(() => {
       setPhase(PHASES.PACK_SHAKE);
+      phaseRef.current = PHASES.PACK_SHAKE;
       // Auto-start shake after a moment
       setTimeout(() => {
-        if (phase !== PHASES.COMPLETE) {
+        if (phaseRef.current === PHASES.PACK_SHAKE) {
           runPackShake();
         }
       }, 500);
@@ -277,9 +289,10 @@ export const PackOpeningOverlay = () => {
 
   // Phase 3: Pack explodes on tap
   const handlePackTap = useCallback(() => {
-    if (phase !== PHASES.PACK_SHAKE) return;
+    if (phaseRef.current !== PHASES.PACK_SHAKE) return;
     
     setPhase(PHASES.PACK_EXPLODE);
+    phaseRef.current = PHASES.PACK_EXPLODE;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     // Generate explosion particles
@@ -322,6 +335,7 @@ export const PackOpeningOverlay = () => {
       
       setTimeout(() => {
         setPhase(PHASES.CARDS_FLY_OUT);
+        phaseRef.current = PHASES.CARDS_FLY_OUT;
         runCardsAppear();
       }, 300);
     });
@@ -352,6 +366,7 @@ export const PackOpeningOverlay = () => {
     // After all cards appear, start reveal phase
     setTimeout(() => {
       setPhase(PHASES.CARD_REVEAL);
+      phaseRef.current = PHASES.CARD_REVEAL;
       revealNextCard(0);
     }, (packOpeningResult?.cards.length || 0) * 200 + 500);
   };
@@ -360,6 +375,9 @@ export const PackOpeningOverlay = () => {
   const revealNextCard = (index) => {
     if (!packOpeningResult?.cards || index >= packOpeningResult.cards.length) {
       setPhase(PHASES.COMPLETE);
+      phaseRef.current = PHASES.COMPLETE;
+      // Mark all cards as revealed
+      setRevealedCards(new Set(packOpeningResult.cards.map((_, i) => i)));
       return;
     }
     
@@ -402,6 +420,9 @@ export const PackOpeningOverlay = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     
+    // Mark this card as revealed
+    setRevealedCards(prev => new Set([...prev, index]));
+    
     // Flip animation
     Animated.timing(cardFlips[index], {
       toValue: 1,
@@ -409,7 +430,9 @@ export const PackOpeningOverlay = () => {
       useNativeDriver: true,
     }).start(() => {
       setTimeout(() => {
-        revealNextCard(index + 1);
+        if (phaseRef.current === PHASES.CARD_REVEAL) {
+          revealNextCard(index + 1);
+        }
       }, 800);
     });
   };
@@ -513,8 +536,7 @@ export const PackOpeningOverlay = () => {
             
             <View style={styles.cardsRow}>
               {cards.map((card, index) => {
-                const isRevealed = phase === PHASES.COMPLETE || index < currentCardIndex || 
-                  (index === currentCardIndex && cardFlips[index]?._value > 0.5);
+                const isRevealed = phase === PHASES.COMPLETE || revealedCards.has(index);
                 
                 return (
                   <Animated.View
@@ -523,7 +545,7 @@ export const PackOpeningOverlay = () => {
                       styles.cardWrapper,
                       {
                         transform: [
-                          { scale: cardScales[index] || 0 },
+                          { scale: cardScales[index] || new Animated.Value(0) },
                           {
                             rotateY: (cardFlips[index] || new Animated.Value(0)).interpolate({
                               inputRange: [0, 1],
