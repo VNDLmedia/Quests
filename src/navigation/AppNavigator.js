@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { Platform, StyleSheet, View, ActivityIndicator, StatusBar } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,8 +59,10 @@ const AppNavigator = () => {
       />
       <NavigationContainer
         theme={{
+          ...DefaultTheme,
           dark: false,
           colors: {
+            ...DefaultTheme.colors,
             primary: COLORS.primary,
             background: COLORS.background,
             card: COLORS.surface,
