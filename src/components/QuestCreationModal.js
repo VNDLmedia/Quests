@@ -80,10 +80,15 @@ const WebQRScanner = ({ onScan, onClose }) => {
                 console.log('WebQRScanner detected code:', barcodes[0].rawValue);
                 hasScannedRef.current = true;
                 setScanning(false);
-                onScan({ data: barcodes[0].rawValue });
+                // Call onScan with slight delay to ensure cleanup happens
+                setTimeout(() => {
+                  onScan({ data: barcodes[0].rawValue });
+                }, 50);
               }
             })
             .catch(err => console.log('Barcode detection error:', err));
+        } else {
+          console.warn('BarcodeDetector not available (Firefox/Safari). Use manual input instead.');
         }
       }
       
@@ -106,11 +111,16 @@ const WebQRScanner = ({ onScan, onClose }) => {
     };
   }, [scanning, onScan]);
 
-  if (!hasCamera) {
+  if (!hasCamera || !('BarcodeDetector' in window)) {
     return (
       <View style={styles.scannerError}>
         <Ionicons name="camera-off" size={48} color={COLORS.text.muted} />
-        <Text style={styles.scannerErrorText}>Camera not available</Text>
+        <Text style={styles.scannerErrorText}>
+          {!hasCamera ? 'Camera not available' : 'QR Scanner not supported in this browser'}
+        </Text>
+        <Text style={styles.scannerErrorHint}>
+          Use Chrome/Edge for QR scanning, or enter ID manually
+        </Text>
         <TouchableOpacity style={styles.scannerCloseBtn} onPress={onClose}>
           <Text style={styles.scannerCloseBtnText}>Close</Text>
         </TouchableOpacity>
@@ -233,57 +243,80 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   };
 
   const handleQRScanned = async ({ data }) => {
-    console.log('===> QR Code Scanned, data:', data);
+    console.log('===> handleQRScanned called with data:', data);
+    console.log('===> Current step before processing:', step);
     
-    // Don't close scanner immediately - wait until processing is done
+    // Immediate validation
+    if (!data || data.trim() === '') {
+      console.log('===> Empty QR code, ignoring');
+      return;
+    }
+
+    // Close scanner immediately to prevent multiple scans
+    console.log('===> Closing scanner');
+    setQrScanning(false);
     setLoading(true);
 
     try {
-      // Simple validation - just check if data exists
-      if (!data || data.trim() === '') {
-        console.log('QR code is empty');
-        Alert.alert('Invalid QR Code', 'The scanned QR code is empty');
-        setLoading(false);
-        return;
-      }
-
-      console.log('===> Validating QR code:', data);
-      const validation = await validateQRCode(data);
-      console.log('===> Validation result:', validation);
+      const trimmedData = data.trim();
+      console.log('===> Trimmed data:', trimmedData);
+      console.log('===> Calling validateQRCode...');
+      
+      const validation = await validateQRCode(trimmedData);
+      console.log('===> Validation complete:', JSON.stringify(validation));
       
       if (!validation.valid && validation.error) {
-        console.log('===> QR code already used');
-        setQrScanning(false); // Close scanner before showing alert
+        console.log('===> QR code already in use, showing alert');
+        setLoading(false);
         Alert.alert(
           'QR Code Already Used',
           validation.error,
           [
-            { text: 'Scan Again', onPress: () => setQrScanning(true) },
-            { text: 'Use Anyway', onPress: () => {
-              console.log('===> User chose to use QR code anyway');
-              setQrCodeId(data);
-              setStep(3);
-            }},
-            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Scan Again', 
+              onPress: () => {
+                console.log('===> User chose to scan again');
+                setQrScanning(true);
+              }
+            },
+            { 
+              text: 'Use Anyway', 
+              onPress: () => {
+                console.log('===> User chose to use anyway, setting qrCodeId:', trimmedData);
+                setQrCodeId(trimmedData);
+                console.log('===> QR ID set, waiting before advancing to step 3');
+                setTimeout(() => {
+                  console.log('===> Now advancing to step 3');
+                  setStep(3);
+                }, 200);
+              }
+            },
+            { 
+              text: 'Cancel', 
+              style: 'cancel',
+              onPress: () => console.log('===> User cancelled')
+            },
           ]
         );
-      } else {
-        console.log('===> QR code accepted, setting ID and moving to step 3');
-        setQrCodeId(data);
-        // Close scanner and move to next step
-        setQrScanning(false);
-        // Use setTimeout to ensure state updates happen in order
-        setTimeout(() => {
-          setStep(3);
-          console.log('===> Moved to step 3');
-        }, 100);
+        return;
       }
-    } catch (error) {
-      console.error('===> QR scan error:', error);
-      setQrScanning(false);
-      Alert.alert('Error', error.message || 'Failed to process QR code');
-    } finally {
+      
+      // QR code is valid - accept it
+      console.log('===> QR code is valid, setting qrCodeId:', trimmedData);
+      setQrCodeId(trimmedData);
       setLoading(false);
+      
+      console.log('===> Waiting 200ms before advancing to step 3');
+      setTimeout(() => {
+        console.log('===> NOW SETTING STEP TO 3');
+        setStep(3);
+        console.log('===> setStep(3) called');
+      }, 200);
+      
+    } catch (error) {
+      console.error('===> ERROR in handleQRScanned:', error);
+      setLoading(false);
+      Alert.alert('Error', error.message || 'Failed to process QR code');
     }
   };
 
@@ -576,17 +609,20 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                   </View>
 
                   <Text style={styles.inputLabel}>Enter QR Code ID Manually</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={qrCodeId}
-                    onChangeText={setQrCodeId}
-                    placeholder="e.g., 001, 002, 003..."
-                    placeholderTextColor={COLORS.text.muted}
-                    maxLength={10}
-                    autoCapitalize="none"
-                  />
+                  <View style={styles.manualInputContainer}>
+                    <TextInput
+                      style={styles.manualInput}
+                      value={qrCodeId}
+                      onChangeText={setQrCodeId}
+                      placeholder="e.g., 001, 002, 003..."
+                      placeholderTextColor={COLORS.text.muted}
+                      maxLength={10}
+                      autoCapitalize="none"
+                      returnKeyType="done"
+                    />
+                  </View>
                   <Text style={styles.qrHint}>
-                    Enter a unique ID (001-200) for this quest location
+                    Enter ID and click "Next" below to continue
                   </Text>
                 </>
               )}
@@ -980,6 +1016,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.borderLight,
   },
+  manualInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  manualInput: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADII.md,
+    padding: 14,
+    color: COLORS.text.primary,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
   inputMultiline: {
     height: 80,
     textAlignVertical: 'top',
@@ -1147,6 +1198,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginTop: 20,
+  },
+  scannerErrorHint: {
+    color: COLORS.text.muted,
+    fontSize: 14,
+    marginTop: 12,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   scannerCloseBtn: {
     marginTop: 30,

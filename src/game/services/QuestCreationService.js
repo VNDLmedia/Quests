@@ -86,11 +86,16 @@ export const getCurrentLocation = async () => {
  * @returns {Promise<{valid: boolean, existingQuest: object|null}>}
  */
 export const validateQRCode = async (qrCodeId) => {
+  console.log('[QuestCreationService] validateQRCode called with:', qrCodeId);
+  
   try {
     if (!qrCodeId || qrCodeId.trim() === '') {
+      console.log('[QuestCreationService] Empty QR code');
       return { valid: false, error: 'QR code cannot be empty' };
     }
 
+    console.log('[QuestCreationService] Querying database for existing quests with this QR code...');
+    
     // Check if this QR code is already used in any quest
     const { data: existingQuests, error } = await supabase
       .from('quests')
@@ -98,12 +103,15 @@ export const validateQRCode = async (qrCodeId) => {
       .eq('metadata->>qr_code_id', qrCodeId)
       .eq('is_active', true);
 
+    console.log('[QuestCreationService] Query result:', { existingQuests, error });
+
     if (error) {
-      console.error('Error validating QR code:', error);
+      console.error('[QuestCreationService] Database error:', error);
       return { valid: false, error: error.message };
     }
 
     if (existingQuests && existingQuests.length > 0) {
+      console.log('[QuestCreationService] QR code already in use');
       return {
         valid: false,
         existingQuest: existingQuests[0],
@@ -111,10 +119,11 @@ export const validateQRCode = async (qrCodeId) => {
       };
     }
 
+    console.log('[QuestCreationService] QR code is available');
     return { valid: true };
   } catch (error) {
-    console.error('Error validating QR code:', error);
-    return { valid: false, error: error.message };
+    console.error('[QuestCreationService] Exception:', error);
+    return { valid: false, error: error.message || 'Validation failed' };
   }
 };
 
