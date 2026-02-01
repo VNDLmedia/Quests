@@ -156,6 +156,7 @@ export const createQuest = async (questData) => {
       location,
       qrCodeId,
       adminId,
+      infoContent, // New: Info content to show when QR is scanned
     } = questData;
 
     // Validate required fields
@@ -180,6 +181,15 @@ export const createQuest = async (questData) => {
       requires_scan: true,
       created_at: new Date().toISOString(),
     };
+    
+    // Add info_content to metadata if provided
+    if (infoContent && (infoContent.title || infoContent.text)) {
+      questMetadata.info_content = {
+        title: infoContent.title || 'Info',
+        text: infoContent.text || '',
+        image_url: infoContent.imageUrl || null,
+      };
+    }
 
     console.log('[QuestCreationService] Attempting to insert quest...');
     console.log('[QuestCreationService] Quest data:', { title, description, questMetadata });

@@ -120,6 +120,9 @@ const checkQuestCode = async (qrCodeId, userId) => {
       };
     }
 
+    // Extract info_content from quest metadata
+    const infoContent = quests.metadata?.info_content || null;
+    
     return {
       found: true,
       success: true,
@@ -129,6 +132,7 @@ const checkQuestCode = async (qrCodeId, userId) => {
         xp: quests.xp_reward || 0,
         gems: quests.gem_reward || 0
       },
+      infoContent, // Return info content to display to user
       message: `Quest abgeschlossen! +${quests.xp_reward} XP, +${quests.gem_reward} Gems`
     };
 

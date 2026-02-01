@@ -599,6 +599,9 @@ export function GameProvider({ children }) {
       const completedQuests = [];
       
       for (const uq of userQuests || []) {
+        // Extract coordinates from quest metadata if available
+        const metadata = uq.quest?.metadata || {};
+        
         const questData = {
           id: uq.id,
           questId: uq.quest_id,
@@ -615,6 +618,10 @@ export function GameProvider({ children }) {
           startedAt: uq.started_at,
           completedAt: uq.completed_at,
           expiresAt: uq.expires_at,
+          // Include coordinates from metadata for map display
+          lat: metadata.lat,
+          lng: metadata.lng,
+          metadata: metadata,
         };
         
         if (uq.status === 'completed') {

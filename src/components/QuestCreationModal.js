@@ -116,6 +116,14 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   const [xpReward, setXpReward] = useState('100');
   const [gemReward, setGemReward] = useState('50');
   const [selectedTeam, setSelectedTeam] = useState('blue');
+  
+  // Info Content (shown when user scans QR code)
+  const [infoTitle, setInfoTitle] = useState('');
+  const [infoText, setInfoText] = useState('');
+  const [infoImageUrl, setInfoImageUrl] = useState('');
+  
+  // Default location for Salzburg
+  const SALZBURG_DEFAULT = { latitude: 47.8095, longitude: 13.0550, accuracy: 50 };
 
   // Load native camera
   useEffect(() => {
@@ -297,6 +305,16 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
     setSaving(true);
 
     try {
+      // Build info_content only if any info field is filled
+      let infoContent = null;
+      if (infoTitle.trim() || infoText.trim() || infoImageUrl.trim()) {
+        infoContent = {
+          title: infoTitle.trim() || 'Info',
+          text: infoText.trim(),
+          imageUrl: infoImageUrl.trim() || null,
+        };
+      }
+      
       const result = await createQuest({
         title,
         description,
@@ -310,6 +328,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
         },
         qrCodeId,
         adminId: userId,
+        infoContent, // Add info content to quest
       });
 
       if (result.success) {
@@ -355,6 +374,9 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
     setGemReward('50');
     setSelectedTeam('blue');
     setQrScanning(false);
+    setInfoTitle('');
+    setInfoText('');
+    setInfoImageUrl('');
   };
 
   const handleClose = () => {
@@ -463,9 +485,9 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
           {/* STEP 1: Location */}
           {step === 1 && (
             <View style={styles.stepContainer}>
-              <Text style={styles.stepTitle}>📍 Capture Location</Text>
+              <Text style={styles.stepTitle}>📍 Quest Location</Text>
               <Text style={styles.stepDescription}>
-                Get the current GPS coordinates where the quest will be located
+                Wähle den Standort für diese Quest
               </Text>
 
               {location ? (
@@ -484,7 +506,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                       <Text style={styles.locationValue}>{location.longitude.toFixed(6)}</Text>
                     </View>
                   </View>
-                  {location.accuracy && (
+                  {location.accuracy > 0 && (
                     <Text style={styles.locationAccuracy}>
                       Accuracy: ±{Math.round(location.accuracy)}m
                     </Text>
@@ -493,40 +515,45 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                     style={styles.recaptureButton}
                     onPress={() => setLocation(null)}
                   >
-                    <Text style={styles.recaptureText}>Capture Again</Text>
+                    <Text style={styles.recaptureText}>Position ändern</Text>
                   </TouchableOpacity>
                 </GlassCard>
               ) : (
                 <>
+                  {/* Option 1: Use Salzburg Default */}
                   <GlassButton
-                    title={loading ? "Getting Location..." : "Capture Current Location"}
-                    onPress={handleCaptureLocation}
+                    title="Salzburg Position verwenden"
+                    onPress={() => {
+                      setLocation(SALZBURG_DEFAULT);
+                    }}
                     variant="gradient"
                     gradient={COLORS.gradients.gold}
+                    icon={<Ionicons name="location" size={22} color={COLORS.text.primary} />}
+                  />
+                  
+                  <View style={styles.orDivider}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>ODER</Text>
+                    <View style={styles.orLine} />
+                  </View>
+                  
+                  {/* Option 2: Capture Current Location */}
+                  <GlassButton
+                    title={loading ? "GPS wird erfasst..." : "Aktuelle GPS-Position"}
+                    onPress={handleCaptureLocation}
+                    variant="outline"
                     icon={<Ionicons name="navigate" size={22} color={COLORS.text.primary} />}
                     loading={loading}
                     disabled={loading}
                   />
+                  
+                  <Text style={styles.locationHint}>
+                    Die Salzburg-Position ist voreingestellt für Quests in der Region.
+                    Verwende GPS nur, wenn du vor Ort bist.
+                  </Text>
+                  
                   {locationError && (
-                    <>
-                      <Text style={styles.errorText}>{locationError}</Text>
-                      <Text style={styles.errorHint}>
-                        Check console for details. You can also skip to manual entry.
-                      </Text>
-                      <GlassButton
-                        title="Skip & Enter Location Manually"
-                        onPress={() => {
-                          // Use a default location (you can change this)
-                          setLocation({
-                            latitude: 47.8224,
-                            longitude: 13.0456,
-                            accuracy: 0,
-                          });
-                        }}
-                        variant="outline"
-                        style={{ marginTop: 12 }}
-                      />
-                    </>
+                    <Text style={styles.errorText}>{locationError}</Text>
                   )}
                 </>
               )}
@@ -696,6 +723,50 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                     </Text>
                   </TouchableOpacity>
                 ))}
+              </View>
+              
+              {/* Info Content Section */}
+              <View style={styles.infoContentSection}>
+                <View style={styles.infoContentHeader}>
+                  <Ionicons name="information-circle" size={20} color={COLORS.primary} />
+                  <Text style={styles.infoContentTitle}>Info-Inhalt (Optional)</Text>
+                </View>
+                <Text style={styles.infoContentHint}>
+                  Diese Info wird dem User angezeigt, wenn er den QR-Code scannt
+                </Text>
+                
+                <Text style={styles.inputLabel}>Info Titel</Text>
+                <TextInput
+                  style={styles.input}
+                  value={infoTitle}
+                  onChangeText={setInfoTitle}
+                  placeholder="z.B. Wusstest du?"
+                  placeholderTextColor={COLORS.text.muted}
+                  maxLength={50}
+                />
+                
+                <Text style={styles.inputLabel}>Info Text</Text>
+                <TextInput
+                  style={[styles.input, styles.inputMultiline, { height: 100 }]}
+                  value={infoText}
+                  onChangeText={setInfoText}
+                  placeholder="Interessante Informationen über diesen Ort..."
+                  placeholderTextColor={COLORS.text.muted}
+                  multiline
+                  numberOfLines={4}
+                  maxLength={500}
+                />
+                
+                <Text style={styles.inputLabel}>Bild URL (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={infoImageUrl}
+                  onChangeText={setInfoImageUrl}
+                  placeholder="https://example.com/image.jpg"
+                  placeholderTextColor={COLORS.text.muted}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
               </View>
             </View>
           )}
@@ -1239,6 +1310,39 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 60,
     right: 30,
+  },
+  // Location hint style
+  locationHint: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    textAlign: 'center',
+    marginTop: 16,
+    lineHeight: 18,
+    paddingHorizontal: 10,
+  },
+  // Info Content Section styles
+  infoContentSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+  infoContentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  infoContentTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
+  infoContentHint: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    marginBottom: 16,
+    lineHeight: 18,
   },
 });
 

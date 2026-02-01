@@ -6,10 +6,12 @@
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EUROPARK_LOCATIONS, calculateDistance, isWithinLocation } from '../config/quests';
 
 const LOCATION_TASK_NAME = 'ETHERNAL_BACKGROUND_LOCATION';
 const GEOFENCE_TASK_NAME = 'ETHERNAL_GEOFENCE';
+const LAST_LOCATION_KEY = '@eternal_path_last_location';
 
 class LocationServiceClass {
   constructor() {
@@ -21,6 +23,7 @@ class LocationServiceClass {
     this.lastDistanceUpdate = Date.now();
     this.totalDistance = 0;
     this.previousLocation = null;
+    this._lastSaveTime = null; // Throttle location saves
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -97,6 +100,75 @@ class LocationServiceClass {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // POSITION PERSISTENCE
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Save last known location to AsyncStorage
+   */
+  async saveLastKnownLocation(coords) {
+    try {
+      const locationData = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        timestamp: coords.timestamp || Date.now(),
+      };
+      await AsyncStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(locationData));
+      console.log('[LocationService] Saved last location:', locationData.latitude, locationData.longitude);
+    } catch (error) {
+      console.warn('[LocationService] Failed to save last location:', error);
+    }
+  }
+
+  /**
+   * Load last known location from AsyncStorage
+   * @returns {Object|null} Last known location or null
+   */
+  async getLastKnownLocation() {
+    try {
+      const stored = await AsyncStorage.getItem(LAST_LOCATION_KEY);
+      if (stored) {
+        const locationData = JSON.parse(stored);
+        console.log('[LocationService] Loaded last location:', locationData.latitude, locationData.longitude);
+        
+        // Update current location if we don't have one yet
+        if (!this.currentLocation) {
+          this.currentLocation = {
+            ...locationData,
+            accuracy: 100, // Lower accuracy for stored location
+          };
+        }
+        
+        return locationData;
+      }
+    } catch (error) {
+      console.warn('[LocationService] Failed to load last location:', error);
+    }
+    return null;
+  }
+
+  /**
+   * Initialize with last known location, then try to get current
+   * @returns {Object} Best available location (stored or current)
+   */
+  async initializeLocation() {
+    // First, try to load last known location for quick startup
+    const lastLocation = await this.getLastKnownLocation();
+    
+    // Then try to get current location
+    const currentLocation = await this.getCurrentLocation();
+    
+    // If we got current location, save it
+    if (currentLocation) {
+      await this.saveLastKnownLocation(currentLocation);
+      return currentLocation;
+    }
+    
+    // Fall back to last known or mock
+    return lastLocation || this.getMockLocation();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // TRACKING
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -169,6 +241,13 @@ class LocationServiceClass {
 
     this.previousLocation = coords;
     this.currentLocation = coords;
+
+    // Save to AsyncStorage (throttled - only every 30 seconds)
+    const now = Date.now();
+    if (!this._lastSaveTime || now - this._lastSaveTime > 30000) {
+      this._lastSaveTime = now;
+      this.saveLastKnownLocation(coords);
+    }
 
     // Check proximity to POIs
     this.checkProximity(coords);

@@ -19,6 +19,19 @@ import { COLORS, SHADOWS, PALETTE } from '../theme';
 import { useGame } from '../game/GameProvider';
 import { useQuests } from '../game/hooks';
 import { calculateDistance } from '../game/config/quests';
+import { LocationService } from '../game/services/LocationService';
+import { processQRCode } from '../game/services/QRScannerService';
+import QuestCompletionModal from '../components/QuestCompletionModal';
+
+// Safe import for QR Scanner
+let UniversalQRScanner = null;
+try {
+  if (Platform.OS === 'web') {
+    UniversalQRScanner = require('../components/UniversalQRScanner').default;
+  }
+} catch (error) {
+  console.warn('UniversalQRScanner not available:', error);
+}
 
 const { width, height } = Dimensions.get('window');
 
@@ -56,11 +69,13 @@ body{font-family:-apple-system,system-ui,sans-serif}
 .quest-pill{background:#1B2838;padding:6px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.5);display:flex;align-items:center;gap:8px;white-space:nowrap;border:1px solid}
 .quest-pill.available{border-color:rgba(93,173,226,0.5);background:linear-gradient(135deg,#1B2838,#243447)}
 .quest-pill.active{border-color:rgba(232,184,74,0.6);background:linear-gradient(135deg,#243447,#2D4156);box-shadow:0 0 20px rgba(232,184,74,0.2)}
+.quest-pill.completed{border-color:rgba(46,204,113,0.6);background:linear-gradient(135deg,#1B3828,#243847);box-shadow:0 0 12px rgba(46,204,113,0.15)}
 .quest-pill.locked{border-color:rgba(107,125,143,0.3);border-style:dashed}
 .quest-icon{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px}
 .quest-title{font-size:11px;font-weight:700;color:#FFFFFF}
 .quest-distance{font-size:9px;color:#B8C5D3}
 .quest-reward{font-size:9px;font-weight:700;background:rgba(232,184,74,0.15);padding:3px 6px;border-radius:6px;color:#E8B84A}
+.quest-reward.completed{background:rgba(46,204,113,0.15);color:#2ECC71}
 .quest-point{width:10px;height:10px;background:#1B2838;border:3px solid;border-radius:50%;margin-top:6px;box-shadow:0 2px 8px rgba(0,0,0,0.4)}
 </style></head><body><div id="map"></div><script>
 const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([47.8224,13.0456],17);
@@ -90,11 +105,14 @@ playerCircleRange.setLatLng([lat,lng]);
 window.updateQuests=function(quests){
 questMarkers.forEach(m=>map.removeLayer(m));questMarkers=[];
 if(quests){quests.forEach(q=>{
-const sc=q.status==='active'?'active':q.canInteract?'available':'locked';
+const sc=q.status==='completed'?'completed':q.status==='active'?'active':q.canInteract?'available':'locked';
 const dt=q.distance?(q.distance<1000?q.distance+'m':(q.distance/1000).toFixed(1)+'km'):'';
-const iconBg=q.status==='active'?'rgba(232,184,74,0.2)':'rgba(93,173,226,0.2)';
-const iconColor=q.status==='active'?'#E8B84A':'#5DADE2';
-const h='<div class="quest-container '+(sc==='locked'?' disabled':'')+'"><div class="quest-pill '+sc+'"><div class="quest-icon" style="background:'+iconBg+';color:'+iconColor+'">⚔</div><div><div class="quest-title">'+q.title+'</div><div class="quest-distance">'+dt+'</div></div><div class="quest-reward">'+q.reward+'</div></div><div class="quest-point" style="border-color:'+(q.status==='active'?'#E8B84A':'#5DADE2')+'"></div></div>';
+const iconBg=q.status==='completed'?'rgba(46,204,113,0.2)':q.status==='active'?'rgba(232,184,74,0.2)':'rgba(93,173,226,0.2)';
+const iconColor=q.status==='completed'?'#2ECC71':q.status==='active'?'#E8B84A':'#5DADE2';
+const questIcon=q.status==='completed'?'✓':'⚔';
+const pointColor=q.status==='completed'?'#2ECC71':q.status==='active'?'#E8B84A':'#5DADE2';
+const rewardClass=q.status==='completed'?' completed':'';
+const h='<div class="quest-container '+(sc==='locked'?' disabled':'')+'"><div class="quest-pill '+sc+'"><div class="quest-icon" style="background:'+iconBg+';color:'+iconColor+'">'+questIcon+'</div><div><div class="quest-title">'+q.title+'</div><div class="quest-distance">'+dt+'</div></div><div class="quest-reward'+rewardClass+'">'+(q.status==='completed'?'Done':q.reward)+'</div></div><div class="quest-point" style="border-color:'+pointColor+'"></div></div>';
 const m=L.marker([q.lat,q.lng],{icon:L.divIcon({className:'',html:h,iconSize:[150,50],iconAnchor:[75,50]})}).addTo(map);
 m.on('click',()=>sendMsg({type:'QUEST_TAP',quest:q}));questMarkers.push(m);
 })}
@@ -153,15 +171,21 @@ const MapScreen = () => {
     })
   ).current;
   
-  const { updateLocation, quests: allQuests, locations: allLocations } = useGame();
-  const { activeQuests, startQuest } = useQuests();
+  const { updateLocation, quests: allQuests, locations: allLocations, player, completeQuest, addXP, addGems } = useGame();
+  const { activeQuests, completedQuests, startQuest } = useQuests();
+  const userId = player?.odooId || player?.odoo_id;
   
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const [userLoc, setUserLoc] = useState(DEFAULT_LOCATION);
   const [locationStatus, setLocationStatus] = useState('searching');
   const [availableQuests, setAvailableQuests] = useState([]);
+  const [followUser, setFollowUser] = useState(true);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [scanningQuest, setScanningQuest] = useState(null);
+  const [completionModalData, setCompletionModalData] = useState(null);
   const mapReadyRef = useRef(false);
+  const isInitialLoadRef = useRef(true);
 
   // Request location - can be called manually for retry
   const requestLocation = useCallback(() => {
@@ -255,6 +279,7 @@ const MapScreen = () => {
   const mapQuests = useMemo(() => {
     const quests = [];
     
+    // Available quests (not started yet)
     availableQuests.forEach(q => {
       const dist = calculateDistance(userLoc.latitude, userLoc.longitude, q.lat, q.lng);
       quests.push({
@@ -265,6 +290,7 @@ const MapScreen = () => {
       });
     });
     
+    // Active quests (in progress)
     activeQuests.forEach(q => {
       const loc = allLocations[q.location];
       if (loc) {
@@ -279,10 +305,44 @@ const MapScreen = () => {
       }
     });
     
+    // Completed quests (show with checkmark)
+    (completedQuests || []).forEach(q => {
+      const loc = allLocations[q.location];
+      // Also check metadata for coordinates
+      const questLat = loc?.lat || q.metadata?.latitude || q.lat;
+      const questLng = loc?.lng || q.metadata?.longitude || q.lng;
+      if (questLat && questLng) {
+        quests.push({
+          ...q,
+          lat: questLat,
+          lng: questLng,
+          status: 'completed',
+          canInteract: false,
+          distance: Math.round(calculateDistance(userLoc.latitude, userLoc.longitude, questLat, questLng)),
+        });
+      }
+    });
+    
     return quests;
-  }, [availableQuests, activeQuests, userLoc, allLocations]);
+  }, [availableQuests, activeQuests, completedQuests, userLoc, allLocations]);
 
   const currentActiveQuest = useMemo(() => activeQuests[0] || null, [activeQuests]);
+
+  // Load last known location on startup for quick map display
+  useEffect(() => {
+    const loadInitialLocation = async () => {
+      const lastLocation = await LocationService.getLastKnownLocation();
+      if (lastLocation && isInitialLoadRef.current) {
+        setUserLoc({
+          latitude: lastLocation.latitude,
+          longitude: lastLocation.longitude,
+        });
+        generateNearbyQuests(lastLocation);
+        console.log('[VibeMapScreen] Loaded last known location:', lastLocation.latitude, lastLocation.longitude);
+      }
+    };
+    loadInitialLocation();
+  }, []);
 
   useEffect(() => {
     generateNearbyQuests(DEFAULT_LOCATION);
@@ -379,13 +439,32 @@ const MapScreen = () => {
     if (posKey === lastPlayerPosRef.current) return;
     lastPlayerPosRef.current = posKey;
     
+    // Update player marker on map
     if (Platform.OS === 'web') {
       const iframe = document.querySelector('iframe[title="Quest Map"]');
       iframe?.contentWindow?.postMessage({ type: 'UPDATE_PLAYER', player: userLoc }, '*');
     } else {
       webviewRef.current?.injectJavaScript(`window.updatePlayer && window.updatePlayer(${JSON.stringify(userLoc)});true;`);
     }
-  }, [mapReady, userLoc]);
+    
+    // Auto-center on user if follow mode is enabled
+    if (followUser && !isInitialLoadRef.current) {
+      if (Platform.OS === 'web') {
+        const iframe = document.querySelector('iframe[title="Quest Map"]');
+        iframe?.contentWindow?.postMessage({ type: 'CENTER_MAP', lat: userLoc.latitude, lng: userLoc.longitude }, '*');
+      } else {
+        webviewRef.current?.injectJavaScript(`window.map?.setView([${userLoc.latitude}, ${userLoc.longitude}], window.map.getZoom());true;`);
+      }
+    }
+    
+    // Mark initial load as done
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+    }
+    
+    // Save location to LocationService
+    LocationService.saveLastKnownLocation(userLoc);
+  }, [mapReady, userLoc, followUser]);
   
   useEffect(() => {
     if (!mapReadyRef.current && !mapReady) return;
@@ -455,6 +534,77 @@ const MapScreen = () => {
       webviewRef.current?.injectJavaScript(`window.map?.setView([${userLoc.latitude}, ${userLoc.longitude}], 18);true;`);
     }
   };
+
+  // Open QR Scanner for quest completion
+  const openQRScanner = useCallback((quest) => {
+    setScanningQuest(quest);
+    setShowQRScanner(true);
+  }, []);
+
+  // Handle QR code scan result
+  const handleQRScanned = useCallback(async ({ data }) => {
+    if (!data || !scanningQuest) return;
+    
+    console.log('[VibeMapScreen] QR scanned:', data);
+    setShowQRScanner(false);
+    
+    try {
+      const result = await processQRCode(data.trim(), userId);
+      console.log('[VibeMapScreen] QR result:', result);
+      
+      if (result.success && result.type === 'quest') {
+        // Quest completed successfully!
+        const rewards = result.rewards || { xp: scanningQuest.xpReward, gems: scanningQuest.gemReward };
+        const infoContent = result.quest?.metadata?.info_content || scanningQuest.metadata?.info_content;
+        
+        // Award rewards
+        if (rewards.xp && addXP) {
+          await addXP(rewards.xp);
+        }
+        if (rewards.gems && addGems) {
+          await addGems(rewards.gems);
+        }
+        
+        // Mark quest as completed
+        if (completeQuest) {
+          await completeQuest(scanningQuest.id || scanningQuest.questId);
+        }
+        
+        // Show completion modal
+        setCompletionModalData({
+          quest: scanningQuest,
+          rewards,
+          infoContent,
+        });
+        
+        // Close quest detail sheet
+        closeQuestDetail();
+      } else {
+        // Wrong code or error
+        const errorMsg = result.error || 'Falscher QR-Code. Bitte versuche es erneut.';
+        if (Platform.OS === 'web') {
+          window.alert(errorMsg);
+        } else {
+          Alert.alert('Fehler', errorMsg);
+        }
+      }
+    } catch (error) {
+      console.error('[VibeMapScreen] QR scan error:', error);
+      const errorMsg = error.message || 'Fehler beim Verarbeiten des QR-Codes';
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('Fehler', errorMsg);
+      }
+    }
+    
+    setScanningQuest(null);
+  }, [scanningQuest, userId, addXP, addGems, completeQuest]);
+
+  // Close completion modal
+  const closeCompletionModal = useCallback(() => {
+    setCompletionModalData(null);
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -584,9 +734,17 @@ const MapScreen = () => {
             <Text style={styles.statLabel}>Nearby</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.locateBtn} onPress={centerOnUser}>
-          <Ionicons name="locate" size={20} color={COLORS.primary} />
-        </TouchableOpacity>
+        <View style={styles.mapControls}>
+          <TouchableOpacity 
+            style={[styles.followBtn, followUser && styles.followBtnActive]} 
+            onPress={() => setFollowUser(!followUser)}
+          >
+            <Ionicons name={followUser ? 'navigate' : 'navigate-outline'} size={18} color={followUser ? COLORS.text.primary : COLORS.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.locateBtn} onPress={() => { setFollowUser(true); centerOnUser(); }}>
+            <Ionicons name="locate" size={20} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Quest Detail Sheet */}
@@ -626,6 +784,19 @@ const MapScreen = () => {
                 <Text style={[styles.sheetBtnText, { color: selectedQuest.canInteract ? COLORS.text.primary : COLORS.text.primary }]}>{selectedQuest.canInteract ? 'Accept Quest' : `${selectedQuest.distance}m away`}</Text>
                 <Ionicons name={selectedQuest.canInteract ? 'add-circle' : 'walk'} size={18} color={COLORS.text.primary} />
               </TouchableOpacity>
+            ) : selectedQuest.status === 'active' ? (
+              <TouchableOpacity 
+                style={[styles.sheetBtn, { backgroundColor: COLORS.primary }]} 
+                onPress={() => openQRScanner(selectedQuest)}
+              >
+                <Ionicons name="qr-code" size={20} color={COLORS.text.primary} />
+                <Text style={styles.sheetBtnText}>QR-Code Scannen</Text>
+              </TouchableOpacity>
+            ) : selectedQuest.status === 'completed' ? (
+              <View style={styles.completedQuestBadge}>
+                <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
+                <Text style={styles.completedQuestBadgeText}>Quest abgeschlossen</Text>
+              </View>
             ) : (
               <View style={styles.activeQuestBadge}>
                 <Ionicons name="play-circle" size={18} color={COLORS.primary} />
@@ -635,6 +806,28 @@ const MapScreen = () => {
           </>
         )}
       </Animated.View>
+
+      {/* QR Scanner Modal */}
+      {showQRScanner && Platform.OS === 'web' && UniversalQRScanner && (
+        <View style={styles.scannerOverlay}>
+          <UniversalQRScanner 
+            onScan={handleQRScanned} 
+            onClose={() => {
+              setShowQRScanner(false);
+              setScanningQuest(null);
+            }} 
+          />
+        </View>
+      )}
+
+      {/* Quest Completion Modal */}
+      <QuestCompletionModal
+        visible={!!completionModalData}
+        quest={completionModalData?.quest}
+        rewards={completionModalData?.rewards}
+        infoContent={completionModalData?.infoContent}
+        onClose={closeCompletionModal}
+      />
     </View>
   );
 };
@@ -691,6 +884,9 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 18, fontWeight: '800', color: COLORS.text.primary },
   statLabel: { fontSize: 10, color: COLORS.text.muted, fontWeight: '500' },
   divider: { width: 1, height: 24, backgroundColor: COLORS.borderLight },
+  mapControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  followBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(232,184,74,0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(232,184,74,0.2)' },
+  followBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   locateBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(232,184,74,0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(232,184,74,0.2)' },
 
   // Bottom Sheet
@@ -710,6 +906,9 @@ const styles = StyleSheet.create({
   sheetBtnText: { color: COLORS.text.primary, fontWeight: '700', fontSize: 15 },
   activeQuestBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(232,184,74,0.1)', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(232,184,74,0.2)' },
   activeQuestBadgeText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+  completedQuestBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(46,204,113,0.1)', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(46,204,113,0.2)' },
+  completedQuestBadgeText: { fontSize: 14, fontWeight: '600', color: COLORS.success },
+  scannerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 },
 });
 
 export default MapScreen;
