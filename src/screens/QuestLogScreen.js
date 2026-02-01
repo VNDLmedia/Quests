@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LocationService } from '../game/services/LocationService';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { EVENT_CHALLENGES, getChallengesWithProgress, CHALLENGE_TIERS } from '../game/config/challenges';
+import { COLLECTIBLE_CARDS } from '../game/config/cardsData';
 
 const { width } = Dimensions.get('window');
 
@@ -78,8 +79,11 @@ const QuestLogScreen = ({ navigation }) => {
     // XP hinzufügen
     // dispatch({ type: 'ADD_XP', payload: challenge.xpReward });
     
-    // Karten-Name für die Anzeige
-    const cardName = challenge.reward?.card?.name || 'Sammelkarte';
+    // Karte aus cardId auflösen
+    const card = challenge.reward?.cardId 
+      ? COLLECTIBLE_CARDS[challenge.reward.cardId] 
+      : null;
+    const cardName = card?.name || 'Sammelkarte';
     
     // Belohnungsanzeige mit Kartenname
     Alert.alert(
@@ -302,7 +306,7 @@ const QuestLogScreen = ({ navigation }) => {
               collectedCardIds={claimedChallenges.map(id => {
                 // Finde die Karte die zu dieser Challenge gehört
                 const challenge = eventChallenges.find(c => c.id === id);
-                return challenge?.reward?.card?.id;
+                return challenge?.reward?.cardId;
               }).filter(Boolean)}
             />
 

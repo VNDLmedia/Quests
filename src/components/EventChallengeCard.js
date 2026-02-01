@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SHADOWS, PALETTE } from '../theme';
 import { CHALLENGE_TIERS } from '../game/config/challenges';
+import { COLLECTIBLE_CARDS } from '../game/config/cardsData';
 
 const EventChallengeCard = ({
   challenge,
@@ -24,6 +25,11 @@ const EventChallengeCard = ({
   const progressPercent = (progress / challenge.target) * 100;
   const isCompleted = progress >= challenge.target;
   const tier = CHALLENGE_TIERS[challenge.tier] || CHALLENGE_TIERS.bronze;
+  
+  // Karte aus cardId auflösen
+  const card = challenge.reward?.cardId 
+    ? COLLECTIBLE_CARDS[challenge.reward.cardId] 
+    : challenge.reward?.card;
 
   // Checklist für Rainbow-Challenge etc.
   const renderChecklist = () => {
@@ -55,14 +61,14 @@ const EventChallengeCard = ({
 
   // Karten-Bild Pfad für Web/Native
   const getCardImageSource = () => {
-    if (!challenge.reward?.card?.image) return null;
+    if (!card?.image) return null;
     
     // Für Web: relativer Pfad von public
     if (Platform.OS === 'web') {
-      return { uri: challenge.reward.card.image };
+      return { uri: card.image };
     }
     // Für Native: require würde hier nicht funktionieren, also URI
-    return { uri: challenge.reward.card.image };
+    return { uri: card.image };
   };
 
   // Belohnungs-Badge (immer echte Karte)
@@ -79,7 +85,6 @@ const EventChallengeCard = ({
 
   // Karten-Vorschau rendern
   const renderCardPreview = () => {
-    const card = challenge.reward?.card;
     if (!card) return null;
 
     const imageSource = getCardImageSource();
@@ -235,7 +240,7 @@ const EventChallengeCard = ({
             <Ionicons name="card" size={16} color={COLORS.gold} />
             <Text style={styles.rewardLabel}>Belohnung:</Text>
             <Text style={styles.rewardValue}>
-              {challenge.reward?.card?.name || 'Sammelkarte'}
+              {card?.name || 'Sammelkarte'}
             </Text>
           </View>
           <View style={styles.xpReward}>

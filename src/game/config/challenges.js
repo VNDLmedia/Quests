@@ -1,59 +1,33 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // ETERNAL PATH - Event Challenges Configuration
 // Übergreifende Challenges mit echten Spielkarten als Belohnung
+// KEINE externen Abhängigkeiten außer TEAMS um zirkuläre Imports zu vermeiden
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { TEAMS } from '../../config/teams';
-import { COLLECTIBLE_CARDS } from './cardsData';
-import { COUNTRIES } from './countries';
+
+// Länder-Daten inline für Challenges (vermeidet zirkuläre Imports)
+const COUNTRY_DATA = {
+  frankreich: { flag: '🇫🇷', name: 'Frankreich', gradient: ['#002395', '#ED2939'] },
+  england: { flag: '🇬🇧', name: 'England', gradient: ['#012169', '#C8102E'] },
+  luxemburg: { flag: '🇱🇺', name: 'Luxemburg', gradient: ['#00A3E0', '#006699'] },
+  deutschland: { flag: '🇩🇪', name: 'Deutschland', gradient: ['#1a1a1a', '#DD0000'] },
+  griechenland: { flag: '🇬🇷', name: 'Griechenland', gradient: ['#0D5EAF', '#1a3a5c'] },
+  skandinavien: { flag: '🇸🇪', name: 'Skandinavien', gradient: ['#006AA7', '#004F7F'] },
+};
 
 // Challenge-Typen
 export const CHALLENGE_TYPES = {
-  quest_count: {
-    id: 'quest_count',
-    name: 'Quest Meister',
-    icon: 'ribbon',
-    color: '#F59E0B',
-  },
-  social: {
-    id: 'social',
-    name: 'Social',
-    icon: 'people',
-    color: '#EC4899',
-  },
-  networking: {
-    id: 'networking',
-    name: 'Networking',
-    icon: 'git-network',
-    color: '#3B82F6',
-  },
-  location: {
-    id: 'location',
-    name: 'Explorer',
-    icon: 'location',
-    color: '#10B981',
-  },
-  collection: {
-    id: 'collection',
-    name: 'Sammler',
-    icon: 'albums',
-    color: '#8B5CF6',
-  },
-  streak: {
-    id: 'streak',
-    name: 'Streak',
-    icon: 'flame',
-    color: '#EF4444',
-  },
-  country: {
-    id: 'country',
-    name: 'Länder',
-    icon: 'globe',
-    color: '#06B6D4',
-  },
+  quest_count: { id: 'quest_count', name: 'Quest Meister', icon: 'ribbon', color: '#F59E0B' },
+  social: { id: 'social', name: 'Social', icon: 'people', color: '#EC4899' },
+  networking: { id: 'networking', name: 'Networking', icon: 'git-network', color: '#3B82F6' },
+  location: { id: 'location', name: 'Explorer', icon: 'location', color: '#10B981' },
+  collection: { id: 'collection', name: 'Sammler', icon: 'albums', color: '#8B5CF6' },
+  streak: { id: 'streak', name: 'Streak', icon: 'flame', color: '#EF4444' },
+  country: { id: 'country', name: 'Länder', icon: 'globe', color: '#06B6D4' },
 };
 
-// Belohnungs-Typ (nur echte Karten)
+// Belohnungs-Typ
 export const REWARD_TYPES = {
   physical_card: {
     id: 'physical_card',
@@ -63,7 +37,17 @@ export const REWARD_TYPES = {
   },
 };
 
-// Event Challenges - Alle belohnen mit echten Sammelkarten!
+// Tier-Farben und Icons
+export const CHALLENGE_TIERS = {
+  bronze: { name: 'Bronze', color: '#CD7F32', bgColor: 'rgba(205, 127, 50, 0.15)', icon: 'star-outline' },
+  silver: { name: 'Silber', color: '#C0C0C0', bgColor: 'rgba(192, 192, 192, 0.15)', icon: 'star-half' },
+  gold: { name: 'Gold', color: '#FFD700', bgColor: 'rgba(255, 215, 0, 0.15)', icon: 'star' },
+  special: { name: 'Spezial', color: '#EC4899', bgColor: 'rgba(236, 72, 153, 0.15)', icon: 'sparkles' },
+  event: { name: 'Event', color: '#10B981', bgColor: 'rgba(16, 185, 129, 0.15)', icon: 'calendar' },
+  country: { name: 'Länder', color: '#06B6D4', bgColor: 'rgba(6, 182, 212, 0.15)', icon: 'globe' },
+};
+
+// Event Challenges - verwenden cardId statt direkter Objekt-Referenzen
 export const EVENT_CHALLENGES = [
   {
     id: 'quest_master_bronze',
@@ -75,11 +59,7 @@ export const EVENT_CHALLENGES = [
     icon: 'ribbon-outline',
     target: 5,
     progressKey: 'completedQuests',
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.marcus,
-      claimLocation: 'Info-Stand Halle A',
-    },
+    reward: { type: 'physical_card', cardId: 'marcus', claimLocation: 'Info-Stand Halle A' },
     xpReward: 100,
     tier: 'bronze',
     gradient: ['#CD7F32', '#8B4513'],
@@ -94,11 +74,7 @@ export const EVENT_CHALLENGES = [
     icon: 'ribbon',
     target: 15,
     progressKey: 'completedQuests',
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.ramy,
-      claimLocation: 'Info-Stand Halle A',
-    },
+    reward: { type: 'physical_card', cardId: 'ramy', claimLocation: 'Info-Stand Halle A' },
     xpReward: 250,
     tier: 'silver',
     gradient: ['#C0C0C0', '#808080'],
@@ -113,12 +89,7 @@ export const EVENT_CHALLENGES = [
     icon: 'trophy',
     target: 30,
     progressKey: 'completedQuests',
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.roland,
-      claimLocation: 'Info-Stand Halle A',
-      special: 'Legendär',
-    },
+    reward: { type: 'physical_card', cardId: 'roland', claimLocation: 'Info-Stand Halle A', special: 'Legendär' },
     xpReward: 500,
     tier: 'gold',
     gradient: ['#FFD700', '#FFA500'],
@@ -139,11 +110,7 @@ export const EVENT_CHALLENGES = [
       { key: 'green', label: 'Green Team', color: TEAMS.green.color, icon: TEAMS.green.icon },
       { key: 'purple', label: 'Purple Team', color: TEAMS.purple.color, icon: TEAMS.purple.icon },
     ],
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.ivo,
-      claimLocation: 'Info-Stand Halle A',
-    },
+    reward: { type: 'physical_card', cardId: 'ivo', claimLocation: 'Info-Stand Halle A' },
     xpReward: 200,
     tier: 'special',
     gradient: ['#EC4899', '#8B5CF6'],
@@ -160,11 +127,7 @@ export const EVENT_CHALLENGES = [
     progressKey: 'workshopVisited',
     locationId: 'workshop_main',
     requiresScan: true,
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.marcus,
-      claimLocation: 'Workshop-Stand',
-    },
+    reward: { type: 'physical_card', cardId: 'marcus', claimLocation: 'Workshop-Stand' },
     xpReward: 150,
     tier: 'event',
     gradient: ['#10B981', '#059669'],
@@ -179,11 +142,7 @@ export const EVENT_CHALLENGES = [
     icon: 'people-circle',
     target: 10,
     progressKey: 'friendCount',
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.ramy,
-      claimLocation: 'Info-Stand Halle A',
-    },
+    reward: { type: 'physical_card', cardId: 'ramy', claimLocation: 'Info-Stand Halle A' },
     xpReward: 150,
     tier: 'silver',
     gradient: ['#EC4899', '#F472B6'],
@@ -198,11 +157,7 @@ export const EVENT_CHALLENGES = [
     icon: 'flame',
     target: 3,
     progressKey: 'dailyStreak',
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.marcus,
-      claimLocation: 'Info-Stand Halle A',
-    },
+    reward: { type: 'physical_card', cardId: 'marcus', claimLocation: 'Info-Stand Halle A' },
     xpReward: 100,
     tier: 'bronze',
     gradient: ['#EF4444', '#DC2626'],
@@ -217,21 +172,13 @@ export const EVENT_CHALLENGES = [
     icon: 'albums',
     target: 4,
     progressKey: 'collectedCards',
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.ivo,
-      claimLocation: 'Info-Stand Halle A',
-      special: 'Bonus-Karte',
-    },
+    reward: { type: 'physical_card', cardId: 'ivo', claimLocation: 'Info-Stand Halle A', special: 'Bonus-Karte' },
     xpReward: 300,
     tier: 'gold',
     gradient: ['#8B5CF6', '#7C3AED'],
   },
   
-  // ═══════════════════════════════════════════════════════════════════════════
   // LÄNDER-BASIERTE NETWORKING CHALLENGES
-  // ═══════════════════════════════════════════════════════════════════════════
-  
   {
     id: 'networking_frankreich',
     key: 'networking_frankreich',
@@ -242,16 +189,12 @@ export const EVENT_CHALLENGES = [
     icon: 'git-network',
     target: 3,
     progressKey: 'networkingFrankreich',
-    country: COUNTRIES.frankreich,
+    country: COUNTRY_DATA.frankreich,
     requiresScan: true,
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.marcus,
-      claimLocation: 'Französischer Pavillon',
-    },
+    reward: { type: 'physical_card', cardId: 'marcus', claimLocation: 'Französischer Pavillon' },
     xpReward: 120,
     tier: 'country',
-    gradient: COUNTRIES.frankreich.bgGradient,
+    gradient: COUNTRY_DATA.frankreich.gradient,
   },
   {
     id: 'networking_england',
@@ -263,16 +206,12 @@ export const EVENT_CHALLENGES = [
     icon: 'git-network',
     target: 3,
     progressKey: 'networkingEngland',
-    country: COUNTRIES.england,
+    country: COUNTRY_DATA.england,
     requiresScan: true,
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.ramy,
-      claimLocation: 'Englischer Pavillon',
-    },
+    reward: { type: 'physical_card', cardId: 'ramy', claimLocation: 'Englischer Pavillon' },
     xpReward: 120,
     tier: 'country',
-    gradient: COUNTRIES.england.bgGradient,
+    gradient: COUNTRY_DATA.england.gradient,
   },
   {
     id: 'networking_luxemburg',
@@ -284,16 +223,12 @@ export const EVENT_CHALLENGES = [
     icon: 'business',
     target: 3,
     progressKey: 'networkingLuxemburg',
-    country: COUNTRIES.luxemburg,
+    country: COUNTRY_DATA.luxemburg,
     requiresScan: true,
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.ivo,
-      claimLocation: 'Luxemburger Pavillon',
-    },
+    reward: { type: 'physical_card', cardId: 'ivo', claimLocation: 'Luxemburger Pavillon' },
     xpReward: 150,
     tier: 'country',
-    gradient: COUNTRIES.luxemburg.bgGradient,
+    gradient: COUNTRY_DATA.luxemburg.gradient,
   },
   {
     id: 'explorer_deutschland',
@@ -305,16 +240,11 @@ export const EVENT_CHALLENGES = [
     icon: 'compass',
     target: 5,
     progressKey: 'exploredDeutschland',
-    country: COUNTRIES.deutschland,
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.roland,
-      claimLocation: 'Deutscher Pavillon',
-      special: 'Legendär',
-    },
+    country: COUNTRY_DATA.deutschland,
+    reward: { type: 'physical_card', cardId: 'roland', claimLocation: 'Deutscher Pavillon', special: 'Legendär' },
     xpReward: 200,
     tier: 'gold',
-    gradient: COUNTRIES.deutschland.bgGradient,
+    gradient: COUNTRY_DATA.deutschland.gradient,
   },
   {
     id: 'adventure_griechenland',
@@ -326,15 +256,11 @@ export const EVENT_CHALLENGES = [
     icon: 'boat',
     target: 3,
     progressKey: 'adventureGriechenland',
-    country: COUNTRIES.griechenland,
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.marcus,
-      claimLocation: 'Griechischer Tempel',
-    },
+    country: COUNTRY_DATA.griechenland,
+    reward: { type: 'physical_card', cardId: 'marcus', claimLocation: 'Griechischer Tempel' },
     xpReward: 180,
     tier: 'special',
-    gradient: COUNTRIES.griechenland.bgGradient,
+    gradient: COUNTRY_DATA.griechenland.gradient,
   },
   {
     id: 'viking_skandinavien',
@@ -346,59 +272,13 @@ export const EVENT_CHALLENGES = [
     icon: 'snow',
     target: 4,
     progressKey: 'vikingSkandinavia',
-    country: COUNTRIES.skandinavien,
-    reward: {
-      type: 'physical_card',
-      card: COLLECTIBLE_CARDS.ivo,
-      claimLocation: 'Wikinger-Dorf',
-    },
+    country: COUNTRY_DATA.skandinavien,
+    reward: { type: 'physical_card', cardId: 'ivo', claimLocation: 'Wikinger-Dorf' },
     xpReward: 180,
     tier: 'special',
-    gradient: COUNTRIES.skandinavien.bgGradient,
+    gradient: COUNTRY_DATA.skandinavien.gradient,
   },
 ];
-
-// Länder-Challenge Tier hinzufügen
-CHALLENGE_TIERS.country = {
-  name: 'Länder',
-  color: '#06B6D4',
-  bgColor: 'rgba(6, 182, 212, 0.15)',
-  icon: 'globe',
-};
-
-// Tier-Farben und Icons
-export const CHALLENGE_TIERS = {
-  bronze: {
-    name: 'Bronze',
-    color: '#CD7F32',
-    bgColor: 'rgba(205, 127, 50, 0.15)',
-    icon: 'star-outline',
-  },
-  silver: {
-    name: 'Silber',
-    color: '#C0C0C0',
-    bgColor: 'rgba(192, 192, 192, 0.15)',
-    icon: 'star-half',
-  },
-  gold: {
-    name: 'Gold',
-    color: '#FFD700',
-    bgColor: 'rgba(255, 215, 0, 0.15)',
-    icon: 'star',
-  },
-  special: {
-    name: 'Spezial',
-    color: '#EC4899',
-    bgColor: 'rgba(236, 72, 153, 0.15)',
-    icon: 'sparkles',
-  },
-  event: {
-    name: 'Event',
-    color: '#10B981',
-    bgColor: 'rgba(16, 185, 129, 0.15)',
-    icon: 'calendar',
-  },
-};
 
 // Helper: Challenge-Fortschritt berechnen
 export const getChallengeProgress = (challenge, playerStats) => {
@@ -410,7 +290,6 @@ export const getChallengeProgress = (challenge, playerStats) => {
     case 'friendCount':
       return playerStats.friendCount || 0;
     case 'friendTeams':
-      // Zähle einzigartige Team-Farben der Freunde
       return playerStats.friendTeams?.length || 0;
     case 'workshopVisited':
       return playerStats.workshopVisited ? 1 : 0;
@@ -419,25 +298,19 @@ export const getChallengeProgress = (challenge, playerStats) => {
     case 'uniqueCards':
       return playerStats.uniqueCards || 0;
     case 'collectedCards':
-      // Zählt gesammelte physische Karten (abgeholte Challenge-Belohnungen)
       return playerStats.collectedCards || 0;
-    
-    // Länder-basierte Networking
     case 'networkingFrankreich':
       return playerStats.networkingByCountry?.frankreich || 0;
     case 'networkingEngland':
       return playerStats.networkingByCountry?.england || 0;
     case 'networkingLuxemburg':
       return playerStats.networkingByCountry?.luxemburg || 0;
-    
-    // Länder-Exploration
     case 'exploredDeutschland':
       return playerStats.exploredByCountry?.deutschland || 0;
     case 'adventureGriechenland':
       return playerStats.adventureByCountry?.griechenland || 0;
     case 'vikingSkandinavia':
       return playerStats.adventureByCountry?.skandinavien || 0;
-    
     default:
       return 0;
   }
