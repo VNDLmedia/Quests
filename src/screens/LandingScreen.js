@@ -151,34 +151,6 @@ const LandingScreen = ({ onGetStarted }) => {
 
         {/* CTA Section */}
         <View style={styles.ctaSection}>
-          {/* Countdown Button Wrapper with Orange Glow */}
-          <View
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            style={[
-              styles.ctaButtonWrapper,
-              isLocked && styles.ctaButtonWrapperLocked
-            ]}
-          >
-            <GlassButton
-              title={isLocked ? `Starts in ${formatTimeRemaining(timeRemaining)}` : "Start Your Quest"}
-              onPress={handleGetStarted}
-              variant="gradient"
-              gradient={isLocked ? ['#E8B84A', '#D4A53D', '#E8B84A'] : COLORS.gradients.gold}
-              size="lg"
-              style={[styles.ctaButton, isLocked && styles.ctaButtonLocked]}
-              icon={isLocked ? <Ionicons name="time" size={24} color="#0D1B2A" /> : <Ionicons name="compass" size={22} color="#0D1B2A" />}
-              iconPosition="left"
-              textStyle={[styles.ctaButtonText, isLocked && styles.ctaButtonTextLocked]}
-            />
-          </View>
-
-          <Text style={[styles.ctaSubtext, isLocked && styles.ctaSubtextLocked]}>
-            {isLocked 
-              ? "Launch countdown • Coming soon" 
-              : ""}
-          </Text>
-
           {/* LinkedIn Links */}
           <View style={styles.linkedinContainer}>
             <TouchableOpacity
@@ -197,6 +169,31 @@ const LandingScreen = ({ onGetStarted }) => {
               <Text style={styles.linkedinText}>Ivo Strohhammer</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Countdown Button Wrapper */}
+          <View
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            style={styles.ctaButtonWrapper}
+          >
+            <GlassButton
+              title={isLocked ? `Starts in ${formatTimeRemaining(timeRemaining)}` : "Start Your Quest"}
+              onPress={handleGetStarted}
+              variant="gradient"
+              gradient={isLocked ? [COLORS.text.muted, COLORS.surface, COLORS.text.muted] : COLORS.gradients.gold}
+              size="lg"
+              style={[styles.ctaButton, isLocked && styles.ctaButtonLocked]}
+              icon={isLocked ? <Ionicons name="time" size={24} color={COLORS.text.primary} /> : <Ionicons name="compass" size={22} color="#0D1B2A" />}
+              iconPosition="left"
+              textStyle={[styles.ctaButtonText, isLocked && styles.ctaButtonTextLocked]}
+            />
+          </View>
+
+          <Text style={[styles.ctaSubtext, isLocked && styles.ctaSubtextLocked]}>
+            {isLocked 
+              ? "Launch countdown • Coming soon" 
+              : ""}
+          </Text>
         </View>
       </View>
     </View>
@@ -291,21 +288,10 @@ const styles = StyleSheet.create({
   ctaButtonWrapper: {
     width: '100%',
     maxWidth: 320,
-  },
-  ctaButtonWrapperLocked: {
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 24,
-    elevation: 12,
-    borderRadius: RADII.lg,
-    borderWidth: 3,
-    borderColor: 'rgba(232, 184, 74, 0.6)',
-    backgroundColor: 'rgba(232, 184, 74, 0.05)',
+    marginTop: 24,
   },
   ctaButton: {
     width: '100%',
-    ...SHADOWS.glow,
   },
   ctaButtonLocked: {
     opacity: 1,
@@ -318,6 +304,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     letterSpacing: 1,
     fontWeight: '900',
+    color: COLORS.text.primary,
   },
   ctaSubtext: {
     ...TYPOGRAPHY.caption,
