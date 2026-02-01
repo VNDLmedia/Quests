@@ -1,17 +1,20 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Text, Modal, TouchableOpacity, ScrollView, Dimensions, Animated, Pressable, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Text, Modal, TouchableOpacity, ScrollView, Dimensions, Animated, Pressable, TextInput, Alert, Platform, ActivityIndicator, Easing } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { GlassCard, GlassButton } from '../components';
 import { useGame } from '../game/GameProvider';
 import { CARDS, RARITY, getCollectionCompletion, getRarityDistribution } from '../game/config/cards';
 import { COLORS, SHADOWS } from '../theme';
 import Card3D from '../components/Card3D';
 import { supabase, isSupabaseConfigured } from '../config/supabase';
+
+const SCAN_FRAME_SIZE = 280;
 
 const { width, height } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -64,9 +67,146 @@ const ProfileScreen = () => {
   const [scanResult, setScanResult] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState(null);
+  const [scanSuccess, setScanSuccess] = useState(false);
+  const [focusPoint, setFocusPoint] = useState(null);
   const scanTimeoutRef = useRef(null);
   const lastScannedRef = useRef(null);
+  const cameraRef = useRef(null);
   
+  // Scanner Animations
+  const scanLineAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const cornerAnim = useRef(new Animated.Value(0)).current;
+  const successAnim = useRef(new Animated.Value(0)).current;
+  const focusAnim = useRef(new Animated.Value(0)).current;
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SCANNER ANIMATIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Start scanner animations when scanning begins
+  useEffect(() => {
+    if (isScanning && cameraReady) {
+      // Scan line animation - moves up and down
+      const scanLineAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanLineAnim, {
+            toValue: 1,
+            duration: 2000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(scanLineAnim, {
+            toValue: 0,
+            duration: 2000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      
+      // Pulse animation for corners
+      const pulseAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      
+      // Corner glow animation
+      const cornerAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(cornerAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: false,
+          }),
+          Animated.timing(cornerAnim, {
+            toValue: 0,
+            duration: 1500,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+      
+      scanLineAnimation.start();
+      pulseAnimation.start();
+      cornerAnimation.start();
+      
+      return () => {
+        scanLineAnimation.stop();
+        pulseAnimation.stop();
+        cornerAnimation.stop();
+      };
+    }
+  }, [isScanning, cameraReady]);
+  
+  // Success animation
+  const playSuccessAnimation = useCallback(() => {
+    setScanSuccess(true);
+    
+    // Haptic feedback
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    
+    Animated.sequence([
+      Animated.timing(successAnim, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.out(Easing.back(2)),
+        useNativeDriver: true,
+      }),
+      Animated.delay(800),
+      Animated.timing(successAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setScanSuccess(false);
+    });
+  }, [successAnim]);
+  
+  // Focus animation when tapping
+  const handleFocusTap = useCallback((event) => {
+    const { locationX, locationY } = event.nativeEvent;
+    setFocusPoint({ x: locationX, y: locationY });
+    
+    // Haptic feedback
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    // Focus animation
+    focusAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(focusAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.delay(500),
+      Animated.timing(focusAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setFocusPoint(null);
+    });
+  }, [focusAnim]);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // QR CODE MANAGEMENT FUNCTIONS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -355,39 +495,59 @@ const ProfileScreen = () => {
     
     console.log('Scanned QR Code:', data, 'Type:', type);
     
+    // Immediate haptic feedback on scan
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
     if (scanMode === 'register') {
       // Admin mode: Registriere den QR-Code
-      setIsScanning(false);
-      setNewQRCode(prev => ({ ...prev, qr_code_id: data }));
-      setShowRegisterModal(true);
+      playSuccessAnimation();
+      setTimeout(() => {
+        setIsScanning(false);
+        setNewQRCode(prev => ({ ...prev, qr_code_id: data }));
+        setShowRegisterModal(true);
+      }, 1000);
     } else {
       // Normal mode: Verarbeite den QR-Code
       const result = await processScannedQRCode(data);
       setScanResult(result);
       
-      // Zeige Ergebnis
-      setTimeout(() => {
-        setIsScanning(false);
+      if (result?.valid) {
+        // Success!
+        playSuccessAnimation();
         
-        if (result?.valid) {
-          // Erfolg!
+        // Wait for animation then show result
+        setTimeout(() => {
+          setIsScanning(false);
           const rewardText = result.reward?.gems 
             ? `+${result.reward.gems} Gems!` 
             : result.reward?.xp 
               ? `+${result.reward.xp} XP!`
               : 'Belohnung erhalten!';
           Alert.alert('Erfolg! 🎉', rewardText);
-        } else if (result?.found === false) {
-          // Unbekannter Code - könnte ein Player sein
-          if (data.startsWith('USER:')) {
-            Alert.alert('Spieler gefunden', `Player ID: ${data.replace('USER:', '')}`);
-          } else {
-            Alert.alert('Unbekannt', `Code "${data}" ist nicht registriert.`);
-          }
-        } else {
-          Alert.alert('Info', result?.message || 'QR-Code konnte nicht verarbeitet werden');
+        }, 1200);
+      } else {
+        // Error haptic
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         }
-      }, 500);
+        
+        setTimeout(() => {
+          setIsScanning(false);
+          
+          if (result?.found === false) {
+            // Unbekannter Code - könnte ein Player sein
+            if (data.startsWith('USER:')) {
+              Alert.alert('Spieler gefunden', `Player ID: ${data.replace('USER:', '')}`);
+            } else {
+              Alert.alert('Unbekannt', `Code "${data}" ist nicht registriert.`);
+            }
+          } else {
+            Alert.alert('Info', result?.message || 'QR-Code konnte nicht verarbeitet werden');
+          }
+        }, 500);
+      }
     }
   };
 
@@ -831,7 +991,7 @@ const ProfileScreen = () => {
         </View>
       </Modal>
 
-      {/* IMPROVED SCANNER MODAL */}
+      {/* IMPROVED SCANNER MODAL WITH ANIMATIONS */}
       <Modal visible={isScanning} animationType="slide" statusBarTranslucent>
         <View style={styles.cameraContainer}>
           {cameraError ? (
@@ -853,18 +1013,29 @@ const ProfileScreen = () => {
             </View>
           ) : (
             <CameraView
+              ref={cameraRef}
               style={styles.camera}
               facing="back"
-              onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
+              onBarcodeScanned={isScanning && !scanSuccess ? handleBarCodeScanned : undefined}
               barcodeScannerSettings={{ 
                 barcodeTypes: ["qr", "aztec", "ean13", "ean8", "pdf417", "upc_e", "datamatrix", "code39", "code93", "itf14", "codabar", "code128", "upc_a"] 
               }}
               onCameraReady={onCameraReady}
               onMountError={onCameraError}
             >
-              <View style={styles.cameraOverlay}>
+              <Pressable style={styles.cameraOverlay} onPress={handleFocusTap}>
+                {/* Gradient Overlays for better visibility */}
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.7)', 'transparent']}
+                  style={styles.topGradient}
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.7)']}
+                  style={styles.bottomGradient}
+                />
+                
                 {/* Header */}
-                <View style={styles.scannerHeader}>
+                <View style={[styles.scannerHeader, { paddingTop: insets.top + 10 }]}>
                   <TouchableOpacity 
                     style={styles.scannerCloseBtn} 
                     onPress={() => {
@@ -874,46 +1045,201 @@ const ProfileScreen = () => {
                   >
                     <Ionicons name="close" size={28} color="white" />
                   </TouchableOpacity>
-                  <Text style={styles.scannerTitle}>
-                    {scanMode === 'register' ? 'QR-Code registrieren' : 'QR-Code scannen'}
-                  </Text>
+                  <View style={styles.scannerTitleContainer}>
+                    <Text style={styles.scannerTitle}>
+                      {scanMode === 'register' ? 'QR-Code registrieren' : 'QR-Code scannen'}
+                    </Text>
+                    <View style={[styles.scanModeBadge, scanMode === 'register' && styles.scanModeBadgeAdmin]}>
+                      <Text style={styles.scanModeBadgeText}>
+                        {scanMode === 'register' ? 'ADMIN' : 'SCAN'}
+                      </Text>
+                    </View>
+                  </View>
                   <View style={{ width: 40 }} />
                 </View>
                 
-                {/* Scan Frame */}
+                {/* Scan Frame Container */}
                 <View style={styles.scanFrameContainer}>
-                  <View style={styles.scanFrame}>
-                    <View style={[styles.scanCorner, styles.cornerTopLeft]} />
-                    <View style={[styles.scanCorner, styles.cornerTopRight]} />
-                    <View style={[styles.scanCorner, styles.cornerBottomLeft]} />
-                    <View style={[styles.scanCorner, styles.cornerBottomRight]} />
-                  </View>
+                  {/* Animated Scan Frame */}
+                  <Animated.View style={[
+                    styles.scanFrame,
+                    { transform: [{ scale: pulseAnim }] }
+                  ]}>
+                    {/* Animated Corners */}
+                    <Animated.View style={[
+                      styles.scanCorner, 
+                      styles.cornerTopLeft,
+                      { 
+                        borderColor: cornerAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [COLORS.primary, '#00ff88']
+                        }),
+                        shadowColor: COLORS.primary,
+                        shadowOpacity: cornerAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.5, 1]
+                        }),
+                        shadowRadius: 10,
+                      }
+                    ]} />
+                    <Animated.View style={[
+                      styles.scanCorner, 
+                      styles.cornerTopRight,
+                      { 
+                        borderColor: cornerAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [COLORS.primary, '#00ff88']
+                        })
+                      }
+                    ]} />
+                    <Animated.View style={[
+                      styles.scanCorner, 
+                      styles.cornerBottomLeft,
+                      { 
+                        borderColor: cornerAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [COLORS.primary, '#00ff88']
+                        })
+                      }
+                    ]} />
+                    <Animated.View style={[
+                      styles.scanCorner, 
+                      styles.cornerBottomRight,
+                      { 
+                        borderColor: cornerAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [COLORS.primary, '#00ff88']
+                        })
+                      }
+                    ]} />
+                    
+                    {/* Animated Scan Line */}
+                    {cameraReady && !scanSuccess && (
+                      <Animated.View style={[
+                        styles.scanLine,
+                        {
+                          transform: [{
+                            translateY: scanLineAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, SCAN_FRAME_SIZE - 4]
+                            })
+                          }]
+                        }
+                      ]}>
+                        <LinearGradient
+                          colors={['transparent', COLORS.primary, 'transparent']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.scanLineGradient}
+                        />
+                      </Animated.View>
+                    )}
+                    
+                    {/* Center Crosshair */}
+                    <View style={styles.crosshair}>
+                      <View style={styles.crosshairH} />
+                      <View style={styles.crosshairV} />
+                    </View>
+                  </Animated.View>
+                  
+                  {/* Success Overlay */}
+                  {scanSuccess && (
+                    <Animated.View style={[
+                      styles.successOverlay,
+                      {
+                        opacity: successAnim,
+                        transform: [{ scale: successAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.5, 1]
+                        })}]
+                      }
+                    ]}>
+                      <View style={styles.successCircle}>
+                        <Ionicons name="checkmark" size={60} color="white" />
+                      </View>
+                      <Text style={styles.successText}>Erkannt!</Text>
+                    </Animated.View>
+                  )}
                   
                   {/* Loading indicator while camera initializes */}
                   {!cameraReady && (
                     <View style={styles.cameraLoadingOverlay}>
-                      <ActivityIndicator size="large" color="white" />
-                      <Text style={styles.cameraLoadingText}>Kamera wird geladen...</Text>
+                      <View style={styles.loadingSpinner}>
+                        <ActivityIndicator size="large" color={COLORS.primary} />
+                      </View>
+                      <Text style={styles.cameraLoadingText}>Kamera wird aktiviert...</Text>
+                      <Text style={styles.cameraLoadingSubtext}>Bitte warten</Text>
                     </View>
+                  )}
+                  
+                  {/* Focus Indicator */}
+                  {focusPoint && (
+                    <Animated.View 
+                      style={[
+                        styles.focusIndicator,
+                        {
+                          left: focusPoint.x - 30,
+                          top: focusPoint.y - 30,
+                          opacity: focusAnim,
+                          transform: [{
+                            scale: focusAnim.interpolate({
+                              inputRange: [0, 0.5, 1],
+                              outputRange: [1.5, 1, 1]
+                            })
+                          }]
+                        }
+                      ]}
+                    >
+                      <View style={styles.focusRing} />
+                    </Animated.View>
                   )}
                 </View>
                 
                 {/* Instructions */}
-                <View style={styles.scannerFooter}>
+                <View style={[styles.scannerFooter, { paddingBottom: insets.bottom + 20 }]}>
+                  {/* Status indicator */}
+                  <View style={styles.statusContainer}>
+                    <View style={[styles.statusDot, cameraReady && styles.statusDotActive]} />
+                    <Text style={styles.statusText}>
+                      {cameraReady ? 'Bereit zum Scannen' : 'Initialisiere...'}
+                    </Text>
+                  </View>
+                  
                   <Text style={styles.scannerHint}>
                     {scanMode === 'register' 
-                      ? 'Halte den QR-Code in den Rahmen zum Registrieren'
-                      : 'Halte den QR-Code in den Rahmen'}
+                      ? '📱 Halte den QR-Code in den Rahmen'
+                      : '🎯 Tippe zum Fokussieren'}
                   </Text>
                   
-                  {/* Toggle light button for dark environments */}
-                  {Platform.OS !== 'web' && (
-                    <TouchableOpacity style={styles.flashButton}>
-                      <Ionicons name="flashlight-outline" size={24} color="white" />
+                  {/* Action Buttons */}
+                  <View style={styles.scannerActions}>
+                    {Platform.OS !== 'web' && (
+                      <TouchableOpacity 
+                        style={styles.scannerActionBtn}
+                        onPress={() => {
+                          if (Platform.OS !== 'web') {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }
+                        }}
+                      >
+                        <Ionicons name="flashlight-outline" size={22} color="white" />
+                        <Text style={styles.scannerActionText}>Licht</Text>
+                      </TouchableOpacity>
+                    )}
+                    
+                    <TouchableOpacity 
+                      style={[styles.scannerActionBtn, styles.scannerActionBtnPrimary]}
+                      onPress={() => {
+                        if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+                        setIsScanning(false);
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={22} color="white" />
+                      <Text style={styles.scannerActionText}>Abbrechen</Text>
                     </TouchableOpacity>
-                  )}
+                  </View>
                 </View>
-              </View>
+              </Pressable>
             </CameraView>
           )}
         </View>
@@ -1564,7 +1890,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  // Camera - Improved for all devices
+  // Camera - Improved for all devices with animations
   cameraContainer: {
     flex: 1,
     backgroundColor: 'black',
@@ -1574,7 +1900,20 @@ const styles = StyleSheet.create({
   },
   cameraOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  topGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 150,
+  },
+  bottomGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 200,
   },
   cameraErrorContainer: {
     flex: 1,
@@ -1614,22 +1953,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 20,
+    zIndex: 10,
   },
   scannerCloseBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  scannerTitleContainer: {
     alignItems: 'center',
   },
   scannerTitle: {
     color: 'white',
     fontSize: 18,
     fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  scanModeBadge: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginTop: 6,
+  },
+  scanModeBadgeAdmin: {
+    backgroundColor: '#f59e0b',
+  },
+  scanModeBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   scanFrameContainer: {
     flex: 1,
@@ -1637,43 +2000,107 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scanFrame: {
-    width: 280,
-    height: 280,
+    width: SCAN_FRAME_SIZE,
+    height: SCAN_FRAME_SIZE,
     position: 'relative',
   },
   scanCorner: {
     position: 'absolute',
-    width: 40,
-    height: 40,
-    borderColor: COLORS.primary,
+    width: 50,
+    height: 50,
   },
   cornerTopLeft: {
     top: 0,
     left: 0,
     borderTopWidth: 4,
     borderLeftWidth: 4,
-    borderTopLeftRadius: 12,
+    borderTopLeftRadius: 16,
   },
   cornerTopRight: {
     top: 0,
     right: 0,
     borderTopWidth: 4,
     borderRightWidth: 4,
-    borderTopRightRadius: 12,
+    borderTopRightRadius: 16,
   },
   cornerBottomLeft: {
     bottom: 0,
     left: 0,
     borderBottomWidth: 4,
     borderLeftWidth: 4,
-    borderBottomLeftRadius: 12,
+    borderBottomLeftRadius: 16,
   },
   cornerBottomRight: {
     bottom: 0,
     right: 0,
     borderBottomWidth: 4,
     borderRightWidth: 4,
-    borderBottomRightRadius: 12,
+    borderBottomRightRadius: 16,
+  },
+  scanLine: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    height: 3,
+    top: 0,
+  },
+  scanLineGradient: {
+    flex: 1,
+    borderRadius: 2,
+  },
+  crosshair: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: 30,
+    height: 30,
+    marginLeft: -15,
+    marginTop: -15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  crosshairH: {
+    position: 'absolute',
+    width: 20,
+    height: 2,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 1,
+  },
+  crosshairV: {
+    position: 'absolute',
+    width: 2,
+    height: 20,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 1,
+  },
+  successOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.3)',
+    borderRadius: 16,
+  },
+  successCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#10b981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...SHADOWS.lg,
+  },
+  successText: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 16,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   cameraLoadingOverlay: {
     position: 'absolute',
@@ -1683,24 +2110,100 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 16,
+  },
+  loadingSpinner: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   cameraLoadingText: {
     color: 'white',
-    marginTop: 12,
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cameraLoadingSubtext: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  focusIndicator: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+  },
+  focusRing: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    backgroundColor: 'transparent',
   },
   scannerFooter: {
-    paddingHorizontal: 40,
-    paddingBottom: 60,
+    paddingHorizontal: 30,
     alignItems: 'center',
+    zIndex: 10,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+    marginRight: 8,
+  },
+  statusDotActive: {
+    backgroundColor: '#10b981',
+  },
+  statusText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
   },
   scannerHint: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 15,
     textAlign: 'center',
     marginBottom: 20,
+    fontWeight: '500',
+  },
+  scannerActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  scannerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  scannerActionBtnPrimary: {
+    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+    borderColor: 'rgba(239, 68, 68, 0.5)',
+  },
+  scannerActionText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   flashButton: {
     width: 50,
