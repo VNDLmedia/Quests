@@ -207,40 +207,15 @@ const MapScreen = () => {
         setUserLoc(coords);
         setLocationStatus('found');
         updateLocation(coords);
-        
-        const generatedQuests = (allQuests || []).map((template) => {
-          if (!template) return null;
-          
-          let questLat, questLng;
-          
-          if (template.location && allLocations[template.location]) {
-            const loc = allLocations[template.location];
-            questLat = loc.lat;
-            questLng = loc.lng;
-          } else {
-            questLat = coords.latitude + (Math.random() - 0.5) * 0.008;
-            questLng = coords.longitude + (Math.random() - 0.5) * 0.008;
-          }
-          
-          return {
-            ...template,
-            id: `spawn_${template.key || template.id}_${Date.now()}_${Math.random()}`,
-            lat: questLat,
-            lng: questLng,
-            isSpawned: true,
-            progress: 0,
-          };
-        }).filter(Boolean);
-        
-        setAvailableQuests(generatedQuests);
+        generateNearbyQuests(coords);
       },
       (err) => {
         console.log('Geolocation retry error:', err.code, err.message);
         setLocationStatus(err.code === 1 ? 'denied' : 'error');
       },
-      { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
-  }, [updateLocation]);
+  }, [updateLocation, generateNearbyQuests]);
 
   const generateNearbyQuests = useCallback((coords) => {
     if (!allQuests || allQuests.length === 0) return;
@@ -248,17 +223,24 @@ const MapScreen = () => {
     const generatedQuests = allQuests.map((template) => {
       let questLat, questLng;
       
-      if (template.location && allLocations && allLocations[template.location]) {
+      // Priority: metadata coordinates > location reference > skip quest
+      if (template.metadata?.lat && template.metadata?.lng) {
+        // Use exact coordinates from quest metadata (admin-created quests)
+        questLat = template.metadata.lat;
+        questLng = template.metadata.lng;
+      } else if (template.location && allLocations && allLocations[template.location]) {
+        // Use location reference
         const loc = allLocations[template.location];
         questLat = loc.lat;
         questLng = loc.lng;
       } else {
-        questLat = coords.latitude + (Math.random() - 0.5) * 0.008;
-        questLng = coords.longitude + (Math.random() - 0.5) * 0.008;
+        // Skip quests without valid coordinates
+        console.log('[VibeMapScreen] Quest has no coordinates:', template.title);
+        return null;
       }
       
       return {
-        id: `spawn_${template.key || template.id}_${Date.now()}_${Math.random()}`,
+        id: template.id || `quest_${Date.now()}`,
         ...template,
         lat: questLat,
         lng: questLng,
@@ -292,15 +274,19 @@ const MapScreen = () => {
     
     // Active quests (in progress)
     activeQuests.forEach(q => {
+      // Get coordinates from location or metadata
       const loc = allLocations[q.location];
-      if (loc) {
+      const questLat = loc?.lat || q.lat || q.metadata?.lat;
+      const questLng = loc?.lng || q.lng || q.metadata?.lng;
+      
+      if (questLat && questLng) {
         quests.push({
           ...q,
-          lat: loc.lat,
-          lng: loc.lng,
+          lat: questLat,
+          lng: questLng,
           status: 'active',
           canInteract: true,
-          distance: Math.round(calculateDistance(userLoc.latitude, userLoc.longitude, loc.lat, loc.lng)),
+          distance: Math.round(calculateDistance(userLoc.latitude, userLoc.longitude, questLat, questLng)),
         });
       }
     });
@@ -512,9 +498,21 @@ const MapScreen = () => {
       return;
     }
     
+    // Keep the quest data with coordinates for active quests display
+    const questWithCoords = {
+      ...selectedQuest,
+      lat: selectedQuest.lat,
+      lng: selectedQuest.lng,
+      metadata: {
+        ...selectedQuest.metadata,
+        lat: selectedQuest.lat,
+        lng: selectedQuest.lng,
+      }
+    };
+    
     setAvailableQuests(prev => prev.filter(q => q.id !== selectedQuest.id));
-    await startQuest(selectedQuest);
-    Alert.alert('Quest started!', selectedQuest.title);
+    await startQuest(questWithCoords);
+    Alert.alert('Quest gestartet!', selectedQuest.title);
     closeQuestDetail();
   }, [selectedQuest, canInteractWithQuest, startQuest]);
 
@@ -734,17 +732,24 @@ const MapScreen = () => {
             <Text style={styles.statLabel}>Nearby</Text>
           </View>
         </View>
-        <View style={styles.mapControls}>
-          <TouchableOpacity 
-            style={[styles.followBtn, followUser && styles.followBtnActive]} 
-            onPress={() => setFollowUser(!followUser)}
-          >
-            <Ionicons name={followUser ? 'navigate' : 'navigate-outline'} size={18} color={followUser ? COLORS.text.primary : COLORS.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.locateBtn} onPress={() => { setFollowUser(true); centerOnUser(); }}>
-            <Ionicons name="locate" size={20} color={COLORS.primary} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity 
+          style={[styles.locateBtn, followUser && styles.locateBtnActive]} 
+          onPress={() => {
+            // Smart button: Always center on user, toggle follow mode
+            centerOnUser();
+            setFollowUser(!followUser);
+          }}
+          onLongPress={() => {
+            // Long press: Just toggle follow without centering
+            setFollowUser(!followUser);
+          }}
+        >
+          <Ionicons 
+            name={followUser ? 'navigate' : 'locate'} 
+            size={20} 
+            color={followUser ? COLORS.text.primary : COLORS.primary} 
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Quest Detail Sheet */}
@@ -884,10 +889,8 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 18, fontWeight: '800', color: COLORS.text.primary },
   statLabel: { fontSize: 10, color: COLORS.text.muted, fontWeight: '500' },
   divider: { width: 1, height: 24, backgroundColor: COLORS.borderLight },
-  mapControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  followBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(232,184,74,0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(232,184,74,0.2)' },
-  followBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   locateBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(232,184,74,0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(232,184,74,0.2)' },
+  locateBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
 
   // Bottom Sheet
   bottomSheet: { position: 'absolute', bottom: -50, left: 0, right: 0, backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 16, minHeight: 320, ...SHADOWS.xl, zIndex: 30, borderWidth: 1, borderColor: COLORS.borderLight, borderBottomWidth: 0 },

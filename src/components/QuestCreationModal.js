@@ -121,9 +121,6 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   const [infoTitle, setInfoTitle] = useState('');
   const [infoText, setInfoText] = useState('');
   const [infoImageUrl, setInfoImageUrl] = useState('');
-  
-  // Default location for Salzburg
-  const SALZBURG_DEFAULT = { latitude: 47.8095, longitude: 13.0550, accuracy: 50 };
 
   // Load native camera
   useEffect(() => {
@@ -324,7 +321,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
         category: selectedTeam,
         location: {
           latitude: location.latitude,
-          lng: location.longitude,
+          longitude: location.longitude,
         },
         qrCodeId,
         adminId: userId,
@@ -487,7 +484,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
             <View style={styles.stepContainer}>
               <Text style={styles.stepTitle}>📍 Quest Location</Text>
               <Text style={styles.stepDescription}>
-                Wähle den Standort für diese Quest
+                Die Quest wird an deiner aktuellen Position platziert
               </Text>
 
               {location ? (
@@ -508,48 +505,31 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                   </View>
                   {location.accuracy > 0 && (
                     <Text style={styles.locationAccuracy}>
-                      Accuracy: ±{Math.round(location.accuracy)}m
+                      Genauigkeit: ±{Math.round(location.accuracy)}m
                     </Text>
                   )}
                   <TouchableOpacity 
                     style={styles.recaptureButton}
                     onPress={() => setLocation(null)}
                   >
-                    <Text style={styles.recaptureText}>Position ändern</Text>
+                    <Text style={styles.recaptureText}>Position neu erfassen</Text>
                   </TouchableOpacity>
                 </GlassCard>
               ) : (
                 <>
-                  {/* Option 1: Use Salzburg Default */}
                   <GlassButton
-                    title="Salzburg Position verwenden"
-                    onPress={() => {
-                      setLocation(SALZBURG_DEFAULT);
-                    }}
+                    title={loading ? "GPS wird erfasst..." : "Aktuelle Position erfassen"}
+                    onPress={handleCaptureLocation}
                     variant="gradient"
                     gradient={COLORS.gradients.gold}
-                    icon={<Ionicons name="location" size={22} color={COLORS.text.primary} />}
-                  />
-                  
-                  <View style={styles.orDivider}>
-                    <View style={styles.orLine} />
-                    <Text style={styles.orText}>ODER</Text>
-                    <View style={styles.orLine} />
-                  </View>
-                  
-                  {/* Option 2: Capture Current Location */}
-                  <GlassButton
-                    title={loading ? "GPS wird erfasst..." : "Aktuelle GPS-Position"}
-                    onPress={handleCaptureLocation}
-                    variant="outline"
                     icon={<Ionicons name="navigate" size={22} color={COLORS.text.primary} />}
                     loading={loading}
                     disabled={loading}
                   />
                   
                   <Text style={styles.locationHint}>
-                    Die Salzburg-Position ist voreingestellt für Quests in der Region.
-                    Verwende GPS nur, wenn du vor Ort bist.
+                    Stelle sicher, dass du dich am genauen Standort der Quest befindest.
+                    Die Position wird exakt dort platziert, wo du jetzt bist.
                   </Text>
                   
                   {locationError && (
