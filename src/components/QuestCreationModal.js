@@ -133,10 +133,41 @@ const WebQRScanner = ({ onScan, onClose }) => {
 };
 
 const QuestCreationModal = ({ visible, onClose, userId }) => {
+  const [renderError, setRenderError] = useState(null);
+  
+  // Wrap the entire component in error handling
+  try {
+    return <QuestCreationModalContent visible={visible} onClose={onClose} userId={userId} />;
+  } catch (error) {
+    console.error('QuestCreationModal render error:', error);
+    return (
+      <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Ionicons name="alert-circle" size={64} color="#FF3B30" />
+          <Text style={{ color: '#FFF', fontSize: 18, fontWeight: 'bold', marginTop: 20 }}>
+            Error Loading Modal
+          </Text>
+          <Text style={{ color: '#AAA', fontSize: 14, marginTop: 10, textAlign: 'center' }}>
+            {error?.message || 'Unknown error'}
+          </Text>
+          <TouchableOpacity 
+            onPress={onClose}
+            style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#333', borderRadius: 8 }}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '600' }}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    );
+  }
+};
+
+const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1); // 1: Location, 2: QR, 3: Form, 4: Confirm
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   // Step 1: Location
   const [location, setLocation] = useState(null);
@@ -171,16 +202,20 @@ const QuestCreationModal = ({ visible, onClose, userId }) => {
   }, []);
 
   const handleCaptureLocation = async () => {
+    console.log('Capturing location...');
     setLoading(true);
     setLocationError(null);
 
     try {
       const loc = await getCurrentLocation();
+      console.log('Location captured:', loc);
       setLocation(loc);
       setStep(2);
     } catch (error) {
-      setLocationError(error.message);
-      Alert.alert('Location Error', error.message);
+      console.error('Location capture error:', error);
+      const errorMessage = error?.message || 'Failed to get location';
+      setLocationError(errorMessage);
+      Alert.alert('Location Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -350,6 +385,26 @@ const QuestCreationModal = ({ visible, onClose, userId }) => {
 
   const availableIcons = getAvailableIcons();
 
+  // Error boundary fallback
+  if (hasError) {
+    return (
+      <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
+        <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+          <Ionicons name="alert-circle" size={64} color={COLORS.error} />
+          <Text style={[styles.stepTitle, { marginTop: 20 }]}>Something went wrong</Text>
+          <Text style={styles.stepDescription}>Please close and try again</Text>
+          <GlassButton
+            title="Close"
+            onPress={handleClose}
+            variant="gradient"
+            gradient={COLORS.gradients.gold}
+            style={{ marginTop: 20 }}
+          />
+        </View>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       visible={visible}
@@ -418,6 +473,12 @@ const QuestCreationModal = ({ visible, onClose, userId }) => {
                       Accuracy: ±{Math.round(location.accuracy)}m
                     </Text>
                   )}
+                  <TouchableOpacity 
+                    style={styles.recaptureButton}
+                    onPress={() => setLocation(null)}
+                  >
+                    <Text style={styles.recaptureText}>Capture Again</Text>
+                  </TouchableOpacity>
                 </GlassCard>
               ) : (
                 <>
@@ -431,7 +492,25 @@ const QuestCreationModal = ({ visible, onClose, userId }) => {
                     disabled={loading}
                   />
                   {locationError && (
-                    <Text style={styles.errorText}>{locationError}</Text>
+                    <>
+                      <Text style={styles.errorText}>{locationError}</Text>
+                      <Text style={styles.errorHint}>
+                        Check console for details. You can also skip to manual entry.
+                      </Text>
+                      <GlassButton
+                        title="Skip & Enter Location Manually"
+                        onPress={() => {
+                          // Use a default location (you can change this)
+                          setLocation({
+                            latitude: 47.8224,
+                            longitude: 13.0456,
+                            accuracy: 0,
+                          });
+                        }}
+                        variant="outline"
+                        style={{ marginTop: 12 }}
+                      />
+                    </>
                   )}
                 </>
               )}
@@ -804,6 +883,23 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     textAlign: 'center',
     marginTop: 12,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  recaptureButton: {
+    alignSelf: 'center',
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  recaptureText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   qrCard: {
     padding: 30,

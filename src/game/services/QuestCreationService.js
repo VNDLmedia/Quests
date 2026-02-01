@@ -10,17 +10,23 @@ import { supabase } from '../../config/supabase';
  * @returns {Promise<{latitude: number, longitude: number}>}
  */
 export const getCurrentLocation = async () => {
+  console.log('getCurrentLocation called, Platform:', Platform.OS);
+  
   try {
     if (Platform.OS === 'web') {
+      console.log('Using web geolocation');
       // Web geolocation
       return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(new Error('Geolocation is not supported'));
+        if (!navigator?.geolocation) {
+          console.error('Geolocation not available');
+          reject(new Error('Geolocation is not supported by your browser'));
           return;
         }
 
+        console.log('Requesting location from browser...');
         navigator.geolocation.getCurrentPosition(
           (position) => {
+            console.log('Location success:', position.coords);
             resolve({
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
@@ -28,7 +34,14 @@ export const getCurrentLocation = async () => {
             });
           },
           (error) => {
-            reject(new Error(`Location error: ${error.message}`));
+            console.error('Geolocation error:', error);
+            let errorMsg = 'Unable to get location';
+            switch(error.code) {
+              case 1: errorMsg = 'Location permission denied'; break;
+              case 2: errorMsg = 'Location unavailable'; break;
+              case 3: errorMsg = 'Location request timeout'; break;
+            }
+            reject(new Error(errorMsg));
           },
           {
             enableHighAccuracy: true,
@@ -38,18 +51,23 @@ export const getCurrentLocation = async () => {
         );
       });
     } else {
+      console.log('Using native expo-location');
       // Native location using expo-location
-      const { Location } = await import('expo-location');
+      const LocationModule = await import('expo-location');
+      const Location = LocationModule.default || LocationModule;
       
+      console.log('Requesting location permissions...');
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         throw new Error('Location permission denied');
       }
 
+      console.log('Getting current position...');
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
 
+      console.log('Native location success:', location.coords);
       return {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
