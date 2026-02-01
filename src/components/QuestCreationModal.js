@@ -93,18 +93,21 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   const [qrScanning, setQrScanning] = useState(false);
   const [CameraView, setCameraView] = useState(null);
 
-  // Auto-advance from step 2 to step 3 when QR code is set
+  // Track if we just scanned a QR code (for auto-advance)
+  const [justScanned, setJustScanned] = useState(false);
+
+  // Auto-advance from step 2 to step 3 ONLY after scanning (not manual entry or back navigation)
   useEffect(() => {
-    if (step === 2 && qrCodeId && !qrScanning) {
-      console.log('🔄 useEffect detected: step=2, qrCodeId set, not scanning');
-      console.log('🔄 Auto-advancing to step 3 in 150ms');
+    if (step === 2 && qrCodeId && !qrScanning && justScanned) {
+      console.log('🔄 Auto-advancing after QR scan');
       const timer = setTimeout(() => {
         console.log('🚀 AUTO-ADVANCE: setStep(3)');
         setStep(3);
+        setJustScanned(false); // Reset flag
       }, 150);
       return () => clearTimeout(timer);
     }
-  }, [step, qrCodeId, qrScanning]);
+  }, [step, qrCodeId, qrScanning, justScanned]);
 
   // Step 3: Form
   const [title, setTitle] = useState('');
@@ -195,11 +198,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
             console.log('✓ User wants to use anyway');
             console.log('📝 Setting qrCodeId to:', trimmedData);
             setQrCodeId(trimmedData);
-            console.log('⏰ Scheduling step change to 3 in 100ms');
-            setTimeout(() => {
-              console.log('🚀 EXECUTING setStep(3)');
-              setStep(3);
-            }, 100);
+            setJustScanned(true); // Mark as just scanned for auto-advance
           } else {
             console.log('❌ User cancelled');
             setQrScanning(true);
@@ -222,11 +221,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                   console.log('✓ User chose to use anyway');
                   console.log('📝 Setting qrCodeId to:', trimmedData);
                   setQrCodeId(trimmedData);
-                  console.log('⏰ Scheduling step change to 3 in 100ms');
-                  setTimeout(() => {
-                    console.log('🚀 EXECUTING setStep(3)');
-                    setStep(3);
-                  }, 100);
+                  setJustScanned(true); // Mark as just scanned for auto-advance
                 }
               },
               { 
@@ -244,17 +239,10 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
       console.log('✅ QR code is valid and available');
       console.log('📝 Setting qrCodeId to:', trimmedData);
       setQrCodeId(trimmedData);
+      setJustScanned(true); // Mark as just scanned for auto-advance
       
       console.log('⏳ Setting loading to false');
       setLoading(false);
-      
-      console.log('⏰ Scheduling step change to 3 in 100ms');
-      setTimeout(() => {
-        console.log('╔══════════════════════════════════════════════════════════╗');
-        console.log('║  🚀 EXECUTING setStep(3) NOW                             ║');
-        console.log('╚══════════════════════════════════════════════════════════╝');
-        setStep(3);
-      }, 100);
       
     } catch (error) {
       console.error('╔══════════════════════════════════════════════════════════╗');
@@ -300,6 +288,8 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
       if (step === 2) {
         setQrScanning(false);
       }
+      // Reset auto-advance flag when going back
+      setJustScanned(false);
     }
   };
 
@@ -323,17 +313,31 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
       });
 
       if (result.success) {
-        Alert.alert('Success', 'Quest created successfully!', [
-          { text: 'OK', onPress: () => {
-            resetForm();
-            onClose();
-          }}
-        ]);
+        // Success! Show message and close
+        if (Platform.OS === 'web') {
+          window.alert('✅ Quest created successfully!');
+        } else {
+          Alert.alert('Success', 'Quest created successfully!');
+        }
+        // Reset and close modal
+        resetForm();
+        onClose();
       } else {
-        Alert.alert('Error', result.error || 'Failed to create quest');
+        // Error
+        const errorMsg = result.error || 'Failed to create quest';
+        if (Platform.OS === 'web') {
+          window.alert('❌ Error: ' + errorMsg);
+        } else {
+          Alert.alert('Error', errorMsg);
+        }
       }
     } catch (error) {
-      Alert.alert('Error', error.message);
+      const errorMsg = error.message || 'Unknown error occurred';
+      if (Platform.OS === 'web') {
+        window.alert('❌ Error: ' + errorMsg);
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
     } finally {
       setSaving(false);
     }
@@ -435,7 +439,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
             <Ionicons name="close" size={28} color={COLORS.text.primary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Quest (Step {step}/4)</Text>
+          <Text style={styles.headerTitle}>Create Quest</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -537,62 +541,49 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                 Scan the QR code that users will need to complete this quest
               </Text>
 
-              {/* Debug Status Display */}
-              {__DEV__ && (
-                <View style={styles.debugPanel}>
-                  <Text style={styles.debugText}>🐛 DEBUG INFO:</Text>
-                  <Text style={styles.debugText}>Step: {step}</Text>
-                  <Text style={styles.debugText}>QR ID: {qrCodeId || 'none'}</Text>
-                  <Text style={styles.debugText}>Scanning: {qrScanning ? 'YES' : 'NO'}</Text>
-                  <Text style={styles.debugText}>Loading: {loading ? 'YES' : 'NO'}</Text>
-                </View>
+
+              {/* Scan Button */}
+              <GlassButton
+                title="Scan QR Code"
+                onPress={() => setQrScanning(true)}
+                variant="gradient"
+                gradient={COLORS.gradients.gold}
+                icon={<Ionicons name="qr-code" size={22} color={COLORS.text.primary} />}
+              />
+              
+              <View style={styles.orDivider}>
+                <View style={styles.orLine} />
+                <Text style={styles.orText}>OR</Text>
+                <View style={styles.orLine} />
+              </View>
+
+              {/* Manual Input - ALWAYS visible */}
+              <Text style={styles.inputLabel}>Enter QR Code ID Manually</Text>
+              <TextInput
+                style={styles.input}
+                value={qrCodeId}
+                onChangeText={setQrCodeId}
+                placeholder="e.g., ID001, ID002, ID003..."
+                placeholderTextColor={COLORS.text.muted}
+                maxLength={10}
+                autoCapitalize="characters"
+              />
+              
+              {/* Show status */}
+              {qrCodeId.length > 0 && qrCodeId.length < 3 && (
+                <Text style={styles.qrHintWarning}>
+                  Enter at least 3 characters ({3 - qrCodeId.length} more needed)
+                </Text>
               )}
-
-              {qrCodeId ? (
-                <GlassCard style={styles.qrCard} variant="dark">
-                  <Ionicons name="qr-code" size={48} color={COLORS.primary} />
-                  <Text style={styles.qrLabel}>QR Code ID</Text>
-                  <Text style={styles.qrValue}>{qrCodeId}</Text>
-                  <TouchableOpacity onPress={() => {
-                    setQrCodeId('');
-                    setQrScanning(true);
-                  }}>
-                    <Text style={styles.qrRescan}>Scan Different Code</Text>
-                  </TouchableOpacity>
-                </GlassCard>
-              ) : (
-                <>
-                  <GlassButton
-                    title="Scan QR Code"
-                    onPress={() => setQrScanning(true)}
-                    variant="gradient"
-                    gradient={COLORS.gradients.gold}
-                    icon={<Ionicons name="qr-code" size={22} color={COLORS.text.primary} />}
-                  />
-                  
-                  <View style={styles.orDivider}>
-                    <View style={styles.orLine} />
-                    <Text style={styles.orText}>OR</Text>
-                    <View style={styles.orLine} />
-                  </View>
-
-                  <Text style={styles.inputLabel}>Enter QR Code ID Manually</Text>
-                  <View style={styles.manualInputContainer}>
-                    <TextInput
-                      style={styles.manualInput}
-                      value={qrCodeId}
-                      onChangeText={setQrCodeId}
-                      placeholder="e.g., 001, 002, 003..."
-                      placeholderTextColor={COLORS.text.muted}
-                      maxLength={10}
-                      autoCapitalize="none"
-                      returnKeyType="done"
-                    />
-                  </View>
-                  <Text style={styles.qrHint}>
-                    Enter ID and click "Next" below to continue
-                  </Text>
-                </>
+              {qrCodeId.length >= 3 && (
+                <Text style={styles.qrHintSuccess}>
+                  ✓ Ready! Click "Next" below to continue
+                </Text>
+              )}
+              {qrCodeId.length === 0 && (
+                <Text style={styles.qrHint}>
+                  Enter the QR code ID (e.g., ID001)
+                </Text>
               )}
             </View>
           )}
@@ -710,7 +701,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
           )}
 
           {/* STEP 4: Confirmation */}
-          {step === 4 && (
+          {step === 4 && location && selectedTeam && (
             <View style={styles.stepContainer}>
               <Text style={styles.stepTitle}>✅ Review & Confirm</Text>
               <Text style={styles.stepDescription}>
@@ -720,7 +711,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
               <GlassCard style={styles.reviewCard} variant="dark">
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Title:</Text>
-                  <Text style={styles.reviewValue}>{title}</Text>
+                  <Text style={styles.reviewValue}>{title || ''}</Text>
                 </View>
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Description:</Text>
@@ -728,38 +719,40 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                 </View>
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Icon:</Text>
-                  <Ionicons name={selectedIcon} size={24} color={COLORS.primary} />
+                  <Ionicons name={selectedIcon || 'compass'} size={24} color={COLORS.primary} />
                 </View>
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>XP Reward:</Text>
-                  <Text style={styles.reviewValue}>{xpReward} XP</Text>
+                  <Text style={styles.reviewValue}>{xpReward || 0} XP</Text>
                 </View>
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Gem Reward:</Text>
-                  <Text style={styles.reviewValue}>{gemReward} Gems</Text>
+                  <Text style={styles.reviewValue}>{gemReward || 0} Gems</Text>
                 </View>
-                <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>Team:</Text>
-                  <View style={styles.reviewTeam}>
-                    <Ionicons
-                      name={TEAMS[selectedTeam].icon}
-                      size={20}
-                      color={TEAMS[selectedTeam].color}
-                    />
-                    <Text style={[styles.reviewValue, { color: TEAMS[selectedTeam].color }]}>
-                      {TEAMS[selectedTeam].name}
-                    </Text>
+                {TEAMS[selectedTeam] && (
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Team:</Text>
+                    <View style={styles.reviewTeam}>
+                      <Ionicons
+                        name={TEAMS[selectedTeam].icon}
+                        size={20}
+                        color={TEAMS[selectedTeam].color}
+                      />
+                      <Text style={[styles.reviewValue, { color: TEAMS[selectedTeam].color }]}>
+                        {TEAMS[selectedTeam].name}
+                      </Text>
+                    </View>
                   </View>
-                </View>
+                )}
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Location:</Text>
                   <Text style={styles.reviewValue}>
-                    {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                    {location?.latitude?.toFixed(4) || '0.0000'}, {location?.longitude?.toFixed(4) || '0.0000'}
                   </Text>
                 </View>
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>QR Code:</Text>
-                  <Text style={styles.reviewValue}>{qrCodeId}</Text>
+                  <Text style={styles.reviewValue}>{qrCodeId || 'N/A'}</Text>
                 </View>
               </GlassCard>
 
@@ -789,7 +782,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
               </TouchableOpacity>
             )}
             <View style={styles.navSpacer} />
-            {((step === 2 && qrCodeId) || (step === 3 && title.trim())) && (
+            {((step === 2 && qrCodeId && qrCodeId.length >= 3) || (step === 3 && title.trim())) && (
               <TouchableOpacity
                 style={styles.navButton}
                 onPress={step === 2 ? () => setStep(3) : handleNext}
@@ -947,11 +940,47 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginTop: 8,
   },
+  qrActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+    justifyContent: 'center',
+  },
+  qrActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  qrActionText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
   qrHint: {
     fontSize: 12,
     color: COLORS.text.muted,
     textAlign: 'center',
     marginTop: 12,
+  },
+  qrHintWarning: {
+    fontSize: 13,
+    color: '#FFA500',
+    textAlign: 'center',
+    marginTop: 12,
+    fontWeight: '600',
+  },
+  qrHintSuccess: {
+    fontSize: 13,
+    color: '#4CAF50',
+    textAlign: 'center',
+    marginTop: 12,
+    fontWeight: '600',
   },
   debugPanel: {
     backgroundColor: 'rgba(255, 0, 255, 0.2)',

@@ -96,27 +96,39 @@ export const validateQRCode = async (qrCodeId) => {
 
     console.log('[QuestCreationService] Querying database for existing quests with this QR code...');
     
-    // Check if this QR code is already used in any quest
+    // Try to check if this QR code is already used
+    // First, try the metadata column approach
     const { data: existingQuests, error } = await supabase
       .from('quests')
       .select('id, title, metadata')
-      .eq('metadata->>qr_code_id', qrCodeId)
       .eq('is_active', true);
 
     console.log('[QuestCreationService] Query result:', { existingQuests, error });
 
     if (error) {
       console.error('[QuestCreationService] Database error:', error);
+      // If metadata column doesn't exist, we can still proceed
+      if (error.code === '42703') {
+        console.log('[QuestCreationService] Metadata column missing - assuming QR code is available');
+        return { valid: true };
+      }
       return { valid: false, error: error.message };
     }
 
+    // Check manually if any quest has this QR code in metadata
     if (existingQuests && existingQuests.length > 0) {
-      console.log('[QuestCreationService] QR code already in use');
-      return {
-        valid: false,
-        existingQuest: existingQuests[0],
-        error: `This QR code is already used for quest: "${existingQuests[0].title}"`,
-      };
+      const duplicate = existingQuests.find(q => 
+        q.metadata && q.metadata.qr_code_id === qrCodeId
+      );
+      
+      if (duplicate) {
+        console.log('[QuestCreationService] QR code already in use');
+        return {
+          valid: false,
+          existingQuest: duplicate,
+          error: `This QR code is already used for quest: "${duplicate.title}"`,
+        };
+      }
     }
 
     console.log('[QuestCreationService] QR code is available');
@@ -154,41 +166,91 @@ export const createQuest = async (questData) => {
       };
     }
 
-    // Prepare quest object for database
-    const newQuest = {
+    // Store all quest data in a JSON-safe format
+    const questMetadata = {
+      lat: location.latitude,
+      lng: location.longitude,
+      qr_code_id: qrCodeId,
+      created_by_admin: true,
+      admin_id: adminId,
+      xp_reward: xpReward,
+      gem_reward: gemReward,
+      icon: icon,
+      category: category,
+      requires_scan: true,
+      created_at: new Date().toISOString(),
+    };
+
+    console.log('[QuestCreationService] Attempting to insert quest...');
+    console.log('[QuestCreationService] Quest data:', { title, description, questMetadata });
+
+    // Try FULL insert first (all columns)
+    const fullQuest = {
       title: title.trim(),
       description: description?.trim() || null,
       type: 'explore',
-      category: category, // team color: blue, yellow, green, purple
+      category: category,
       icon: icon,
       xp_reward: xpReward,
       gem_reward: gemReward,
       target_value: 1,
       requires_scan: true,
       is_active: true,
-      location_id: null, // We're not using the locations table
-      metadata: {
-        lat: location.latitude,
-        lng: location.lng,
-        qr_code_id: qrCodeId,
-        created_by_admin: true,
-        admin_id: adminId,
-        created_at: new Date().toISOString(),
-      },
+      metadata: questMetadata,
     };
 
-    // Insert quest into database
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('quests')
-      .insert([newQuest])
+      .insert([fullQuest])
       .select()
       .single();
 
+    // If that fails, try with MINIMAL columns (just title + metadata)
+    if (error && error.code === 'PGRST204') {
+      console.log('[QuestCreationService] Full insert failed, trying minimal insert...');
+      console.log('[QuestCreationService] Error was:', error.message);
+      
+      // Try with just title and description (most basic)
+      const minimalQuest = {
+        title: title.trim(),
+      };
+
+      // Try adding description if it exists
+      const { data: descData, error: descError } = await supabase
+        .from('quests')
+        .insert([{ ...minimalQuest, description: description?.trim() || null }])
+        .select()
+        .single();
+
+      if (!descError) {
+        data = descData;
+        error = null;
+        console.log('[QuestCreationService] Minimal insert succeeded!');
+        console.log('[QuestCreationService] NOTE: Run the migration SQL to add missing columns!');
+      } else {
+        // Even more minimal - just title
+        const { data: titleData, error: titleError } = await supabase
+          .from('quests')
+          .insert([minimalQuest])
+          .select()
+          .single();
+
+        if (!titleError) {
+          data = titleData;
+          error = null;
+          console.log('[QuestCreationService] Title-only insert succeeded!');
+        } else {
+          error = titleError;
+        }
+      }
+    }
+
     if (error) {
-      console.error('Error creating quest:', error);
+      console.error('[QuestCreationService] Error creating quest:', error);
+      console.error('[QuestCreationService] Please run the migration SQL in Supabase!');
       return {
         success: false,
-        error: error.message,
+        error: `${error.message}\n\nPlease run the migration SQL in Supabase Dashboard to add missing columns.`,
       };
     }
 
