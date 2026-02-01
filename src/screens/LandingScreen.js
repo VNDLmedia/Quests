@@ -72,14 +72,6 @@ const LandingScreen = ({ onGetStarted }) => {
         end={{ x: 0.5, y: 0.6 }}
       />
 
-      {/* Decorative circuit lines */}
-      <View style={styles.circuitDecor}>
-        <View style={[styles.circuitLine, styles.circuitLine1]} />
-        <View style={[styles.circuitLine, styles.circuitLine2]} />
-        <View style={[styles.circuitDot, { top: '15%', right: '20%' }]} />
-        <View style={[styles.circuitDot, { top: '25%', left: '15%' }]} />
-      </View>
-
       <View style={[styles.content, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 40 }]}>
         
         {/* Hero Section */}
@@ -130,20 +122,25 @@ const LandingScreen = ({ onGetStarted }) => {
 
         {/* CTA Section */}
         <View style={styles.ctaSection}>
-          <GlassButton
-            title={isLocked ? `Starts in ${formatTimeRemaining(timeRemaining)}` : "Start Your Quest"}
-            onPress={handleGetStarted}
-            variant="gradient"
-            gradient={COLORS.gradients.gold}
-            size="lg"
-            style={styles.ctaButton}
-            icon={isLocked ? <Ionicons name="time" size={22} color="#0D1B2A" /> : <Ionicons name="compass" size={22} color="#0D1B2A" />}
-            iconPosition="left"
-            textStyle={styles.ctaButtonText}
-            disabled={isLocked}
-          />
+          {/* Countdown Button Wrapper with Orange Glow */}
+          <View style={[
+            styles.ctaButtonWrapper,
+            isLocked && styles.ctaButtonWrapperLocked
+          ]}>
+            <GlassButton
+              title={isLocked ? `Starts in ${formatTimeRemaining(timeRemaining)}` : "Start Your Quest"}
+              onPress={handleGetStarted}
+              variant="gradient"
+              gradient={isLocked ? ['#E8B84A', '#D4A53D', '#E8B84A'] : COLORS.gradients.gold}
+              size="lg"
+              style={[styles.ctaButton, isLocked && styles.ctaButtonLocked]}
+              icon={isLocked ? <Ionicons name="time" size={24} color="#0D1B2A" /> : <Ionicons name="compass" size={22} color="#0D1B2A" />}
+              iconPosition="left"
+              textStyle={[styles.ctaButtonText, isLocked && styles.ctaButtonTextLocked]}
+            />
+          </View>
 
-          <Text style={styles.ctaSubtext}>
+          <Text style={[styles.ctaSubtext, isLocked && styles.ctaSubtextLocked]}>
             {isLocked 
               ? "Launch countdown • Coming soon" 
               : "Free to play • No credit card required"}
@@ -159,36 +156,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  circuitDecor: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-  },
-  circuitLine: {
-    position: 'absolute',
-    backgroundColor: COLORS.primary,
-    opacity: 0.15,
-  },
-  circuitLine1: {
-    width: 2,
-    height: 120,
-    top: 80,
-    right: 60,
-    transform: [{ rotate: '45deg' }],
-  },
-  circuitLine2: {
-    width: 80,
-    height: 2,
-    top: 150,
-    right: 30,
-  },
-  circuitDot: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: COLORS.primary,
-    opacity: 0.3,
-  },
   content: {
     flex: 1,
     paddingHorizontal: 24,
@@ -199,9 +166,9 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   headerImage: {
-    width: width * 0.85,
-    height: 80,
-    marginBottom: 24,
+    width: width * 0.95,
+    height: 240,
+    marginBottom: 32,
   },
   heroTagline: {
     ...TYPOGRAPHY.body,
@@ -269,20 +236,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  ctaButton: {
+  ctaButtonWrapper: {
     width: '100%',
     maxWidth: 320,
+  },
+  ctaButtonWrapperLocked: {
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 24,
+    elevation: 12,
+    borderRadius: RADII.lg,
+    borderWidth: 3,
+    borderColor: 'rgba(232, 184, 74, 0.6)',
+    backgroundColor: 'rgba(232, 184, 74, 0.05)',
+  },
+  ctaButton: {
+    width: '100%',
     ...SHADOWS.glow,
+  },
+  ctaButtonLocked: {
+    opacity: 1,
   },
   ctaButtonText: {
     color: '#0D1B2A',
     fontWeight: '800',
+  },
+  ctaButtonTextLocked: {
+    fontSize: 17,
+    letterSpacing: 1,
+    fontWeight: '900',
   },
   ctaSubtext: {
     ...TYPOGRAPHY.caption,
     color: COLORS.text.muted,
     marginTop: 16,
     textAlign: 'center',
+  },
+  ctaSubtextLocked: {
+    color: COLORS.primary,
+    fontWeight: '600',
   },
 });
 
