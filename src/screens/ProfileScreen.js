@@ -294,7 +294,80 @@ const ProfileScreen = () => {
     }
   };
 
-  // Old function removed - now using processQRCode from QRScannerService
+  // Fallback function wenn Service nicht lädt
+  const processScannedQRCodeFallback = async (scannedData) => {
+    if (!isSupabaseConfigured() || !user) return null;
+
+    try {
+      const { data: qrCode, error: findError } = await supabase
+        .from('qr_codes')
+        .select('*')
+        .eq('qr_code_id', scannedData)
+        .single();
+
+      if (findError || !qrCode) {
+        return { found: false, success: false, error: 'QR-Code nicht registriert' };
+      }
+
+      if (!qrCode.is_active) {
+        return { found: true, success: false, error: 'QR-Code ist nicht mehr aktiv' };
+      }
+
+      const { data: existingScan } = await supabase
+        .from('qr_code_scans')
+        .select('id')
+        .eq('qr_code_id', qrCode.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingScan) {
+        return { found: true, success: false, error: 'Du hast diesen Code bereits gescannt' };
+      }
+
+      const featureValue = qrCode.feature_value || {};
+      let rewardGiven = {};
+
+      switch (qrCode.feature_type) {
+        case 'gems':
+          const gemAmount = featureValue.amount || 50;
+          addGems(gemAmount);
+          rewardGiven = { gems: gemAmount };
+          break;
+        case 'xp':
+          const xpAmount = featureValue.amount || 100;
+          addXP(xpAmount);
+          rewardGiven = { xp: xpAmount };
+          break;
+        case 'reward':
+          if (featureValue.gems) addGems(featureValue.gems);
+          if (featureValue.xp) addXP(featureValue.xp);
+          rewardGiven = featureValue;
+          break;
+      }
+
+      await supabase.from('qr_code_scans').insert({
+        qr_code_id: qrCode.id,
+        user_id: user.id,
+        reward_given: rewardGiven,
+      });
+
+      await supabase
+        .from('qr_codes')
+        .update({ current_uses: qrCode.current_uses + 1 })
+        .eq('id', qrCode.id);
+
+      return {
+        found: true,
+        success: true,
+        type: 'reward',
+        rewards: rewardGiven,
+        message: 'Belohnung erhalten!'
+      };
+    } catch (error) {
+      console.error('Error processing QR code:', error);
+      return { success: false, error: error.message };
+    }
+  };
 
   // Lösche einen QR-Code
   const deleteQRCode = async (id) => {
@@ -431,14 +504,20 @@ const ProfileScreen = () => {
         setShowRegisterModal(true);
       }, 1000);
     } else {
-      // Normal mode: Verarbeite den QR-Code mit neuem Service
+      // Normal mode: Verarbeite den QR-Code
       let result;
 
-      if (processQRCode) {
-        result = await processQRCode(data, user?.id);
-      } else {
-        // Fallback wenn Service nicht geladen
-        result = { success: false, error: 'Scanner Service nicht verfügbar' };
+      try {
+        if (processQRCode) {
+          // Verwende neuen Service
+          result = await processQRCode(data, user?.id);
+        } else {
+          // Fallback zur alten Logik
+          result = await processScannedQRCodeFallback(data);
+        }
+      } catch (error) {
+        console.error('QR processing error:', error);
+        result = { success: false, error: 'Fehler beim Verarbeiten' };
       }
 
       setScanResult(result);
