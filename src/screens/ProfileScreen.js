@@ -13,6 +13,8 @@ import { CARDS, RARITY, getCollectionCompletion, getRarityDistribution } from '.
 import { COLORS, SHADOWS } from '../theme';
 import Card3D from '../components/Card3D';
 import { supabase, isSupabaseConfigured } from '../config/supabase';
+import { processQRCode } from '../game/services/QRScannerService';
+import UniversalQRScanner from '../components/UniversalQRScanner';
 
 const SCAN_FRAME_SIZE = 280;
 
@@ -487,19 +489,19 @@ const ProfileScreen = () => {
     // Prevent duplicate scans
     if (lastScannedRef.current === data) return;
     lastScannedRef.current = data;
-    
+
     // Clear timeout
     if (scanTimeoutRef.current) {
       clearTimeout(scanTimeoutRef.current);
     }
-    
+
     console.log('Scanned QR Code:', data, 'Type:', type);
-    
+
     // Immediate haptic feedback on scan
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    
+
     if (scanMode === 'register') {
       // Admin mode: Registriere den QR-Code
       playSuccessAnimation();
@@ -509,42 +511,43 @@ const ProfileScreen = () => {
         setShowRegisterModal(true);
       }, 1000);
     } else {
-      // Normal mode: Verarbeite den QR-Code
-      const result = await processScannedQRCode(data);
+      // Normal mode: Verarbeite den QR-Code mit neuem Service
+      const result = await processQRCode(data, user?.id);
       setScanResult(result);
-      
-      if (result?.valid) {
+
+      if (result?.success) {
         // Success!
         playSuccessAnimation();
-        
+
+        // Apply rewards based on type
+        if (result.type === 'quest' && result.rewards) {
+          if (result.rewards.gems) addGems(result.rewards.gems);
+          if (result.rewards.xp) addXP(result.rewards.xp);
+        } else if (result.type === 'reward' && result.rewards) {
+          if (result.rewards.gems) addGems(result.rewards.gems);
+          if (result.rewards.xp) addXP(result.rewards.xp);
+        }
+
         // Wait for animation then show result
         setTimeout(() => {
           setIsScanning(false);
-          const rewardText = result.reward?.gems 
-            ? `+${result.reward.gems} Gems!` 
-            : result.reward?.xp 
-              ? `+${result.reward.xp} XP!`
-              : 'Belohnung erhalten!';
-          Alert.alert('Erfolg! 🎉', rewardText);
+          Alert.alert('Erfolg! 🎉', result.message || 'Belohnung erhalten!');
         }, 1200);
       } else {
         // Error haptic
         if (Platform.OS !== 'web') {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         }
-        
+
         setTimeout(() => {
           setIsScanning(false);
-          
-          if (result?.found === false) {
-            // Unbekannter Code - könnte ein Player sein
-            if (data.startsWith('USER:')) {
-              Alert.alert('Spieler gefunden', `Player ID: ${data.replace('USER:', '')}`);
-            } else {
-              Alert.alert('Unbekannt', `Code "${data}" ist nicht registriert.`);
-            }
+
+          if (result.type === 'player') {
+            Alert.alert('Spieler gefunden', `Player Code: ${result.data}`);
+          } else if (result.type === 'unknown') {
+            Alert.alert('Unbekannt', result.error || 'QR-Code nicht erkannt');
           } else {
-            Alert.alert('Info', result?.message || 'QR-Code konnte nicht verarbeitet werden');
+            Alert.alert('Info', result.error || result.message || 'QR-Code konnte nicht verarbeitet werden');
           }
         }, 500);
       }
@@ -994,17 +997,22 @@ const ProfileScreen = () => {
       {/* IMPROVED SCANNER MODAL WITH ANIMATIONS */}
       <Modal visible={isScanning} animationType="slide" statusBarTranslucent>
         <View style={styles.cameraContainer}>
-          {cameraError ? (
+          {Platform.OS === 'web' ? (
+            <UniversalQRScanner
+              onScan={handleBarCodeScanned}
+              onClose={() => setIsScanning(false)}
+            />
+          ) : cameraError ? (
             <View style={styles.cameraErrorContainer}>
               <Ionicons name="camera-outline" size={64} color={COLORS.text.muted} />
               <Text style={styles.cameraErrorText}>{cameraError}</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.retryButton}
                 onPress={() => startScan(scanMode)}
               >
                 <Text style={styles.retryButtonText}>Erneut versuchen</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setIsScanning(false)}
               >
@@ -1017,8 +1025,8 @@ const ProfileScreen = () => {
               style={styles.camera}
               facing="back"
               onBarcodeScanned={isScanning && !scanSuccess ? handleBarCodeScanned : undefined}
-              barcodeScannerSettings={{ 
-                barcodeTypes: ["qr", "aztec", "ean13", "ean8", "pdf417", "upc_e", "datamatrix", "code39", "code93", "itf14", "codabar", "code128", "upc_a"] 
+              barcodeScannerSettings={{
+                barcodeTypes: ["qr", "aztec", "ean13", "ean8", "pdf417", "upc_e", "datamatrix", "code39", "code93", "itf14", "codabar", "code128", "upc_a"]
               }}
               onCameraReady={onCameraReady}
               onMountError={onCameraError}

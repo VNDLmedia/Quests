@@ -29,124 +29,9 @@ import {
 } from '../game/services/QuestCreationService';
 import GlassCard from './GlassCard';
 import GlassButton from './GlassButton';
+import UniversalQRScanner from './UniversalQRScanner';
 
 const { width } = Dimensions.get('window');
-
-// Web QR Scanner (reused from UserScreen)
-const WebQRScanner = ({ onScan, onClose }) => {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [hasCamera, setHasCamera] = useState(true);
-  const [scanning, setScanning] = useState(true);
-  const hasScannedRef = useRef(false);
-
-  useEffect(() => {
-    let stream = null;
-    let animationFrame = null;
-
-    const startCamera = async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'environment' } 
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-          scanQRCode();
-        }
-      } catch (err) {
-        console.error('Camera error:', err);
-        setHasCamera(false);
-      }
-    };
-
-    const scanQRCode = () => {
-      if (!scanning || hasScannedRef.current) return;
-      
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      
-      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
-        const ctx = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        if ('BarcodeDetector' in window) {
-          const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
-          barcodeDetector.detect(canvas)
-            .then(barcodes => {
-              if (barcodes.length > 0 && !hasScannedRef.current) {
-                console.log('WebQRScanner detected code:', barcodes[0].rawValue);
-                hasScannedRef.current = true;
-                setScanning(false);
-                // Call onScan with slight delay to ensure cleanup happens
-                setTimeout(() => {
-                  onScan({ data: barcodes[0].rawValue });
-                }, 50);
-              }
-            })
-            .catch(err => console.log('Barcode detection error:', err));
-        } else {
-          console.warn('BarcodeDetector not available (Firefox/Safari). Use manual input instead.');
-        }
-      }
-      
-      if (scanning && !hasScannedRef.current) {
-        animationFrame = requestAnimationFrame(scanQRCode);
-      }
-    };
-
-    if (Platform.OS === 'web') {
-      startCamera();
-    }
-
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-      }
-    };
-  }, [scanning, onScan]);
-
-  if (!hasCamera || !('BarcodeDetector' in window)) {
-    return (
-      <View style={styles.scannerError}>
-        <Ionicons name="camera-off" size={48} color={COLORS.text.muted} />
-        <Text style={styles.scannerErrorText}>
-          {!hasCamera ? 'Camera not available' : 'QR Scanner not supported in this browser'}
-        </Text>
-        <Text style={styles.scannerErrorHint}>
-          Use Chrome/Edge for QR scanning, or enter ID manually
-        </Text>
-        <TouchableOpacity style={styles.scannerCloseBtn} onPress={onClose}>
-          <Text style={styles.scannerCloseBtnText}>Close</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.scannerContainer}>
-      <video ref={videoRef} style={styles.scannerVideo} playsInline muted />
-      <canvas ref={canvasRef} style={styles.scannerCanvas} />
-      <View style={styles.scannerOverlay}>
-        <TouchableOpacity style={styles.scannerCloseButton} onPress={onClose}>
-          <Ionicons name="close-circle" size={48} color="white" />
-        </TouchableOpacity>
-        <View style={styles.scannerFrame}>
-          <View style={[styles.scannerCorner, {top:0, left:0, borderTopWidth:4, borderLeftWidth:4}]} />
-          <View style={[styles.scannerCorner, {top:0, right:0, borderTopWidth:4, borderRightWidth:4}]} />
-          <View style={[styles.scannerCorner, {bottom:0, left:0, borderBottomWidth:4, borderLeftWidth:4}]} />
-          <View style={[styles.scannerCorner, {bottom:0, right:0, borderBottomWidth:4, borderRightWidth:4}]} />
-        </View>
-        <Text style={styles.scannerText}>Scan QR Code</Text>
-      </View>
-    </View>
-  );
-};
 
 const QuestCreationModal = ({ visible, onClose, userId }) => {
   const [renderError, setRenderError] = useState(null);
@@ -466,15 +351,11 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
 
   // Render QR Scanner (Step 2)
   if (step === 2 && qrScanning) {
-    if (Platform.OS === 'web') {
-      return (
-        <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-          <WebQRScanner onScan={handleQRScanned} onClose={() => setQrScanning(false)} />
-        </Modal>
-      );
-    } else if (CameraView) {
-      return (
-        <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
+    return (
+      <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
+        {Platform.OS === 'web' ? (
+          <UniversalQRScanner onScan={handleQRScanned} onClose={() => setQrScanning(false)} />
+        ) : CameraView ? (
           <View style={styles.cameraContainer}>
             <CameraView
               style={styles.camera}
@@ -483,16 +364,26 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
               }}
               onBarcodeScanned={handleQRScanned}
             />
-            <TouchableOpacity 
-              style={styles.cameraClose} 
+            <TouchableOpacity
+              style={styles.cameraClose}
               onPress={() => setQrScanning(false)}
             >
               <Ionicons name="close-circle" size={48} color="white" />
             </TouchableOpacity>
           </View>
-        </Modal>
-      );
-    }
+        ) : (
+          <View style={styles.cameraContainer}>
+            <View style={styles.scannerError}>
+              <Ionicons name="camera-off" size={48} color={COLORS.text.muted} />
+              <Text style={styles.scannerErrorText}>Kamera nicht verfügbar</Text>
+              <TouchableOpacity style={styles.scannerCloseBtn} onPress={() => setQrScanning(false)}>
+                <Text style={styles.scannerCloseBtnText}>Schließen</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </Modal>
+    );
   }
 
   const availableIcons = getAvailableIcons();
