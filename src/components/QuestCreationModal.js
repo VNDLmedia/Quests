@@ -84,6 +84,15 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
     console.log('===> Current step:', step);
   }, [step]);
 
+  // Step 1: Location
+  const [location, setLocation] = useState(null);
+  const [locationError, setLocationError] = useState(null);
+
+  // Step 2: QR Code
+  const [qrCodeId, setQrCodeId] = useState('');
+  const [qrScanning, setQrScanning] = useState(false);
+  const [CameraView, setCameraView] = useState(null);
+
   // Auto-advance from step 2 to step 3 when QR code is set
   useEffect(() => {
     if (step === 2 && qrCodeId && !qrScanning) {
@@ -96,15 +105,6 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
       return () => clearTimeout(timer);
     }
   }, [step, qrCodeId, qrScanning]);
-
-  // Step 1: Location
-  const [location, setLocation] = useState(null);
-  const [locationError, setLocationError] = useState(null);
-
-  // Step 2: QR Code
-  const [qrCodeId, setQrCodeId] = useState('');
-  const [qrScanning, setQrScanning] = useState(false);
-  const [CameraView, setCameraView] = useState(null);
 
   // Step 3: Form
   const [title, setTitle] = useState('');
