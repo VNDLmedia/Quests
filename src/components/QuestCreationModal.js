@@ -38,6 +38,7 @@ const WebQRScanner = ({ onScan, onClose }) => {
   const canvasRef = useRef(null);
   const [hasCamera, setHasCamera] = useState(true);
   const [scanning, setScanning] = useState(true);
+  const hasScannedRef = useRef(false);
 
   useEffect(() => {
     let stream = null;
@@ -60,7 +61,7 @@ const WebQRScanner = ({ onScan, onClose }) => {
     };
 
     const scanQRCode = () => {
-      if (!scanning) return;
+      if (!scanning || hasScannedRef.current) return;
       
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -75,7 +76,9 @@ const WebQRScanner = ({ onScan, onClose }) => {
           const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
           barcodeDetector.detect(canvas)
             .then(barcodes => {
-              if (barcodes.length > 0) {
+              if (barcodes.length > 0 && !hasScannedRef.current) {
+                console.log('WebQRScanner detected code:', barcodes[0].rawValue);
+                hasScannedRef.current = true;
                 setScanning(false);
                 onScan({ data: barcodes[0].rawValue });
               }
@@ -84,7 +87,9 @@ const WebQRScanner = ({ onScan, onClose }) => {
         }
       }
       
-      animationFrame = requestAnimationFrame(scanQRCode);
+      if (scanning && !hasScannedRef.current) {
+        animationFrame = requestAnimationFrame(scanQRCode);
+      }
     };
 
     if (Platform.OS === 'web') {
@@ -170,6 +175,11 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   const [saving, setSaving] = useState(false);
   const [hasError, setHasError] = useState(false);
 
+  // Debug: Log step changes
+  useEffect(() => {
+    console.log('===> Current step:', step);
+  }, [step]);
+
   // Step 1: Location
   const [location, setLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
@@ -223,29 +233,34 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   };
 
   const handleQRScanned = async ({ data }) => {
-    console.log('QR Code Scanned:', data);
-    setQrScanning(false);
+    console.log('===> QR Code Scanned, data:', data);
+    
+    // Don't close scanner immediately - wait until processing is done
     setLoading(true);
 
     try {
       // Simple validation - just check if data exists
       if (!data || data.trim() === '') {
+        console.log('QR code is empty');
         Alert.alert('Invalid QR Code', 'The scanned QR code is empty');
         setLoading(false);
         return;
       }
 
-      console.log('Validating QR code:', data);
+      console.log('===> Validating QR code:', data);
       const validation = await validateQRCode(data);
-      console.log('Validation result:', validation);
+      console.log('===> Validation result:', validation);
       
       if (!validation.valid && validation.error) {
+        console.log('===> QR code already used');
+        setQrScanning(false); // Close scanner before showing alert
         Alert.alert(
           'QR Code Already Used',
           validation.error,
           [
             { text: 'Scan Again', onPress: () => setQrScanning(true) },
             { text: 'Use Anyway', onPress: () => {
+              console.log('===> User chose to use QR code anyway');
               setQrCodeId(data);
               setStep(3);
             }},
@@ -253,14 +268,20 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
           ]
         );
       } else {
-        console.log('QR code accepted:', data);
+        console.log('===> QR code accepted, setting ID and moving to step 3');
         setQrCodeId(data);
-        setStep(3);
+        // Close scanner and move to next step
+        setQrScanning(false);
+        // Use setTimeout to ensure state updates happen in order
+        setTimeout(() => {
+          setStep(3);
+          console.log('===> Moved to step 3');
+        }, 100);
       }
     } catch (error) {
-      console.error('QR scan error:', error);
-      Alert.alert('Error', error.message || 'Failed to process QR code');
+      console.error('===> QR scan error:', error);
       setQrScanning(false);
+      Alert.alert('Error', error.message || 'Failed to process QR code');
     } finally {
       setLoading(false);
     }
@@ -424,7 +445,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
             <Ionicons name="close" size={28} color={COLORS.text.primary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Quest</Text>
+          <Text style={styles.headerTitle}>Create Quest (Step {step}/4)</Text>
           <View style={styles.headerSpacer} />
         </View>
 
