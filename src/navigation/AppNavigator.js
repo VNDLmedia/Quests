@@ -64,8 +64,8 @@ const AppNavigator = () => {
     <>
       <StatusBar 
         barStyle="light-content" 
-        backgroundColor={COLORS.backgroundDark}
-        translucent={false}
+        backgroundColor="transparent"
+        translucent={true}
       />
       <NavigationContainer theme={EternalPathTheme}>
         <Tab.Navigator

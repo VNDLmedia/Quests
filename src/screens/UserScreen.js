@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassCard } from '../components';
+import QuestCreationModal from '../components/QuestCreationModal';
 import { useGame } from '../game/GameProvider';
 import { LEVEL_CONFIG } from '../game/config/rewards';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../theme';
@@ -148,6 +149,7 @@ const UserScreen = () => {
   const [showQR, setShowQR] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [showShop, setShowShop] = useState(false);
+  const [showQuestCreation, setShowQuestCreation] = useState(false);
   
   // Dynamischer Import für Native Camera
   const [CameraView, setCameraView] = useState(null);
@@ -262,6 +264,27 @@ const UserScreen = () => {
         </TouchableOpacity>
 
         <div style={{height: 30}}></div>
+
+        {/* ADMIN: Quest Creation Button */}
+        {player.admin && (
+          <View style={styles.adminSection}>
+            <TouchableOpacity
+              style={styles.adminButton}
+              onPress={() => setShowQuestCreation(true)}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={COLORS.gradients.gold}
+                style={styles.adminButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Ionicons name="add-circle" size={24} color={COLORS.text.primary} />
+                <Text style={styles.adminButtonText}>Add Quest at Current Location</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* XP Progress */}
         <View style={styles.xpSection}>
@@ -444,6 +467,15 @@ const UserScreen = () => {
           )
         )}
       </Modal>
+
+      {/* Quest Creation Modal (Admin Only) */}
+      {player.admin && (
+        <QuestCreationModal
+          visible={showQuestCreation}
+          onClose={() => setShowQuestCreation(false)}
+          userId={user?.id}
+        />
+      )}
     </View>
   );
 };
@@ -616,6 +648,30 @@ const styles = StyleSheet.create({
   memberLevelText: { fontSize: 13, fontWeight: '600', color: '#F59E0B' },
 
   // Shop Modal
+  // Admin Section
+  adminSection: {
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  adminButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...SHADOWS.glow,
+  },
+  adminButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  adminButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
+
   shopModalContainer: { flex: 1, backgroundColor: COLORS.background },
   shopModalHeader: { 
     flexDirection: 'row', 

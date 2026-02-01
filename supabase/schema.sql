@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   total_packs_opened INTEGER DEFAULT 0,
   packs_since_last_legendary INTEGER DEFAULT 0,
   card_collection JSONB DEFAULT '[]',
+  admin BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -130,6 +131,11 @@ ALTER TABLE quests ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Quests are public" ON quests
   FOR SELECT USING (true);
+
+CREATE POLICY "Admins can create quests" ON quests
+  FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND admin = true)
+  );
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- USER_QUESTS TABLE (Benutzer-Quest-Fortschritt)

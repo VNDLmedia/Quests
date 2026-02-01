@@ -1,0 +1,998 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// ETERNAL PATH - Quest Creation Modal (Admin Only)
+// ═══════════════════════════════════════════════════════════════════════════
+
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  Platform,
+  Alert,
+  ActivityIndicator,
+  Dimensions,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, TYPOGRAPHY, RADII, SHADOWS } from '../theme';
+import { TEAMS, TEAM_LIST } from '../config/teams';
+import {
+  getCurrentLocation,
+  validateQRCode,
+  createQuest,
+  getAvailableIcons,
+} from '../game/services/QuestCreationService';
+import { GlassCard, GlassButton } from './index';
+
+const { width } = Dimensions.get('window');
+
+// Web QR Scanner (reused from UserScreen)
+const WebQRScanner = ({ onScan, onClose }) => {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [hasCamera, setHasCamera] = useState(true);
+  const [scanning, setScanning] = useState(true);
+
+  useEffect(() => {
+    let stream = null;
+    let animationFrame = null;
+
+    const startCamera = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } 
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+          scanQRCode();
+        }
+      } catch (err) {
+        console.error('Camera error:', err);
+        setHasCamera(false);
+      }
+    };
+
+    const scanQRCode = () => {
+      if (!scanning) return;
+      
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+        const ctx = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        if ('BarcodeDetector' in window) {
+          const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+          barcodeDetector.detect(canvas)
+            .then(barcodes => {
+              if (barcodes.length > 0) {
+                setScanning(false);
+                onScan({ data: barcodes[0].rawValue });
+              }
+            })
+            .catch(err => console.log('Barcode detection error:', err));
+        }
+      }
+      
+      animationFrame = requestAnimationFrame(scanQRCode);
+    };
+
+    if (Platform.OS === 'web') {
+      startCamera();
+    }
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [scanning, onScan]);
+
+  if (!hasCamera) {
+    return (
+      <View style={styles.scannerError}>
+        <Ionicons name="camera-off" size={48} color={COLORS.text.muted} />
+        <Text style={styles.scannerErrorText}>Camera not available</Text>
+        <TouchableOpacity style={styles.scannerCloseBtn} onPress={onClose}>
+          <Text style={styles.scannerCloseBtnText}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.scannerContainer}>
+      <video ref={videoRef} style={styles.scannerVideo} playsInline muted />
+      <canvas ref={canvasRef} style={styles.scannerCanvas} />
+      <View style={styles.scannerOverlay}>
+        <TouchableOpacity style={styles.scannerCloseButton} onPress={onClose}>
+          <Ionicons name="close-circle" size={48} color="white" />
+        </TouchableOpacity>
+        <View style={styles.scannerFrame}>
+          <View style={[styles.scannerCorner, {top:0, left:0, borderTopWidth:4, borderLeftWidth:4}]} />
+          <View style={[styles.scannerCorner, {top:0, right:0, borderTopWidth:4, borderRightWidth:4}]} />
+          <View style={[styles.scannerCorner, {bottom:0, left:0, borderBottomWidth:4, borderLeftWidth:4}]} />
+          <View style={[styles.scannerCorner, {bottom:0, right:0, borderBottomWidth:4, borderRightWidth:4}]} />
+        </View>
+        <Text style={styles.scannerText}>Scan QR Code</Text>
+      </View>
+    </View>
+  );
+};
+
+const QuestCreationModal = ({ visible, onClose, userId }) => {
+  const insets = useSafeAreaInsets();
+  const [step, setStep] = useState(1); // 1: Location, 2: QR, 3: Form, 4: Confirm
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Step 1: Location
+  const [location, setLocation] = useState(null);
+  const [locationError, setLocationError] = useState(null);
+
+  // Step 2: QR Code
+  const [qrCodeId, setQrCodeId] = useState('');
+  const [qrScanning, setQrScanning] = useState(false);
+  const [CameraView, setCameraView] = useState(null);
+
+  // Step 3: Form
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState('compass');
+  const [xpReward, setXpReward] = useState('100');
+  const [gemReward, setGemReward] = useState('50');
+  const [selectedTeam, setSelectedTeam] = useState('blue');
+
+  // Load native camera
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      const loadCamera = async () => {
+        try {
+          const camera = await import('expo-camera');
+          setCameraView(() => camera.CameraView);
+        } catch (e) {
+          console.log('Camera not available');
+        }
+      };
+      loadCamera();
+    }
+  }, []);
+
+  const handleCaptureLocation = async () => {
+    setLoading(true);
+    setLocationError(null);
+
+    try {
+      const loc = await getCurrentLocation();
+      setLocation(loc);
+      setStep(2);
+    } catch (error) {
+      setLocationError(error.message);
+      Alert.alert('Location Error', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQRScanned = async ({ data }) => {
+    setQrScanning(false);
+    setLoading(true);
+
+    try {
+      const validation = await validateQRCode(data);
+      
+      if (!validation.valid) {
+        Alert.alert(
+          'QR Code Already Used',
+          validation.error || 'This QR code is already registered.',
+          [
+            { text: 'Scan Again', onPress: () => setQrScanning(true) },
+            { text: 'Use Anyway', onPress: () => {
+              setQrCodeId(data);
+              setStep(3);
+            }},
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+      } else {
+        setQrCodeId(data);
+        setStep(3);
+      }
+    } catch (error) {
+      Alert.alert('Validation Error', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNext = () => {
+    if (step === 3) {
+      // Validate form
+      if (!title.trim()) {
+        Alert.alert('Missing Information', 'Please enter a quest title');
+        return;
+      }
+      const xp = parseInt(xpReward);
+      const gems = parseInt(gemReward);
+      
+      if (isNaN(xp) || xp < 50 || xp > 1000) {
+        Alert.alert('Invalid XP', 'XP reward must be between 50 and 1000');
+        return;
+      }
+      if (isNaN(gems) || gems < 10 || gems > 500) {
+        Alert.alert('Invalid Gems', 'Gem reward must be between 10 and 500');
+        return;
+      }
+      
+      setStep(4);
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+      if (step === 2) {
+        setQrScanning(false);
+      }
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+
+    try {
+      const result = await createQuest({
+        title,
+        description,
+        icon: selectedIcon,
+        xpReward: parseInt(xpReward),
+        gemReward: parseInt(gemReward),
+        category: selectedTeam,
+        location: {
+          latitude: location.latitude,
+          lng: location.longitude,
+        },
+        qrCodeId,
+        adminId: userId,
+      });
+
+      if (result.success) {
+        Alert.alert('Success', 'Quest created successfully!', [
+          { text: 'OK', onPress: () => {
+            resetForm();
+            onClose();
+          }}
+        ]);
+      } else {
+        Alert.alert('Error', result.error || 'Failed to create quest');
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetForm = () => {
+    setStep(1);
+    setLocation(null);
+    setLocationError(null);
+    setQrCodeId('');
+    setTitle('');
+    setDescription('');
+    setSelectedIcon('compass');
+    setXpReward('100');
+    setGemReward('50');
+    setSelectedTeam('blue');
+    setQrScanning(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  // Render QR Scanner (Step 2)
+  if (step === 2 && qrScanning) {
+    if (Platform.OS === 'web') {
+      return (
+        <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
+          <WebQRScanner onScan={handleQRScanned} onClose={() => setQrScanning(false)} />
+        </Modal>
+      );
+    } else if (CameraView) {
+      return (
+        <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
+          <View style={styles.cameraContainer}>
+            <CameraView
+              style={styles.camera}
+              barcodeScannerSettings={{
+                barcodeTypes: ['qr'],
+              }}
+              onBarcodeScanned={handleQRScanned}
+            />
+            <TouchableOpacity 
+              style={styles.cameraClose} 
+              onPress={() => setQrScanning(false)}
+            >
+              <Ionicons name="close-circle" size={48} color="white" />
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      );
+    }
+  }
+
+  const availableIcons = getAvailableIcons();
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={handleClose}
+      presentationStyle="fullScreen"
+    >
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <LinearGradient
+          colors={COLORS.gradients.hero}
+          style={StyleSheet.absoluteFill}
+        />
+
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+            <Ionicons name="close" size={28} color={COLORS.text.primary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Create Quest</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+        {/* Progress Bar */}
+        <View style={styles.progressContainer}>
+          {[1, 2, 3, 4].map((s) => (
+            <View
+              key={s}
+              style={[
+                styles.progressDot,
+                step >= s && styles.progressDotActive,
+              ]}
+            />
+          ))}
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* STEP 1: Location */}
+          {step === 1 && (
+            <View style={styles.stepContainer}>
+              <Text style={styles.stepTitle}>📍 Capture Location</Text>
+              <Text style={styles.stepDescription}>
+                Get the current GPS coordinates where the quest will be located
+              </Text>
+
+              {location ? (
+                <GlassCard style={styles.locationCard} variant="dark">
+                  <View style={styles.locationRow}>
+                    <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
+                    <View style={styles.locationInfo}>
+                      <Text style={styles.locationLabel}>Latitude</Text>
+                      <Text style={styles.locationValue}>{location.latitude.toFixed(6)}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.locationRow}>
+                    <Ionicons name="location" size={24} color={COLORS.primary} />
+                    <View style={styles.locationInfo}>
+                      <Text style={styles.locationLabel}>Longitude</Text>
+                      <Text style={styles.locationValue}>{location.longitude.toFixed(6)}</Text>
+                    </View>
+                  </View>
+                  {location.accuracy && (
+                    <Text style={styles.locationAccuracy}>
+                      Accuracy: ±{Math.round(location.accuracy)}m
+                    </Text>
+                  )}
+                </GlassCard>
+              ) : (
+                <>
+                  <GlassButton
+                    title={loading ? "Getting Location..." : "Capture Current Location"}
+                    onPress={handleCaptureLocation}
+                    variant="gradient"
+                    gradient={COLORS.gradients.gold}
+                    icon={<Ionicons name="navigate" size={22} color={COLORS.text.primary} />}
+                    loading={loading}
+                    disabled={loading}
+                  />
+                  {locationError && (
+                    <Text style={styles.errorText}>{locationError}</Text>
+                  )}
+                </>
+              )}
+            </View>
+          )}
+
+          {/* STEP 2: QR Code */}
+          {step === 2 && (
+            <View style={styles.stepContainer}>
+              <Text style={styles.stepTitle}>📷 Scan QR Code</Text>
+              <Text style={styles.stepDescription}>
+                Scan the QR code that users will need to complete this quest
+              </Text>
+
+              {qrCodeId ? (
+                <GlassCard style={styles.qrCard} variant="dark">
+                  <Ionicons name="qr-code" size={48} color={COLORS.primary} />
+                  <Text style={styles.qrLabel}>QR Code Scanned</Text>
+                  <Text style={styles.qrValue}>{qrCodeId}</Text>
+                  <TouchableOpacity onPress={() => setQrScanning(true)}>
+                    <Text style={styles.qrRescan}>Scan Different Code</Text>
+                  </TouchableOpacity>
+                </GlassCard>
+              ) : (
+                <GlassButton
+                  title="Start Scanning"
+                  onPress={() => setQrScanning(true)}
+                  variant="gradient"
+                  gradient={COLORS.gradients.gold}
+                  icon={<Ionicons name="qr-code" size={22} color={COLORS.text.primary} />}
+                />
+              )}
+            </View>
+          )}
+
+          {/* STEP 3: Quest Form */}
+          {step === 3 && (
+            <View style={styles.stepContainer}>
+              <Text style={styles.stepTitle}>✏️ Quest Details</Text>
+              <Text style={styles.stepDescription}>
+                Fill in the quest information
+              </Text>
+
+              {/* Title */}
+              <Text style={styles.inputLabel}>Quest Title *</Text>
+              <TextInput
+                style={styles.input}
+                value={title}
+                onChangeText={setTitle}
+                placeholder="Enter quest name..."
+                placeholderTextColor={COLORS.text.muted}
+                maxLength={50}
+              />
+
+              {/* Description */}
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.inputMultiline]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Quest description (optional)..."
+                placeholderTextColor={COLORS.text.muted}
+                multiline
+                numberOfLines={3}
+                maxLength={200}
+              />
+
+              {/* Icon Selector */}
+              <Text style={styles.inputLabel}>Icon *</Text>
+              <View style={styles.iconGrid}>
+                {availableIcons.map((iconItem) => (
+                  <TouchableOpacity
+                    key={iconItem.icon}
+                    style={[
+                      styles.iconOption,
+                      selectedIcon === iconItem.icon && styles.iconOptionSelected,
+                    ]}
+                    onPress={() => setSelectedIcon(iconItem.icon)}
+                  >
+                    <Ionicons
+                      name={iconItem.icon}
+                      size={24}
+                      color={selectedIcon === iconItem.icon ? COLORS.primary : COLORS.text.secondary}
+                    />
+                    <Text style={[
+                      styles.iconOptionText,
+                      selectedIcon === iconItem.icon && styles.iconOptionTextSelected,
+                    ]}>
+                      {iconItem.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Rewards */}
+              <View style={styles.rewardRow}>
+                <View style={styles.rewardInput}>
+                  <Text style={styles.inputLabel}>XP Reward *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={xpReward}
+                    onChangeText={setXpReward}
+                    keyboardType="numeric"
+                    placeholder="100"
+                    placeholderTextColor={COLORS.text.muted}
+                  />
+                </View>
+                <View style={styles.rewardInput}>
+                  <Text style={styles.inputLabel}>Gem Reward *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={gemReward}
+                    onChangeText={setGemReward}
+                    keyboardType="numeric"
+                    placeholder="50"
+                    placeholderTextColor={COLORS.text.muted}
+                  />
+                </View>
+              </View>
+
+              {/* Team Category */}
+              <Text style={styles.inputLabel}>Team Category *</Text>
+              <View style={styles.teamGrid}>
+                {TEAM_LIST.map((team) => (
+                  <TouchableOpacity
+                    key={team.id}
+                    style={[
+                      styles.teamOption,
+                      { borderColor: team.color },
+                      selectedTeam === team.id && { backgroundColor: team.bgColor },
+                    ]}
+                    onPress={() => setSelectedTeam(team.id)}
+                  >
+                    <Ionicons
+                      name={team.icon}
+                      size={24}
+                      color={team.color}
+                    />
+                    <Text style={[styles.teamOptionText, { color: team.color }]}>
+                      {team.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* STEP 4: Confirmation */}
+          {step === 4 && (
+            <View style={styles.stepContainer}>
+              <Text style={styles.stepTitle}>✅ Review & Confirm</Text>
+              <Text style={styles.stepDescription}>
+                Please review your quest before creating it
+              </Text>
+
+              <GlassCard style={styles.reviewCard} variant="dark">
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Title:</Text>
+                  <Text style={styles.reviewValue}>{title}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Description:</Text>
+                  <Text style={styles.reviewValue}>{description || 'None'}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Icon:</Text>
+                  <Ionicons name={selectedIcon} size={24} color={COLORS.primary} />
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>XP Reward:</Text>
+                  <Text style={styles.reviewValue}>{xpReward} XP</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Gem Reward:</Text>
+                  <Text style={styles.reviewValue}>{gemReward} Gems</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Team:</Text>
+                  <View style={styles.reviewTeam}>
+                    <Ionicons
+                      name={TEAMS[selectedTeam].icon}
+                      size={20}
+                      color={TEAMS[selectedTeam].color}
+                    />
+                    <Text style={[styles.reviewValue, { color: TEAMS[selectedTeam].color }]}>
+                      {TEAMS[selectedTeam].name}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Location:</Text>
+                  <Text style={styles.reviewValue}>
+                    {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                  </Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>QR Code:</Text>
+                  <Text style={styles.reviewValue}>{qrCodeId}</Text>
+                </View>
+              </GlassCard>
+
+              <GlassButton
+                title={saving ? "Creating Quest..." : "Create Quest"}
+                onPress={handleSave}
+                variant="gradient"
+                gradient={COLORS.gradients.gold}
+                icon={<Ionicons name="checkmark-circle" size={22} color={COLORS.text.primary} />}
+                loading={saving}
+                disabled={saving}
+              />
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Navigation Buttons */}
+        {step > 1 && step < 4 && (
+          <View style={styles.navigationContainer}>
+            {step > 1 && (
+              <TouchableOpacity
+                style={styles.navButton}
+                onPress={handleBack}
+              >
+                <Ionicons name="arrow-back" size={24} color={COLORS.text.primary} />
+                <Text style={styles.navButtonText}>Back</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.navSpacer} />
+            {((step === 2 && qrCodeId) || (step === 3 && title.trim())) && (
+              <TouchableOpacity
+                style={styles.navButton}
+                onPress={step === 2 ? () => setStep(3) : handleNext}
+              >
+                <Text style={styles.navButtonText}>Next</Text>
+                <Ionicons name="arrow-forward" size={24} color={COLORS.text.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {step === 1 && location && (
+          <View style={styles.navigationContainer}>
+            <View style={styles.navSpacer} />
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={() => setStep(2)}
+            >
+              <Text style={styles.navButtonText}>Next</Text>
+              <Ionicons name="arrow-forward" size={24} color={COLORS.text.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    ...TYPOGRAPHY.h2,
+    color: COLORS.text.primary,
+  },
+  headerSpacer: {
+    width: 36,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  progressDot: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.surface,
+  },
+  progressDotActive: {
+    backgroundColor: COLORS.primary,
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  stepContainer: {
+    gap: 20,
+  },
+  stepTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.text.primary,
+    textAlign: 'center',
+  },
+  stepDescription: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  locationCard: {
+    padding: 20,
+    gap: 16,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  locationInfo: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    marginBottom: 2,
+  },
+  locationValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
+  locationAccuracy: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  errorText: {
+    ...TYPOGRAPHY.small,
+    color: COLORS.error,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  qrCard: {
+    padding: 30,
+    alignItems: 'center',
+    gap: 12,
+  },
+  qrLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text.secondary,
+  },
+  qrValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
+  qrRescan: {
+    fontSize: 14,
+    color: COLORS.primary,
+    marginTop: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADII.md,
+    padding: 14,
+    color: COLORS.text.primary,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  inputMultiline: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  iconOption: {
+    width: (width - 60) / 4,
+    aspectRatio: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADII.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  iconOptionSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  iconOptionText: {
+    fontSize: 10,
+    color: COLORS.text.secondary,
+    fontWeight: '500',
+  },
+  iconOptionTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  rewardRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  rewardInput: {
+    flex: 1,
+  },
+  teamGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  teamOption: {
+    width: (width - 52) / 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: RADII.md,
+    borderWidth: 2,
+    backgroundColor: COLORS.surface,
+  },
+  teamOptionText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  reviewCard: {
+    padding: 20,
+    gap: 16,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  reviewLabel: {
+    fontSize: 14,
+    color: COLORS.text.muted,
+    fontWeight: '600',
+  },
+  reviewValue: {
+    fontSize: 14,
+    color: COLORS.text.primary,
+    fontWeight: '700',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: 12,
+  },
+  reviewTeam: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  navigationContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    padding: 20,
+    backgroundColor: COLORS.backgroundDark,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+  navButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+  },
+  navButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
+  navSpacer: {
+    flex: 1,
+  },
+  // Scanner styles
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  scannerVideo: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  scannerCanvas: {
+    display: 'none',
+  },
+  scannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerCloseButton: {
+    position: 'absolute',
+    top: 60,
+    right: 30,
+  },
+  scannerFrame: {
+    width: 250,
+    height: 250,
+    position: 'relative',
+  },
+  scannerCorner: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderColor: COLORS.primary,
+  },
+  scannerText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 40,
+  },
+  scannerError: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  scannerErrorText: {
+    color: COLORS.text.primary,
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 20,
+  },
+  scannerCloseBtn: {
+    marginTop: 30,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  scannerCloseBtnText: {
+    color: COLORS.text.primary,
+    fontWeight: '600',
+  },
+  cameraContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  camera: {
+    flex: 1,
+  },
+  cameraClose: {
+    position: 'absolute',
+    top: 60,
+    right: 30,
+  },
+});
+
+export default QuestCreationModal;

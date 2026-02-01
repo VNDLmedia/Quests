@@ -127,7 +127,7 @@ const SocialScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
       
       <View style={[styles.tabs, { marginTop: insets.top + 10 }]}>
         {[

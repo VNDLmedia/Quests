@@ -133,7 +133,7 @@ const QuestLogScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.backgroundDark} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
       
       <ScrollView 
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}

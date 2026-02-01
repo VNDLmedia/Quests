@@ -6,7 +6,7 @@ import { Card, Button } from '../components';
 const HomeScreen = () => {
   return (
     <View style={styles.container}>
-      <StatusBar style="auto" />
+      <StatusBar style="light" translucent={true} backgroundColor="transparent" />
       <Card>
         <Text style={styles.title}>Welcome to Ethernal Paths!</Text>
         <Text style={styles.subtitle}>

@@ -189,11 +189,6 @@ const LandingScreen = ({ onGetStarted }) => {
             />
           </View>
 
-          <Text style={[styles.ctaSubtext, isLocked && styles.ctaSubtextLocked]}>
-            {isLocked 
-              ? "Launch countdown • Coming soon" 
-              : ""}
-          </Text>
         </View>
       </View>
     </View>

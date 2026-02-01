@@ -500,6 +500,7 @@ export function GameProvider({ children }) {
             totalDistanceWalked: profile.total_distance_walked || 0,
             totalPacksOpened: profile.total_packs_opened || 0,
             packsSinceLastLegendary: profile.packs_since_last_legendary || 0,
+            admin: profile.admin || false, // Admin flag for quest creation
           },
         });
         
