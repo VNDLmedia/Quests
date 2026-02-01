@@ -15,6 +15,9 @@ export function usePlayer() {
   const claimDailyReward = gameContext?.claimDailyReward || (() => {});
   const hasClaimedDailyReward = gameContext?.hasClaimedDailyReward || false;
   const dailyReward = gameContext?.dailyReward || null;
+  const friends = gameContext?.friends || [];
+  const cards = gameContext?.cards || [];
+  const completedQuests = gameContext?.completedQuests || [];
 
   // Computed values
   const computed = useMemo(() => {
@@ -42,12 +45,33 @@ export function usePlayer() {
     };
   }, [player?.xp, player?.level, player?.loginStreak, hasClaimedDailyReward]);
 
+  // Player Stats für Challenges
+  const playerStats = useMemo(() => {
+    // Einzigartige Team-Farben der Freunde ermitteln
+    const friendTeams = [...new Set(friends.map(f => f.team).filter(Boolean))];
+    
+    // Einzigartige Karten zählen
+    const uniqueCards = [...new Set(cards.map(c => c.id || c.key))].length;
+    
+    return {
+      friendCount: friends.length,
+      friendTeams,
+      totalCompleted: completedQuests.length,
+      uniqueCards,
+      currentStreak: player?.loginStreak || 0,
+      workshopVisited: player?.workshopVisited || false,
+    };
+  }, [friends, cards, completedQuests, player?.loginStreak, player?.workshopVisited]);
+
   return {
     // Player data
     ...player,
     
     // Computed
     ...computed,
+    
+    // Player Stats für Challenges
+    playerStats,
     
     // Daily reward state
     hasClaimedDailyReward,

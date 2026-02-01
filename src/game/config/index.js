@@ -7,3 +7,4 @@ export * from './rewards';
 export * from './quests';
 export * from './cards';
 export * from './packs';
+export * from './challenges';
