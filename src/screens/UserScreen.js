@@ -19,10 +19,14 @@ import { GlassCard } from '../components';
 import QuestCreationModal from '../components/QuestCreationModal';
 import { useGame } from '../game/GameProvider';
 
-// Dynamischer Import nur für Web - verhindert Crash auf Native
+// Safe imports - verhindert Crashes
 let UniversalQRScanner = null;
-if (Platform.OS === 'web') {
-  UniversalQRScanner = require('../components/UniversalQRScanner').default;
+try {
+  if (Platform.OS === 'web') {
+    UniversalQRScanner = require('../components/UniversalQRScanner').default;
+  }
+} catch (error) {
+  console.error('Error loading UniversalQRScanner:', error);
 }
 import { LEVEL_CONFIG } from '../game/config/rewards';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../theme';

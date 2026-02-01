@@ -30,10 +30,14 @@ import {
 import GlassCard from './GlassCard';
 import GlassButton from './GlassButton';
 
-// Dynamischer Import nur für Web - verhindert Crash auf Native
+// Safe imports - verhindert Crashes
 let UniversalQRScanner = null;
-if (Platform.OS === 'web') {
-  UniversalQRScanner = require('./UniversalQRScanner').default;
+try {
+  if (Platform.OS === 'web') {
+    UniversalQRScanner = require('./UniversalQRScanner').default;
+  }
+} catch (error) {
+  console.error('Error loading UniversalQRScanner:', error);
 }
 
 const { width } = Dimensions.get('window');

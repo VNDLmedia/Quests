@@ -13,12 +13,22 @@ import { CARDS, RARITY, getCollectionCompletion, getRarityDistribution } from '.
 import { COLORS, SHADOWS } from '../theme';
 import Card3D from '../components/Card3D';
 import { supabase, isSupabaseConfigured } from '../config/supabase';
-import { processQRCode } from '../game/services/QRScannerService';
 
-// Dynamischer Import nur für Web - verhindert Crash auf Native
+// Safe imports - verhindert Crashes
+let processQRCode = null;
 let UniversalQRScanner = null;
-if (Platform.OS === 'web') {
-  UniversalQRScanner = require('../components/UniversalQRScanner').default;
+
+try {
+  // Import QRScannerService
+  const QRScannerService = require('../game/services/QRScannerService');
+  processQRCode = QRScannerService.processQRCode;
+
+  // Import UniversalQRScanner nur für Web
+  if (Platform.OS === 'web') {
+    UniversalQRScanner = require('../components/UniversalQRScanner').default;
+  }
+} catch (error) {
+  console.error('Error loading QR Scanner dependencies:', error);
 }
 
 const SCAN_FRAME_SIZE = 280;
@@ -422,7 +432,15 @@ const ProfileScreen = () => {
       }, 1000);
     } else {
       // Normal mode: Verarbeite den QR-Code mit neuem Service
-      const result = await processQRCode(data, user?.id);
+      let result;
+
+      if (processQRCode) {
+        result = await processQRCode(data, user?.id);
+      } else {
+        // Fallback wenn Service nicht geladen
+        result = { success: false, error: 'Scanner Service nicht verfügbar' };
+      }
+
       setScanResult(result);
 
       if (result?.success) {
