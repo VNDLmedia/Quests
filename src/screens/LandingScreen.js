@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassButton, GlassCard } from '../components';
 import { COLORS, TYPOGRAPHY, BRAND, RADII, SHADOWS } from '../theme';
+import { shouldLockApp, getTimeUntilLaunch, formatTimeRemaining } from '../utils/launchTimer';
 
 const { width, height } = Dimensions.get('window');
 
@@ -24,6 +25,42 @@ const FEATURES = [
 
 const LandingScreen = ({ onGetStarted }) => {
   const insets = useSafeAreaInsets();
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  const [isLocked, setIsLocked] = useState(shouldLockApp());
+
+  // Update countdown timer every second
+  useEffect(() => {
+    // Initial check
+    const locked = shouldLockApp();
+    setIsLocked(locked);
+    
+    if (locked) {
+      setTimeRemaining(getTimeUntilLaunch());
+      
+      // Update every second
+      const interval = setInterval(() => {
+        const newTimeRemaining = getTimeUntilLaunch();
+        setTimeRemaining(newTimeRemaining);
+        
+        // Check if launch time has been reached
+        if (newTimeRemaining.hours === 0 && 
+            newTimeRemaining.minutes === 0 && 
+            newTimeRemaining.seconds === 0) {
+          setIsLocked(false);
+          clearInterval(interval);
+        }
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, []);
+
+  // Handle button press - only works when not locked
+  const handleGetStarted = () => {
+    if (!isLocked) {
+      onGetStarted();
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -94,19 +131,22 @@ const LandingScreen = ({ onGetStarted }) => {
         {/* CTA Section */}
         <View style={styles.ctaSection}>
           <GlassButton
-            title="Start Your Quest"
-            onPress={onGetStarted}
+            title={isLocked ? `Starts in ${formatTimeRemaining(timeRemaining)}` : "Start Your Quest"}
+            onPress={handleGetStarted}
             variant="gradient"
             gradient={COLORS.gradients.gold}
             size="lg"
             style={styles.ctaButton}
-            icon={<Ionicons name="compass" size={22} color="#0D1B2A" />}
+            icon={isLocked ? <Ionicons name="time" size={22} color="#0D1B2A" /> : <Ionicons name="compass" size={22} color="#0D1B2A" />}
             iconPosition="left"
             textStyle={styles.ctaButtonText}
+            disabled={isLocked}
           />
 
           <Text style={styles.ctaSubtext}>
-            Free to play • No credit card required
+            {isLocked 
+              ? "Launch countdown • Coming soon" 
+              : "Free to play • No credit card required"}
           </Text>
         </View>
       </View>
