@@ -187,16 +187,26 @@ const QuestCreationModal = ({ visible, onClose, userId }) => {
   };
 
   const handleQRScanned = async ({ data }) => {
+    console.log('QR Code Scanned:', data);
     setQrScanning(false);
     setLoading(true);
 
     try {
+      // Simple validation - just check if data exists
+      if (!data || data.trim() === '') {
+        Alert.alert('Invalid QR Code', 'The scanned QR code is empty');
+        setLoading(false);
+        return;
+      }
+
+      console.log('Validating QR code:', data);
       const validation = await validateQRCode(data);
+      console.log('Validation result:', validation);
       
-      if (!validation.valid) {
+      if (!validation.valid && validation.error) {
         Alert.alert(
           'QR Code Already Used',
-          validation.error || 'This QR code is already registered.',
+          validation.error,
           [
             { text: 'Scan Again', onPress: () => setQrScanning(true) },
             { text: 'Use Anyway', onPress: () => {
@@ -207,11 +217,14 @@ const QuestCreationModal = ({ visible, onClose, userId }) => {
           ]
         );
       } else {
+        console.log('QR code accepted:', data);
         setQrCodeId(data);
         setStep(3);
       }
     } catch (error) {
-      Alert.alert('Validation Error', error.message);
+      console.error('QR scan error:', error);
+      Alert.alert('Error', error.message || 'Failed to process QR code');
+      setQrScanning(false);
     } finally {
       setLoading(false);
     }
@@ -436,20 +449,45 @@ const QuestCreationModal = ({ visible, onClose, userId }) => {
               {qrCodeId ? (
                 <GlassCard style={styles.qrCard} variant="dark">
                   <Ionicons name="qr-code" size={48} color={COLORS.primary} />
-                  <Text style={styles.qrLabel}>QR Code Scanned</Text>
+                  <Text style={styles.qrLabel}>QR Code ID</Text>
                   <Text style={styles.qrValue}>{qrCodeId}</Text>
-                  <TouchableOpacity onPress={() => setQrScanning(true)}>
+                  <TouchableOpacity onPress={() => {
+                    setQrCodeId('');
+                    setQrScanning(true);
+                  }}>
                     <Text style={styles.qrRescan}>Scan Different Code</Text>
                   </TouchableOpacity>
                 </GlassCard>
               ) : (
-                <GlassButton
-                  title="Start Scanning"
-                  onPress={() => setQrScanning(true)}
-                  variant="gradient"
-                  gradient={COLORS.gradients.gold}
-                  icon={<Ionicons name="qr-code" size={22} color={COLORS.text.primary} />}
-                />
+                <>
+                  <GlassButton
+                    title="Scan QR Code"
+                    onPress={handleStartScanning}
+                    variant="gradient"
+                    gradient={COLORS.gradients.gold}
+                    icon={<Ionicons name="qr-code" size={22} color={COLORS.text.primary} />}
+                  />
+                  
+                  <View style={styles.orDivider}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>OR</Text>
+                    <View style={styles.orLine} />
+                  </View>
+
+                  <Text style={styles.inputLabel}>Enter QR Code ID Manually</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={qrCodeId}
+                    onChangeText={setQrCodeId}
+                    placeholder="e.g., 001, 002, 003..."
+                    placeholderTextColor={COLORS.text.muted}
+                    maxLength={10}
+                    autoCapitalize="none"
+                  />
+                  <Text style={styles.qrHint}>
+                    Enter a unique ID (001-200) for this quest location
+                  </Text>
+                </>
               )}
             </View>
           )}
@@ -786,6 +824,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.primary,
     marginTop: 8,
+  },
+  qrHint: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.borderLight,
+  },
+  orText: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    marginHorizontal: 12,
+    fontWeight: '600',
   },
   inputLabel: {
     fontSize: 14,
