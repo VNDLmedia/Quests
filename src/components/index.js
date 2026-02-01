@@ -45,6 +45,7 @@ export { default as StreakBanner } from './StreakBanner';
 export { default as LiveLeaderboard } from './LiveLeaderboard';
 export { default as ChallengeCard } from './ChallengeCard';
 export { default as EventChallengeCard } from './EventChallengeCard';
+export { default as CardCollection } from './CardCollection';
 export { default as ActivityFeed } from './ActivityFeed';
 export { default as QuestCard } from './QuestCard';
 

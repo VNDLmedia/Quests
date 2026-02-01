@@ -1,9 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // ETERNAL PATH - Event Challenges Configuration
-// Übergreifende Challenges mit echten Belohnungen
+// Übergreifende Challenges mit echten Spielkarten als Belohnung
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { TEAMS } from '../../config/teams';
+import { COLLECTIBLE_CARDS } from './cardCollection';
+
+import { COUNTRIES } from './countries';
 
 // Challenge-Typen
 export const CHALLENGE_TYPES = {
@@ -18,6 +21,12 @@ export const CHALLENGE_TYPES = {
     name: 'Social',
     icon: 'people',
     color: '#EC4899',
+  },
+  networking: {
+    id: 'networking',
+    name: 'Networking',
+    icon: 'git-network',
+    color: '#3B82F6',
   },
   location: {
     id: 'location',
@@ -37,9 +46,15 @@ export const CHALLENGE_TYPES = {
     icon: 'flame',
     color: '#EF4444',
   },
+  country: {
+    id: 'country',
+    name: 'Länder',
+    icon: 'globe',
+    color: '#06B6D4',
+  },
 };
 
-// Belohnungs-Typen
+// Belohnungs-Typ (nur echte Karten)
 export const REWARD_TYPES = {
   physical_card: {
     id: 'physical_card',
@@ -47,33 +62,9 @@ export const REWARD_TYPES = {
     icon: 'card',
     description: 'Hole dir deine Karte am Info-Stand ab!',
   },
-  digital_card: {
-    id: 'digital_card',
-    name: 'Digitale Karte',
-    icon: 'sparkles',
-    description: 'Seltene digitale Sammelkarte',
-  },
-  badge: {
-    id: 'badge',
-    name: 'Abzeichen',
-    icon: 'medal',
-    description: 'Exklusives Profil-Abzeichen',
-  },
-  xp_boost: {
-    id: 'xp_boost',
-    name: 'XP Boost',
-    icon: 'flash',
-    description: 'Doppelte XP für 1 Stunde',
-  },
-  pack: {
-    id: 'pack',
-    name: 'Karten-Pack',
-    icon: 'gift',
-    description: 'Kostenloses Karten-Pack',
-  },
 };
 
-// Event Challenges
+// Event Challenges - Alle belohnen mit echten Sammelkarten!
 export const EVENT_CHALLENGES = [
   {
     id: 'quest_master_bronze',
@@ -86,9 +77,9 @@ export const EVENT_CHALLENGES = [
     target: 5,
     progressKey: 'completedQuests',
     reward: {
-      type: 'digital_card',
-      value: 1,
-      rarity: 'uncommon',
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.marcus,
+      claimLocation: 'Info-Stand Halle A',
     },
     xpReward: 100,
     tier: 'bronze',
@@ -99,15 +90,14 @@ export const EVENT_CHALLENGES = [
     key: 'quest_master_silver',
     title: 'Quest-Veteran',
     description: 'Schließe 15 Quests ab',
-    longDescription: 'Du bist auf dem besten Weg ein echter Pathfinder zu werden! Schließe 15 Quests ab für eine echte Sammelkarte.',
+    longDescription: 'Du bist auf dem besten Weg ein echter Pathfinder zu werden! Schließe 15 Quests ab für eine seltene Sammelkarte.',
     type: 'quest_count',
     icon: 'ribbon',
     target: 15,
     progressKey: 'completedQuests',
     reward: {
       type: 'physical_card',
-      value: 1,
-      rarity: 'rare',
+      card: COLLECTIBLE_CARDS.ramy,
       claimLocation: 'Info-Stand Halle A',
     },
     xpReward: 250,
@@ -119,17 +109,16 @@ export const EVENT_CHALLENGES = [
     key: 'quest_master_gold',
     title: 'Quest-Legende',
     description: 'Schließe 30 Quests ab',
-    longDescription: 'Nur die Besten schaffen es, 30 Quests zu meistern. Dafür gibt es eine limitierte holografische Sammelkarte!',
+    longDescription: 'Nur die Besten schaffen es, 30 Quests zu meistern. Dafür gibt es die legendäre Roland Mack Karte!',
     type: 'quest_count',
     icon: 'trophy',
     target: 30,
     progressKey: 'completedQuests',
     reward: {
       type: 'physical_card',
-      value: 1,
-      rarity: 'legendary',
+      card: COLLECTIBLE_CARDS.roland,
       claimLocation: 'Info-Stand Halle A',
-      special: 'Holografisch',
+      special: 'Legendär',
     },
     xpReward: 500,
     tier: 'gold',
@@ -152,9 +141,9 @@ export const EVENT_CHALLENGES = [
       { key: 'purple', label: 'Purple Team', color: TEAMS.purple.color, icon: TEAMS.purple.icon },
     ],
     reward: {
-      type: 'badge',
-      value: 'rainbow_connector',
-      name: 'Rainbow Connector',
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.ivo,
+      claimLocation: 'Info-Stand Halle A',
     },
     xpReward: 200,
     tier: 'special',
@@ -173,9 +162,9 @@ export const EVENT_CHALLENGES = [
     locationId: 'workshop_main',
     requiresScan: true,
     reward: {
-      type: 'pack',
-      value: 1,
-      packType: 'workshop_special',
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.marcus,
+      claimLocation: 'Workshop-Stand',
     },
     xpReward: 150,
     tier: 'event',
@@ -192,9 +181,9 @@ export const EVENT_CHALLENGES = [
     target: 10,
     progressKey: 'friendCount',
     reward: {
-      type: 'badge',
-      value: 'social_butterfly',
-      name: 'Social Butterfly',
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.ramy,
+      claimLocation: 'Info-Stand Halle A',
     },
     xpReward: 150,
     tier: 'silver',
@@ -211,9 +200,9 @@ export const EVENT_CHALLENGES = [
     target: 3,
     progressKey: 'dailyStreak',
     reward: {
-      type: 'xp_boost',
-      value: 60, // Minuten
-      description: '2x XP für 1 Stunde',
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.marcus,
+      claimLocation: 'Info-Stand Halle A',
     },
     xpReward: 100,
     tier: 'bronze',
@@ -223,23 +212,160 @@ export const EVENT_CHALLENGES = [
     id: 'card_collector',
     key: 'card_collector',
     title: 'Kartensammler',
-    description: 'Sammle 20 verschiedene Karten',
-    longDescription: 'Erweitere deine Sammlung! Sammle 20 einzigartige digitale Karten.',
+    description: 'Sammle alle 4 Sammelkarten',
+    longDescription: 'Schließe alle Challenges ab und sammle alle 4 einzigartigen Eternal Path Sammelkarten!',
     type: 'collection',
     icon: 'albums',
-    target: 20,
-    progressKey: 'uniqueCards',
+    target: 4,
+    progressKey: 'collectedCards',
     reward: {
       type: 'physical_card',
-      value: 1,
-      rarity: 'epic',
+      card: COLLECTIBLE_CARDS.ivo,
       claimLocation: 'Info-Stand Halle A',
+      special: 'Bonus-Karte',
     },
     xpReward: 300,
     tier: 'gold',
     gradient: ['#8B5CF6', '#7C3AED'],
   },
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LÄNDER-BASIERTE NETWORKING CHALLENGES
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  {
+    id: 'networking_frankreich',
+    key: 'networking_frankreich',
+    title: 'French Connection',
+    description: 'Netzwerke im französischen Bereich',
+    longDescription: 'Knüpfe Kontakte im französischen Themenbereich. Scanne 3 QR-Codes von anderen Teilnehmern!',
+    type: 'networking',
+    icon: 'git-network',
+    target: 3,
+    progressKey: 'networkingFrankreich',
+    country: COUNTRIES.frankreich,
+    requiresScan: true,
+    reward: {
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.marcus,
+      claimLocation: 'Französischer Pavillon',
+    },
+    xpReward: 120,
+    tier: 'country',
+    gradient: COUNTRIES.frankreich.bgGradient,
+  },
+  {
+    id: 'networking_england',
+    key: 'networking_england',
+    title: 'British Business',
+    description: 'Netzwerke im englischen Bereich',
+    longDescription: 'Tea time für Networking! Verbinde dich mit 3 Teilnehmern im englischen Themenbereich.',
+    type: 'networking',
+    icon: 'git-network',
+    target: 3,
+    progressKey: 'networkingEngland',
+    country: COUNTRIES.england,
+    requiresScan: true,
+    reward: {
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.ramy,
+      claimLocation: 'Englischer Pavillon',
+    },
+    xpReward: 120,
+    tier: 'country',
+    gradient: COUNTRIES.england.bgGradient,
+  },
+  {
+    id: 'networking_luxemburg',
+    key: 'networking_luxemburg',
+    title: 'Luxembourg Links',
+    description: 'Netzwerke im Luxemburger Bereich',
+    longDescription: 'Das Herz Europas für dein Netzwerk! Verbinde dich mit 3 Teilnehmern.',
+    type: 'networking',
+    icon: 'business',
+    target: 3,
+    progressKey: 'networkingLuxemburg',
+    country: COUNTRIES.luxemburg,
+    requiresScan: true,
+    reward: {
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.ivo,
+      claimLocation: 'Luxemburger Pavillon',
+    },
+    xpReward: 150,
+    tier: 'country',
+    gradient: COUNTRIES.luxemburg.bgGradient,
+  },
+  {
+    id: 'explorer_deutschland',
+    key: 'explorer_deutschland',
+    title: 'Deutsche Gründlichkeit',
+    description: 'Erkunde alle deutschen Attraktionen',
+    longDescription: 'Besuche 5 verschiedene Attraktionen im deutschen Themenbereich!',
+    type: 'country',
+    icon: 'compass',
+    target: 5,
+    progressKey: 'exploredDeutschland',
+    country: COUNTRIES.deutschland,
+    reward: {
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.roland,
+      claimLocation: 'Deutscher Pavillon',
+      special: 'Legendär',
+    },
+    xpReward: 200,
+    tier: 'gold',
+    gradient: COUNTRIES.deutschland.bgGradient,
+  },
+  {
+    id: 'adventure_griechenland',
+    key: 'adventure_griechenland',
+    title: 'Odyssee',
+    description: 'Meistere die griechischen Abenteuer',
+    longDescription: 'Wie Odysseus selbst - bezwinge alle Herausforderungen im griechischen Bereich!',
+    type: 'country',
+    icon: 'boat',
+    target: 3,
+    progressKey: 'adventureGriechenland',
+    country: COUNTRIES.griechenland,
+    reward: {
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.marcus,
+      claimLocation: 'Griechischer Tempel',
+    },
+    xpReward: 180,
+    tier: 'special',
+    gradient: COUNTRIES.griechenland.bgGradient,
+  },
+  {
+    id: 'viking_skandinavien',
+    key: 'viking_skandinavien',
+    title: 'Wikinger-Saga',
+    description: 'Erobere den skandinavischen Bereich',
+    longDescription: 'Für Valhalla! Schließe alle Quests im nordischen Themenbereich ab.',
+    type: 'country',
+    icon: 'snow',
+    target: 4,
+    progressKey: 'vikingSkandinavia',
+    country: COUNTRIES.skandinavien,
+    reward: {
+      type: 'physical_card',
+      card: COLLECTIBLE_CARDS.ivo,
+      claimLocation: 'Wikinger-Dorf',
+    },
+    xpReward: 180,
+    tier: 'special',
+    gradient: COUNTRIES.skandinavien.bgGradient,
+  },
 ];
+
+// Länder-Challenge Tier hinzufügen
+CHALLENGE_TIERS.country = {
+  name: 'Länder',
+  color: '#06B6D4',
+  bgColor: 'rgba(6, 182, 212, 0.15)',
+  icon: 'globe',
+};
 
 // Tier-Farben und Icons
 export const CHALLENGE_TIERS = {
@@ -293,6 +419,26 @@ export const getChallengeProgress = (challenge, playerStats) => {
       return playerStats.currentStreak || 0;
     case 'uniqueCards':
       return playerStats.uniqueCards || 0;
+    case 'collectedCards':
+      // Zählt gesammelte physische Karten (abgeholte Challenge-Belohnungen)
+      return playerStats.collectedCards || 0;
+    
+    // Länder-basierte Networking
+    case 'networkingFrankreich':
+      return playerStats.networkingByCountry?.frankreich || 0;
+    case 'networkingEngland':
+      return playerStats.networkingByCountry?.england || 0;
+    case 'networkingLuxemburg':
+      return playerStats.networkingByCountry?.luxemburg || 0;
+    
+    // Länder-Exploration
+    case 'exploredDeutschland':
+      return playerStats.exploredByCountry?.deutschland || 0;
+    case 'adventureGriechenland':
+      return playerStats.adventureByCountry?.griechenland || 0;
+    case 'vikingSkandinavia':
+      return playerStats.adventureByCountry?.skandinavien || 0;
+    
     default:
       return 0;
   }

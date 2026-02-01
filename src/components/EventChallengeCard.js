@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // ETERNAL PATH - Event Challenge Card Component
-// Für übergreifende Event-Challenges mit echten Belohnungen
+// Für übergreifende Event-Challenges mit echten Sammelkarten
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SHADOWS, PALETTE } from '../theme';
-import { CHALLENGE_TIERS, REWARD_TYPES } from '../game/config/challenges';
+import { CHALLENGE_TIERS } from '../game/config/challenges';
 
 const EventChallengeCard = ({
   challenge,
@@ -24,7 +24,6 @@ const EventChallengeCard = ({
   const progressPercent = (progress / challenge.target) * 100;
   const isCompleted = progress >= challenge.target;
   const tier = CHALLENGE_TIERS[challenge.tier] || CHALLENGE_TIERS.bronze;
-  const rewardType = REWARD_TYPES[challenge.reward?.type];
 
   // Checklist für Rainbow-Challenge etc.
   const renderChecklist = () => {
@@ -54,24 +53,82 @@ const EventChallengeCard = ({
     );
   };
 
-  // Belohnungs-Badge
+  // Karten-Bild Pfad für Web/Native
+  const getCardImageSource = () => {
+    if (!challenge.reward?.card?.image) return null;
+    
+    // Für Web: relativer Pfad von public
+    if (Platform.OS === 'web') {
+      return { uri: challenge.reward.card.image };
+    }
+    // Für Native: require würde hier nicht funktionieren, also URI
+    return { uri: challenge.reward.card.image };
+  };
+
+  // Belohnungs-Badge (immer echte Karte)
   const renderRewardBadge = () => {
-    const rewardConfig = {
-      physical_card: { icon: 'card', label: 'Echte Karte', color: '#FFD700' },
-      digital_card: { icon: 'sparkles', label: 'Digital', color: '#8B5CF6' },
-      badge: { icon: 'medal', label: 'Abzeichen', color: '#EC4899' },
-      xp_boost: { icon: 'flash', label: 'XP Boost', color: '#F59E0B' },
-      pack: { icon: 'gift', label: 'Pack', color: '#10B981' },
-    };
-
-    const config = rewardConfig[challenge.reward?.type] || rewardConfig.digital_card;
-
     return (
-      <View style={[styles.rewardBadge, { backgroundColor: config.color + '20' }]}>
-        <Ionicons name={config.icon} size={12} color={config.color} />
-        <Text style={[styles.rewardBadgeText, { color: config.color }]}>
-          {config.label}
+      <View style={[styles.rewardBadge, { backgroundColor: '#FFD700' + '20' }]}>
+        <Ionicons name="card" size={12} color="#FFD700" />
+        <Text style={[styles.rewardBadgeText, { color: '#FFD700' }]}>
+          Echte Karte
         </Text>
+      </View>
+    );
+  };
+
+  // Karten-Vorschau rendern
+  const renderCardPreview = () => {
+    const card = challenge.reward?.card;
+    if (!card) return null;
+
+    const imageSource = getCardImageSource();
+    
+    return (
+      <View style={styles.cardPreviewContainer}>
+        <View style={styles.cardPreviewWrapper}>
+          {/* Goldener Glow-Effekt */}
+          <View style={styles.cardGlow} />
+          
+          {/* Karten-Bild */}
+          <View style={styles.cardImageContainer}>
+            {imageSource && (
+              <Image 
+                source={imageSource}
+                style={styles.cardImage}
+                resizeMode="cover"
+              />
+            )}
+            
+            {/* Rarity Overlay */}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.7)']}
+              style={styles.cardOverlay}
+            >
+              <Text style={styles.cardName} numberOfLines={1}>
+                {card.name}
+              </Text>
+              <View style={styles.rarityBadge}>
+                <Ionicons 
+                  name={card.rarity === 'legendary' ? 'star' : 'star-half'} 
+                  size={10} 
+                  color="#FFD700" 
+                />
+                <Text style={styles.rarityText}>
+                  {card.rarity === 'legendary' ? 'Legendär' : 'Epic'}
+                </Text>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+        
+        {/* Special Badge */}
+        {challenge.reward?.special && (
+          <View style={styles.specialBadge}>
+            <Ionicons name="sparkles" size={10} color="#FFF" />
+            <Text style={styles.specialText}>{challenge.reward.special}</Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -117,7 +174,12 @@ const EventChallengeCard = ({
       >
         <View style={styles.headerContent}>
           <View style={styles.iconContainer}>
-            <Ionicons name={challenge.icon} size={28} color="#FFF" />
+            {/* Zeige Länder-Flag oder Icon */}
+            {challenge.country?.flag ? (
+              <Text style={styles.countryFlagLarge}>{challenge.country.flag}</Text>
+            ) : (
+              <Ionicons name={challenge.icon} size={28} color="#FFF" />
+            )}
           </View>
           <View style={styles.headerText}>
             <View style={styles.tierRow}>
@@ -164,14 +226,16 @@ const EventChallengeCard = ({
         {/* Checklist (für Rainbow Friends etc.) */}
         {renderChecklist()}
 
+        {/* Karten-Vorschau */}
+        {renderCardPreview()}
+
         {/* Reward Section */}
         <View style={styles.rewardSection}>
           <View style={styles.rewardInfo}>
-            <Ionicons name="gift" size={16} color={COLORS.gold} />
+            <Ionicons name="card" size={16} color={COLORS.gold} />
             <Text style={styles.rewardLabel}>Belohnung:</Text>
             <Text style={styles.rewardValue}>
-              {rewardType?.name || challenge.reward?.type}
-              {challenge.reward?.rarity && ` (${challenge.reward.rarity})`}
+              {challenge.reward?.card?.name || 'Sammelkarte'}
             </Text>
           </View>
           <View style={styles.xpReward}>
@@ -180,11 +244,11 @@ const EventChallengeCard = ({
           </View>
         </View>
 
-        {/* Claim Location (für physische Karten) */}
-        {challenge.reward?.claimLocation && isCompleted && !isClaimed && (
-          <View style={styles.claimLocation}>
-            <Ionicons name="location" size={14} color="#10B981" />
-            <Text style={styles.claimLocationText}>
+        {/* Claim Location */}
+        {challenge.reward?.claimLocation && (
+          <View style={[styles.claimLocation, isCompleted && !isClaimed && styles.claimLocationActive]}>
+            <Ionicons name="location" size={14} color={isCompleted && !isClaimed ? "#10B981" : COLORS.text.muted} />
+            <Text style={[styles.claimLocationText, isCompleted && !isClaimed && styles.claimLocationTextActive]}>
               Abholen: {challenge.reward.claimLocation}
             </Text>
           </View>
@@ -246,6 +310,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
+  },
+  countryFlagLarge: {
+    fontSize: 28,
   },
   headerText: {
     flex: 1,
@@ -353,6 +420,89 @@ const styles = StyleSheet.create({
   checklistLabelChecked: {
     color: '#10B981',
   },
+  // Karten-Vorschau Styles
+  cardPreviewContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+    position: 'relative',
+  },
+  cardPreviewWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  cardGlow: {
+    position: 'absolute',
+    width: 100,
+    height: 140,
+    backgroundColor: '#FFD700',
+    borderRadius: 12,
+    opacity: 0.2,
+    top: -4,
+    left: -4,
+    ...SHADOWS.glow,
+  },
+  cardImageContainer: {
+    width: 92,
+    height: 130,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    backgroundColor: COLORS.surfaceAlt,
+    ...SHADOWS.md,
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 6,
+    alignItems: 'center',
+  },
+  cardName: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '700',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  rarityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginTop: 2,
+  },
+  rarityText: {
+    color: '#FFD700',
+    fontSize: 8,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  specialBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    ...SHADOWS.sm,
+  },
+  specialText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+
   rewardSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -365,6 +515,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flex: 1,
   },
   rewardLabel: {
     color: COLORS.text.muted,
@@ -375,6 +526,7 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
     fontSize: 12,
     fontWeight: '700',
+    flex: 1,
   },
   xpReward: {
     flexDirection: 'row',
@@ -406,15 +558,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(16,185,129,0.1)',
+    backgroundColor: COLORS.surfaceAlt,
     padding: 12,
     borderRadius: 12,
     marginTop: 12,
   },
+  claimLocationActive: {
+    backgroundColor: 'rgba(16,185,129,0.1)',
+  },
   claimLocationText: {
-    color: '#10B981',
+    color: COLORS.text.muted,
     fontSize: 13,
     fontWeight: '600',
+  },
+  claimLocationTextActive: {
+    color: '#10B981',
   },
   claimButton: {
     flexDirection: 'row',

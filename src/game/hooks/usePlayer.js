@@ -60,8 +60,9 @@ export function usePlayer() {
       uniqueCards,
       currentStreak: player?.loginStreak || 0,
       workshopVisited: player?.workshopVisited || false,
+      collectedCards: player?.collectedCards || 0, // Anzahl abgeholter physischer Karten
     };
-  }, [friends, cards, completedQuests, player?.loginStreak, player?.workshopVisited]);
+  }, [friends, cards, completedQuests, player?.loginStreak, player?.workshopVisited, player?.collectedCards]);
 
   return {
     // Player data

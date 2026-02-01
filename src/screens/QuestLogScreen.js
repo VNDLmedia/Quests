@@ -16,7 +16,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuests, usePlayer } from '../game/hooks';
-import { QuestCard, Skeleton, StreakBanner, ScreenHeader, EventChallengeCard } from '../components';
+import { QuestCard, Skeleton, StreakBanner, ScreenHeader, EventChallengeCard, CardCollection } from '../components';
 import { COLORS, SHADOWS, PALETTE } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { LocationService } from '../game/services/LocationService';
@@ -58,9 +58,10 @@ const QuestLogScreen = ({ navigation }) => {
       workshopVisited: playerStats?.workshopVisited || false,
       currentStreak: playerStats?.currentStreak || 0,
       uniqueCards: playerStats?.uniqueCards || 0,
+      collectedCards: claimedChallenges.length, // Anzahl abgeholter Karten
     };
     return getChallengesWithProgress(playerData);
-  }, [stats, completedQuests, playerStats]);
+  }, [stats, completedQuests, playerStats, claimedChallenges]);
 
   // Fortschritts-Statistiken für Challenges
   const challengeStats = useMemo(() => {
@@ -77,20 +78,15 @@ const QuestLogScreen = ({ navigation }) => {
     // XP hinzufügen
     // dispatch({ type: 'ADD_XP', payload: challenge.xpReward });
     
-    // Belohnungsanzeige
-    if (challenge.reward?.claimLocation) {
-      Alert.alert(
-        '🎉 Challenge abgeschlossen!',
-        `Du hast +${challenge.xpReward} XP erhalten!\n\nHole deine ${challenge.reward?.type === 'physical_card' ? 'echte Sammelkarte' : 'Belohnung'} ab:\n📍 ${challenge.reward.claimLocation}`,
-        [{ text: 'Verstanden!' }]
-      );
-    } else {
-      Alert.alert(
-        '🎉 Challenge abgeschlossen!',
-        `Du hast +${challenge.xpReward} XP erhalten!`,
-        [{ text: 'Super!' }]
-      );
-    }
+    // Karten-Name für die Anzeige
+    const cardName = challenge.reward?.card?.name || 'Sammelkarte';
+    
+    // Belohnungsanzeige mit Kartenname
+    Alert.alert(
+      '🎉 Challenge abgeschlossen!',
+      `Du hast +${challenge.xpReward} XP erhalten!\n\n🃏 Deine Belohnung:\n"${cardName}" Sammelkarte\n\n📍 Abholen bei:\n${challenge.reward?.claimLocation || 'Info-Stand'}`,
+      [{ text: 'Verstanden!' }]
+    );
   };
 
   const handleRefresh = async () => {
@@ -301,6 +297,15 @@ const QuestLogScreen = ({ navigation }) => {
         ) : (
           // === CHALLENGES TAB ===
           <View style={styles.challengesContainer}>
+            {/* Kartensammlung */}
+            <CardCollection 
+              collectedCardIds={claimedChallenges.map(id => {
+                // Finde die Karte die zu dieser Challenge gehört
+                const challenge = eventChallenges.find(c => c.id === id);
+                return challenge?.reward?.card?.id;
+              }).filter(Boolean)}
+            />
+
             {/* Challenge Info Banner */}
             <LinearGradient
               colors={['#EC4899', '#8B5CF6']}
@@ -313,7 +318,7 @@ const QuestLogScreen = ({ navigation }) => {
                 <View style={styles.challengeInfoText}>
                   <Text style={styles.challengeInfoTitle}>Event Challenges</Text>
                   <Text style={styles.challengeInfoSub}>
-                    Schließe Challenges ab für echte Belohnungen!
+                    Schließe Challenges ab für echte Sammelkarten!
                   </Text>
                 </View>
               </View>
