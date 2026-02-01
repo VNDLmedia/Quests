@@ -4,8 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { TEAMS } from '../../config/teams';
-import { COLLECTIBLE_CARDS } from './cardCollection';
-
+import { COLLECTIBLE_CARDS } from './cardsData';
 import { COUNTRIES } from './countries';
 
 // Challenge-Typen
