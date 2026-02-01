@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { View, StyleSheet, Text, Modal, TouchableOpacity, ScrollView, Dimensions, Animated, Pressable } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View, StyleSheet, Text, Modal, TouchableOpacity, ScrollView, Dimensions, Animated, Pressable, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,30 +11,259 @@ import { useGame } from '../game/GameProvider';
 import { CARDS, RARITY, getCollectionCompletion, getRarityDistribution } from '../game/config/cards';
 import { COLORS, SHADOWS } from '../theme';
 import Card3D from '../components/Card3D';
+import { supabase, isSupabaseConfigured } from '../config/supabase';
 
 const { width, height } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
 const CARD_WIDTH = (width - 60) / COLUMN_COUNT;
 const CARD_HEIGHT = CARD_WIDTH * 1.4;
 
-// Tabs for profile page
+// QR Code Feature Types
+const FEATURE_TYPES = [
+  { id: 'reward', label: 'Belohnung', icon: 'gift' },
+  { id: 'gems', label: 'Gems', icon: 'diamond' },
+  { id: 'xp', label: 'XP', icon: 'flash' },
+  { id: 'pack', label: 'Pack', icon: 'cube' },
+  { id: 'quest', label: 'Quest', icon: 'compass' },
+  { id: 'event', label: 'Event', icon: 'calendar' },
+  { id: 'location', label: 'Location', icon: 'location' },
+  { id: 'custom', label: 'Custom', icon: 'code' },
+];
+
+// Tabs for profile page - Admin tab für Admin-User
 const TABS = [
-  { id: 'profile', label: 'Profile', icon: 'person' },
-  { id: 'collection', label: 'Collection', icon: 'albums' },
+  { id: 'profile', label: 'Profil', icon: 'person' },
+  { id: 'collection', label: 'Sammlung', icon: 'albums' },
+  { id: 'admin', label: 'Admin', icon: 'settings' },
 ];
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { player, collection, uniqueCards } = useGame();
+  const { player, collection, uniqueCards, user, addGems, addXP } = useGame();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
+  const [scanMode, setScanMode] = useState('player'); // 'player' oder 'register'
   const [showQR, setShowQR] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [selectedCard, setSelectedCard] = useState(null);
   const [rarityFilter, setRarityFilter] = useState('all');
   const cardScale = useRef(new Animated.Value(1)).current;
   
+  // Admin State
+  const [registeredQRCodes, setRegisteredQRCodes] = useState([]);
+  const [loadingQRCodes, setLoadingQRCodes] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [newQRCode, setNewQRCode] = useState({
+    qr_code_id: '',
+    name: '',
+    feature_type: 'gems',
+    feature_value: { amount: 50 },
+    single_use: true,
+  });
+  const [scanResult, setScanResult] = useState(null);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const scanTimeoutRef = useRef(null);
+  const lastScannedRef = useRef(null);
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // QR CODE MANAGEMENT FUNCTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Lade registrierte QR-Codes
+  const loadRegisteredQRCodes = useCallback(async () => {
+    if (!isSupabaseConfigured()) return;
+    setLoadingQRCodes(true);
+    try {
+      const { data, error } = await supabase
+        .from('qr_codes')
+        .select('*')
+        .order('registered_at', { ascending: false })
+        .limit(100);
+      
+      if (error) throw error;
+      setRegisteredQRCodes(data || []);
+    } catch (error) {
+      console.error('Error loading QR codes:', error);
+    } finally {
+      setLoadingQRCodes(false);
+    }
+  }, []);
+
+  // Lade QR-Codes wenn Admin-Tab aktiv wird
+  useEffect(() => {
+    if (activeTab === 'admin') {
+      loadRegisteredQRCodes();
+    }
+  }, [activeTab, loadRegisteredQRCodes]);
+
+  // Registriere einen neuen QR-Code
+  const registerQRCode = async (qrCodeId, options = {}) => {
+    if (!isSupabaseConfigured() || !user) {
+      Alert.alert('Fehler', 'Nicht angemeldet');
+      return { error: 'Not authenticated' };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('qr_codes')
+        .insert({
+          qr_code_id: qrCodeId,
+          name: options.name || `QR-Code ${qrCodeId.slice(0, 8)}`,
+          feature_type: options.feature_type || 'gems',
+          feature_value: options.feature_value || { amount: 50 },
+          single_use: options.single_use !== false,
+          registered_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '23505') {
+          Alert.alert('Bereits registriert', 'Dieser QR-Code ist bereits registriert.');
+        } else {
+          Alert.alert('Fehler', error.message);
+        }
+        return { error };
+      }
+
+      Alert.alert('Erfolg!', `QR-Code "${qrCodeId}" wurde registriert.`);
+      loadRegisteredQRCodes();
+      return { data };
+    } catch (error) {
+      Alert.alert('Fehler', error.message);
+      return { error };
+    }
+  };
+
+  // Prüfe und verarbeite einen gescannten QR-Code
+  const processScannedQRCode = async (scannedData) => {
+    if (!isSupabaseConfigured() || !user) return null;
+
+    try {
+      // Suche den QR-Code in der Datenbank
+      const { data: qrCode, error: findError } = await supabase
+        .from('qr_codes')
+        .select('*')
+        .eq('qr_code_id', scannedData)
+        .single();
+
+      if (findError || !qrCode) {
+        return { found: false, message: 'QR-Code nicht registriert' };
+      }
+
+      // Prüfe ob aktiv
+      if (!qrCode.is_active) {
+        return { found: true, valid: false, message: 'QR-Code ist nicht mehr aktiv' };
+      }
+
+      // Prüfe Gültigkeit
+      if (qrCode.valid_until && new Date(qrCode.valid_until) < new Date()) {
+        return { found: true, valid: false, message: 'QR-Code ist abgelaufen' };
+      }
+
+      // Prüfe ob User schon gescannt hat
+      const { data: existingScan } = await supabase
+        .from('qr_code_scans')
+        .select('id')
+        .eq('qr_code_id', qrCode.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingScan) {
+        return { found: true, valid: false, message: 'Du hast diesen Code bereits gescannt' };
+      }
+
+      // Prüfe max uses
+      if (qrCode.single_use && qrCode.current_uses >= 1) {
+        return { found: true, valid: false, message: 'QR-Code wurde bereits verwendet' };
+      }
+
+      if (qrCode.max_uses && qrCode.current_uses >= qrCode.max_uses) {
+        return { found: true, valid: false, message: 'QR-Code hat maximale Nutzungen erreicht' };
+      }
+
+      // Verarbeite die Belohnung
+      let rewardGiven = {};
+      const featureValue = qrCode.feature_value || {};
+
+      switch (qrCode.feature_type) {
+        case 'gems':
+          const gemAmount = featureValue.amount || 50;
+          addGems(gemAmount);
+          rewardGiven = { gems: gemAmount };
+          break;
+        case 'xp':
+          const xpAmount = featureValue.amount || 100;
+          addXP(xpAmount);
+          rewardGiven = { xp: xpAmount };
+          break;
+        case 'reward':
+          if (featureValue.gems) addGems(featureValue.gems);
+          if (featureValue.xp) addXP(featureValue.xp);
+          rewardGiven = featureValue;
+          break;
+        default:
+          rewardGiven = { type: qrCode.feature_type, value: featureValue };
+      }
+
+      // Speichere den Scan
+      await supabase.from('qr_code_scans').insert({
+        qr_code_id: qrCode.id,
+        user_id: user.id,
+        reward_given: rewardGiven,
+      });
+
+      // Erhöhe current_uses
+      await supabase
+        .from('qr_codes')
+        .update({ current_uses: qrCode.current_uses + 1 })
+        .eq('id', qrCode.id);
+
+      return { 
+        found: true, 
+        valid: true, 
+        qrCode, 
+        reward: rewardGiven,
+        message: `Belohnung erhalten!`
+      };
+    } catch (error) {
+      console.error('Error processing QR code:', error);
+      return { error: error.message };
+    }
+  };
+
+  // Lösche einen QR-Code
+  const deleteQRCode = async (id) => {
+    if (!isSupabaseConfigured()) return;
+    
+    Alert.alert(
+      'QR-Code löschen',
+      'Bist du sicher, dass du diesen QR-Code löschen möchtest?',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Löschen',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('qr_codes')
+                .delete()
+                .eq('id', id);
+              
+              if (error) throw error;
+              loadRegisteredQRCodes();
+            } catch (error) {
+              Alert.alert('Fehler', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Calculate Progress
   const xpProgress = (player.xpInCurrentLevel / player.xpNeededForNext) * 100;
   
@@ -67,18 +296,119 @@ const ProfileScreen = () => {
     }).start(() => setSelectedCard(null));
   };
 
-  const startScan = async () => {
-    if (!permission?.granted) {
-      const res = await requestPermission();
-      if (!res.granted) return;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IMPROVED CAMERA & SCANNING FUNCTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const startScan = async (mode = 'player') => {
+    // Reset states
+    setCameraReady(false);
+    setCameraError(null);
+    setScanResult(null);
+    lastScannedRef.current = null;
+    setScanMode(mode);
+    
+    // Clear any existing timeout
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
     }
+    
+    // Request camera permission
+    if (!permission?.granted) {
+      try {
+        const res = await requestPermission();
+        if (!res.granted) {
+          Alert.alert(
+            'Kamera-Berechtigung benötigt',
+            'Bitte erlaube den Kamera-Zugriff in den Einstellungen, um QR-Codes zu scannen.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      } catch (error) {
+        console.error('Permission error:', error);
+        setCameraError('Kamera-Berechtigung konnte nicht angefragt werden');
+        return;
+      }
+    }
+    
     setIsScanning(true);
+    
+    // Auto-close after 60 seconds if nothing scanned
+    scanTimeoutRef.current = setTimeout(() => {
+      if (isScanning) {
+        setIsScanning(false);
+        Alert.alert('Timeout', 'Kein QR-Code erkannt. Bitte versuche es erneut.');
+      }
+    }, 60000);
   };
 
-  const handleBarCodeScanned = ({ data }) => {
-    setIsScanning(false);
-    alert(`NPC recruited: ${data}`);
+  const handleBarCodeScanned = async ({ data, type }) => {
+    // Prevent duplicate scans
+    if (lastScannedRef.current === data) return;
+    lastScannedRef.current = data;
+    
+    // Clear timeout
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+    }
+    
+    console.log('Scanned QR Code:', data, 'Type:', type);
+    
+    if (scanMode === 'register') {
+      // Admin mode: Registriere den QR-Code
+      setIsScanning(false);
+      setNewQRCode(prev => ({ ...prev, qr_code_id: data }));
+      setShowRegisterModal(true);
+    } else {
+      // Normal mode: Verarbeite den QR-Code
+      const result = await processScannedQRCode(data);
+      setScanResult(result);
+      
+      // Zeige Ergebnis
+      setTimeout(() => {
+        setIsScanning(false);
+        
+        if (result?.valid) {
+          // Erfolg!
+          const rewardText = result.reward?.gems 
+            ? `+${result.reward.gems} Gems!` 
+            : result.reward?.xp 
+              ? `+${result.reward.xp} XP!`
+              : 'Belohnung erhalten!';
+          Alert.alert('Erfolg! 🎉', rewardText);
+        } else if (result?.found === false) {
+          // Unbekannter Code - könnte ein Player sein
+          if (data.startsWith('USER:')) {
+            Alert.alert('Spieler gefunden', `Player ID: ${data.replace('USER:', '')}`);
+          } else {
+            Alert.alert('Unbekannt', `Code "${data}" ist nicht registriert.`);
+          }
+        } else {
+          Alert.alert('Info', result?.message || 'QR-Code konnte nicht verarbeitet werden');
+        }
+      }, 500);
+    }
   };
+
+  const onCameraReady = () => {
+    setCameraReady(true);
+    setCameraError(null);
+  };
+
+  const onCameraError = (error) => {
+    console.error('Camera error:', error);
+    setCameraError('Kamera konnte nicht gestartet werden');
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const renderCollectionItem = (card) => {
     const isUnlocked = (uniqueCards || []).includes(card.id);
@@ -129,8 +459,126 @@ const ProfileScreen = () => {
     );
   };
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER ADMIN TAB
+  // ═══════════════════════════════════════════════════════════════════════════
+  const renderAdminTab = () => {
+    return (
+      <View style={styles.adminTab}>
+        {/* Admin Header */}
+        <View style={styles.adminHeader}>
+          <Text style={styles.adminTitle}>QR-Code Verwaltung</Text>
+          <Text style={styles.adminSubtitle}>Registriere und verwalte deine QR-Codes</Text>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.adminActions}>
+          <TouchableOpacity 
+            style={styles.adminActionBtn}
+            onPress={() => startScan('register')}
+          >
+            <LinearGradient 
+              colors={COLORS.gradients.primary} 
+              style={styles.adminActionGradient}
+            >
+              <Ionicons name="qr-code" size={28} color="white" />
+              <Text style={styles.adminActionText}>QR-Code Scannen</Text>
+              <Text style={styles.adminActionDesc}>Zum Registrieren</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.adminActionBtn}
+            onPress={() => setShowRegisterModal(true)}
+          >
+            <LinearGradient 
+              colors={['#10b981', '#34d399']} 
+              style={styles.adminActionGradient}
+            >
+              <Ionicons name="add-circle" size={28} color="white" />
+              <Text style={styles.adminActionText}>Manuell Eingeben</Text>
+              <Text style={styles.adminActionDesc}>ID direkt eingeben</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* Stats */}
+        <View style={styles.adminStats}>
+          <View style={styles.adminStatBox}>
+            <Text style={styles.adminStatNumber}>{registeredQRCodes.length}</Text>
+            <Text style={styles.adminStatLabel}>Registriert</Text>
+          </View>
+          <View style={styles.adminStatBox}>
+            <Text style={styles.adminStatNumber}>
+              {registeredQRCodes.filter(qr => qr.is_active).length}
+            </Text>
+            <Text style={styles.adminStatLabel}>Aktiv</Text>
+          </View>
+          <View style={styles.adminStatBox}>
+            <Text style={styles.adminStatNumber}>
+              {registeredQRCodes.reduce((sum, qr) => sum + (qr.current_uses || 0), 0)}
+            </Text>
+            <Text style={styles.adminStatLabel}>Scans</Text>
+          </View>
+        </View>
+
+        {/* Registered QR Codes List */}
+        <Text style={styles.sectionTitle}>Registrierte QR-Codes</Text>
+        
+        {loadingQRCodes ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Lade QR-Codes...</Text>
+          </View>
+        ) : registeredQRCodes.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="qr-code-outline" size={48} color={COLORS.text.muted} />
+            <Text style={styles.emptyStateText}>Noch keine QR-Codes registriert</Text>
+            <Text style={styles.emptyStateSubtext}>Scanne oder gib einen QR-Code ein</Text>
+          </View>
+        ) : (
+          <View style={styles.qrCodesList}>
+            {registeredQRCodes.map((qrCode) => (
+              <View key={qrCode.id} style={styles.qrCodeItem}>
+                <View style={styles.qrCodeIcon}>
+                  <Ionicons 
+                    name={FEATURE_TYPES.find(f => f.id === qrCode.feature_type)?.icon || 'qr-code'} 
+                    size={24} 
+                    color={qrCode.is_active ? COLORS.primary : COLORS.text.muted} 
+                  />
+                </View>
+                <View style={styles.qrCodeInfo}>
+                  <Text style={styles.qrCodeId}>{qrCode.qr_code_id}</Text>
+                  <Text style={styles.qrCodeName}>{qrCode.name || 'Kein Name'}</Text>
+                  <View style={styles.qrCodeMeta}>
+                    <Text style={styles.qrCodeType}>
+                      {FEATURE_TYPES.find(f => f.id === qrCode.feature_type)?.label}
+                    </Text>
+                    <Text style={styles.qrCodeUses}>
+                      {qrCode.current_uses || 0} Scans
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity 
+                  style={styles.qrCodeDeleteBtn}
+                  onPress={() => deleteQRCode(qrCode.id)}
+                >
+                  <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   // Render Tab Content
   const renderTabContent = () => {
+    if (activeTab === 'admin') {
+      return renderAdminTab();
+    }
+    
     if (activeTab === 'collection') {
       return (
         <View style={styles.collectionTab}>
@@ -383,21 +831,219 @@ const ProfileScreen = () => {
         </View>
       </Modal>
 
-      {/* SCANNER MODAL */}
-      <Modal visible={isScanning} animationType="slide">
+      {/* IMPROVED SCANNER MODAL */}
+      <Modal visible={isScanning} animationType="slide" statusBarTranslucent>
         <View style={styles.cameraContainer}>
-          <CameraView
-            style={styles.camera}
-            onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
-            barcodeSettings={{ barcodeTypes: ["qr"] }}
-          >
-            <View style={styles.cameraOverlay}>
-              <TouchableOpacity style={styles.closeButton} onPress={() => setIsScanning(false)}>
-                <Ionicons name="close-circle" size={48} color="white" />
+          {cameraError ? (
+            <View style={styles.cameraErrorContainer}>
+              <Ionicons name="camera-outline" size={64} color={COLORS.text.muted} />
+              <Text style={styles.cameraErrorText}>{cameraError}</Text>
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={() => startScan(scanMode)}
+              >
+                <Text style={styles.retryButtonText}>Erneut versuchen</Text>
               </TouchableOpacity>
-              <View style={styles.scanFrame} />
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => setIsScanning(false)}
+              >
+                <Text style={styles.cancelButtonText}>Abbrechen</Text>
+              </TouchableOpacity>
             </View>
-          </CameraView>
+          ) : (
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
+              barcodeScannerSettings={{ 
+                barcodeTypes: ["qr", "aztec", "ean13", "ean8", "pdf417", "upc_e", "datamatrix", "code39", "code93", "itf14", "codabar", "code128", "upc_a"] 
+              }}
+              onCameraReady={onCameraReady}
+              onMountError={onCameraError}
+            >
+              <View style={styles.cameraOverlay}>
+                {/* Header */}
+                <View style={styles.scannerHeader}>
+                  <TouchableOpacity 
+                    style={styles.scannerCloseBtn} 
+                    onPress={() => {
+                      if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+                      setIsScanning(false);
+                    }}
+                  >
+                    <Ionicons name="close" size={28} color="white" />
+                  </TouchableOpacity>
+                  <Text style={styles.scannerTitle}>
+                    {scanMode === 'register' ? 'QR-Code registrieren' : 'QR-Code scannen'}
+                  </Text>
+                  <View style={{ width: 40 }} />
+                </View>
+                
+                {/* Scan Frame */}
+                <View style={styles.scanFrameContainer}>
+                  <View style={styles.scanFrame}>
+                    <View style={[styles.scanCorner, styles.cornerTopLeft]} />
+                    <View style={[styles.scanCorner, styles.cornerTopRight]} />
+                    <View style={[styles.scanCorner, styles.cornerBottomLeft]} />
+                    <View style={[styles.scanCorner, styles.cornerBottomRight]} />
+                  </View>
+                  
+                  {/* Loading indicator while camera initializes */}
+                  {!cameraReady && (
+                    <View style={styles.cameraLoadingOverlay}>
+                      <ActivityIndicator size="large" color="white" />
+                      <Text style={styles.cameraLoadingText}>Kamera wird geladen...</Text>
+                    </View>
+                  )}
+                </View>
+                
+                {/* Instructions */}
+                <View style={styles.scannerFooter}>
+                  <Text style={styles.scannerHint}>
+                    {scanMode === 'register' 
+                      ? 'Halte den QR-Code in den Rahmen zum Registrieren'
+                      : 'Halte den QR-Code in den Rahmen'}
+                  </Text>
+                  
+                  {/* Toggle light button for dark environments */}
+                  {Platform.OS !== 'web' && (
+                    <TouchableOpacity style={styles.flashButton}>
+                      <Ionicons name="flashlight-outline" size={24} color="white" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </CameraView>
+          )}
+        </View>
+      </Modal>
+
+      {/* QR CODE REGISTRATION MODAL */}
+      <Modal visible={showRegisterModal} transparent animationType="fade">
+        <View style={styles.modalContainer}>
+          <View style={styles.registerModal}>
+            <Text style={styles.registerTitle}>QR-Code registrieren</Text>
+            
+            {/* QR Code ID */}
+            <Text style={styles.inputLabel}>QR-Code ID *</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Gescannte oder manuelle ID"
+              placeholderTextColor={COLORS.text.muted}
+              value={newQRCode.qr_code_id}
+              onChangeText={(text) => setNewQRCode(prev => ({ ...prev, qr_code_id: text }))}
+            />
+            
+            {/* Name */}
+            <Text style={styles.inputLabel}>Name (optional)</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="z.B. 'Willkommens-Bonus'"
+              placeholderTextColor={COLORS.text.muted}
+              value={newQRCode.name}
+              onChangeText={(text) => setNewQRCode(prev => ({ ...prev, name: text }))}
+            />
+            
+            {/* Feature Type */}
+            <Text style={styles.inputLabel}>Belohnungstyp</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.featureTypeScroll}>
+              {FEATURE_TYPES.map(type => (
+                <TouchableOpacity
+                  key={type.id}
+                  style={[
+                    styles.featureTypeChip,
+                    newQRCode.feature_type === type.id && styles.featureTypeChipActive
+                  ]}
+                  onPress={() => setNewQRCode(prev => ({ ...prev, feature_type: type.id }))}
+                >
+                  <Ionicons 
+                    name={type.icon} 
+                    size={16} 
+                    color={newQRCode.feature_type === type.id ? 'white' : COLORS.text.secondary} 
+                  />
+                  <Text style={[
+                    styles.featureTypeText,
+                    newQRCode.feature_type === type.id && styles.featureTypeTextActive
+                  ]}>{type.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
+            {/* Amount (für gems/xp) */}
+            {(newQRCode.feature_type === 'gems' || newQRCode.feature_type === 'xp') && (
+              <>
+                <Text style={styles.inputLabel}>Menge</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="50"
+                  placeholderTextColor={COLORS.text.muted}
+                  keyboardType="numeric"
+                  value={String(newQRCode.feature_value?.amount || '')}
+                  onChangeText={(text) => setNewQRCode(prev => ({ 
+                    ...prev, 
+                    feature_value: { ...prev.feature_value, amount: parseInt(text) || 0 }
+                  }))}
+                />
+              </>
+            )}
+            
+            {/* Single Use Toggle */}
+            <TouchableOpacity 
+              style={styles.toggleRow}
+              onPress={() => setNewQRCode(prev => ({ ...prev, single_use: !prev.single_use }))}
+            >
+              <View>
+                <Text style={styles.toggleLabel}>Einmalige Nutzung</Text>
+                <Text style={styles.toggleDesc}>Kann nur von einem User verwendet werden</Text>
+              </View>
+              <View style={[styles.toggle, newQRCode.single_use && styles.toggleActive]}>
+                <View style={[styles.toggleKnob, newQRCode.single_use && styles.toggleKnobActive]} />
+              </View>
+            </TouchableOpacity>
+            
+            {/* Buttons */}
+            <View style={styles.registerButtons}>
+              <TouchableOpacity 
+                style={styles.registerCancelBtn}
+                onPress={() => {
+                  setShowRegisterModal(false);
+                  setNewQRCode({
+                    qr_code_id: '',
+                    name: '',
+                    feature_type: 'gems',
+                    feature_value: { amount: 50 },
+                    single_use: true,
+                  });
+                }}
+              >
+                <Text style={styles.registerCancelText}>Abbrechen</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.registerSubmitBtn,
+                  !newQRCode.qr_code_id && styles.registerSubmitBtnDisabled
+                ]}
+                disabled={!newQRCode.qr_code_id}
+                onPress={async () => {
+                  const result = await registerQRCode(newQRCode.qr_code_id, newQRCode);
+                  if (!result.error) {
+                    setShowRegisterModal(false);
+                    setNewQRCode({
+                      qr_code_id: '',
+                      name: '',
+                      feature_type: 'gems',
+                      feature_value: { amount: 50 },
+                      single_use: true,
+                    });
+                  }
+                }}
+              >
+                <Text style={styles.registerSubmitText}>Registrieren</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
     </View>
@@ -918,7 +1564,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  // Camera
+  // Camera - Improved for all devices
   cameraContainer: {
     flex: 1,
     backgroundColor: 'black',
@@ -928,21 +1574,417 @@ const styles = StyleSheet.create({
   },
   cameraOverlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  scanFrame: {
-    width: 250,
-    height: 250,
-    borderWidth: 3,
-    borderColor: COLORS.primary,
-    borderRadius: 24,
+  cameraErrorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    padding: 40,
   },
-  closeButton: {
+  cameraErrorText: {
+    color: COLORS.text.secondary,
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  cancelButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  cancelButtonText: {
+    color: COLORS.text.muted,
+    fontSize: 14,
+  },
+  scannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  scannerCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scannerTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  scanFrameContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanFrame: {
+    width: 280,
+    height: 280,
+    position: 'relative',
+  },
+  scanCorner: {
     position: 'absolute',
-    top: 60,
-    right: 20,
+    width: 40,
+    height: 40,
+    borderColor: COLORS.primary,
+  },
+  cornerTopLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 12,
+  },
+  cornerTopRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 12,
+  },
+  cornerBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 12,
+  },
+  cornerBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 12,
+  },
+  cameraLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 12,
+  },
+  cameraLoadingText: {
+    color: 'white',
+    marginTop: 12,
+    fontSize: 14,
+  },
+  scannerFooter: {
+    paddingHorizontal: 40,
+    paddingBottom: 60,
+    alignItems: 'center',
+  },
+  scannerHint: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  flashButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  // Admin Tab Styles
+  adminTab: {
+    flex: 1,
+  },
+  adminHeader: {
+    marginBottom: 20,
+  },
+  adminTitle: {
+    color: COLORS.text.primary,
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  adminSubtitle: {
+    color: COLORS.text.secondary,
+    fontSize: 14,
+  },
+  adminActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  adminActionBtn: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...SHADOWS.md,
+  },
+  adminActionGradient: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  adminActionText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  adminActionDesc: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  adminStats: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 24,
+  },
+  adminStatBox: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    ...SHADOWS.sm,
+  },
+  adminStatNumber: {
+    color: COLORS.text.primary,
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  adminStatLabel: {
+    color: COLORS.text.secondary,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    color: COLORS.text.secondary,
+    marginTop: 12,
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+  },
+  emptyStateText: {
+    color: COLORS.text.primary,
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  emptyStateSubtext: {
+    color: COLORS.text.muted,
+    fontSize: 13,
+    marginTop: 4,
+  },
+  qrCodesList: {
+    gap: 10,
+  },
+  qrCodeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    padding: 14,
+    ...SHADOWS.sm,
+  },
+  qrCodeIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  qrCodeInfo: {
+    flex: 1,
+  },
+  qrCodeId: {
+    color: COLORS.text.primary,
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  qrCodeName: {
+    color: COLORS.text.secondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  qrCodeMeta: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  qrCodeType: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  qrCodeUses: {
+    color: COLORS.text.muted,
+    fontSize: 11,
+  },
+  qrCodeDeleteBtn: {
+    padding: 8,
+  },
+  
+  // Register Modal Styles
+  registerModal: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    ...SHADOWS.lg,
+  },
+  registerTitle: {
+    color: COLORS.text.primary,
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  inputLabel: {
+    color: COLORS.text.secondary,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  textInput: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: 14,
+    color: COLORS.text.primary,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  featureTypeScroll: {
+    marginVertical: 8,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+  },
+  featureTypeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  featureTypeChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  featureTypeText: {
+    color: COLORS.text.secondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  featureTypeTextActive: {
+    color: 'white',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  toggleLabel: {
+    color: COLORS.text.primary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  toggleDesc: {
+    color: COLORS.text.muted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  toggle: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.border,
+    padding: 2,
+  },
+  toggleActive: {
+    backgroundColor: COLORS.primary,
+  },
+  toggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'white',
+  },
+  toggleKnobActive: {
+    transform: [{ translateX: 22 }],
+  },
+  registerButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  registerCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  registerCancelText: {
+    color: COLORS.text.secondary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  registerSubmitBtn: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  registerSubmitBtnDisabled: {
+    opacity: 0.5,
+  },
+  registerSubmitText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 

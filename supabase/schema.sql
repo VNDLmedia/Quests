@@ -390,3 +390,60 @@ CREATE INDEX IF NOT EXISTS idx_leaderboard_weekly ON leaderboard(weekly_xp DESC)
 CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_feed(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_challenges_users ON challenges(challenger_id, opponent_id);
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- QR CODES TABLE (Admin registrierte QR-Codes für Features)
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS qr_codes (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  qr_code_id TEXT NOT NULL UNIQUE, -- Die ID die auf dem physischen QR-Code steht
+  name TEXT, -- Optionaler Name/Beschreibung
+  feature_type TEXT DEFAULT 'reward' CHECK (feature_type IN ('reward', 'quest', 'pack', 'gems', 'xp', 'card', 'event', 'location', 'custom')),
+  feature_value JSONB DEFAULT '{}', -- z.B. {"gems": 100} oder {"pack_type": "premium"}
+  is_active BOOLEAN DEFAULT true,
+  single_use BOOLEAN DEFAULT true, -- Kann nur einmal verwendet werden
+  max_uses INTEGER, -- Null = unlimited wenn single_use false
+  current_uses INTEGER DEFAULT 0,
+  valid_from TIMESTAMPTZ DEFAULT NOW(),
+  valid_until TIMESTAMPTZ, -- Null = kein Ablaufdatum
+  registered_by UUID REFERENCES profiles(id),
+  registered_at TIMESTAMPTZ DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'
+);
+
+ALTER TABLE qr_codes ENABLE ROW LEVEL SECURITY;
+
+-- Admins können QR-Codes sehen und bearbeiten
+CREATE POLICY "QR codes are viewable by admins" ON qr_codes
+  FOR SELECT USING (true);
+
+CREATE POLICY "QR codes can be managed by admins" ON qr_codes
+  FOR ALL USING (true); -- In Production: hier Admin-Check einfügen
+
+-- Index für schnelle Suche
+CREATE INDEX IF NOT EXISTS idx_qr_codes_qr_id ON qr_codes(qr_code_id);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_active ON qr_codes(is_active);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- QR CODE SCANS TABLE (Tracking wer was gescannt hat)
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS qr_code_scans (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  qr_code_id UUID REFERENCES qr_codes(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  scanned_at TIMESTAMPTZ DEFAULT NOW(),
+  reward_given JSONB DEFAULT '{}', -- Was der User bekommen hat
+  location JSONB DEFAULT '{}', -- Optional: wo gescannt wurde
+  UNIQUE(qr_code_id, user_id) -- Jeder User kann jeden Code nur einmal scannen
+);
+
+ALTER TABLE qr_code_scans ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own scans" ON qr_code_scans
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own scans" ON qr_code_scans
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_qr_scans_user ON qr_code_scans(user_id);
+CREATE INDEX IF NOT EXISTS idx_qr_scans_qr ON qr_code_scans(qr_code_id);
+
