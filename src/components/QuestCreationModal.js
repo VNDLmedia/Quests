@@ -190,6 +190,19 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
     console.log('===> Current step:', step);
   }, [step]);
 
+  // Auto-advance from step 2 to step 3 when QR code is set
+  useEffect(() => {
+    if (step === 2 && qrCodeId && !qrScanning) {
+      console.log('🔄 useEffect detected: step=2, qrCodeId set, not scanning');
+      console.log('🔄 Auto-advancing to step 3 in 150ms');
+      const timer = setTimeout(() => {
+        console.log('🚀 AUTO-ADVANCE: setStep(3)');
+        setStep(3);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [step, qrCodeId, qrScanning]);
+
   // Step 1: Location
   const [location, setLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
@@ -243,80 +256,124 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   };
 
   const handleQRScanned = async ({ data }) => {
-    console.log('===> handleQRScanned called with data:', data);
-    console.log('===> Current step before processing:', step);
+    console.log('╔══════════════════════════════════════════════════════════╗');
+    console.log('║  QR SCAN EVENT TRIGGERED                                 ║');
+    console.log('╚══════════════════════════════════════════════════════════╝');
+    console.log('RAW DATA:', data);
+    console.log('DATA TYPE:', typeof data);
+    console.log('DATA LENGTH:', data?.length);
+    console.log('CURRENT STEP:', step);
+    console.log('CURRENT qrCodeId:', qrCodeId);
+    console.log('CURRENT qrScanning:', qrScanning);
     
     // Immediate validation
     if (!data || data.trim() === '') {
-      console.log('===> Empty QR code, ignoring');
+      console.log('❌ Empty QR code, ignoring');
       return;
     }
 
+    const trimmedData = data.trim();
+    console.log('TRIMMED DATA:', trimmedData);
+    
     // Close scanner immediately to prevent multiple scans
-    console.log('===> Closing scanner');
+    console.log('🔒 Closing scanner (setQrScanning(false))');
     setQrScanning(false);
+    
+    console.log('⏳ Setting loading to true');
     setLoading(true);
 
     try {
-      const trimmedData = data.trim();
-      console.log('===> Trimmed data:', trimmedData);
-      console.log('===> Calling validateQRCode...');
-      
+      console.log('📞 Calling validateQRCode with:', trimmedData);
       const validation = await validateQRCode(trimmedData);
-      console.log('===> Validation complete:', JSON.stringify(validation));
+      console.log('✅ Validation returned:', JSON.stringify(validation, null, 2));
       
       if (!validation.valid && validation.error) {
-        console.log('===> QR code already in use, showing alert');
+        console.log('⚠️ QR code already in use');
         setLoading(false);
-        Alert.alert(
-          'QR Code Already Used',
-          validation.error,
-          [
-            { 
-              text: 'Scan Again', 
-              onPress: () => {
-                console.log('===> User chose to scan again');
-                setQrScanning(true);
-              }
-            },
-            { 
-              text: 'Use Anyway', 
-              onPress: () => {
-                console.log('===> User chose to use anyway, setting qrCodeId:', trimmedData);
-                setQrCodeId(trimmedData);
-                console.log('===> QR ID set, waiting before advancing to step 3');
-                setTimeout(() => {
-                  console.log('===> Now advancing to step 3');
-                  setStep(3);
-                }, 200);
-              }
-            },
-            { 
-              text: 'Cancel', 
-              style: 'cancel',
-              onPress: () => console.log('===> User cancelled')
-            },
-          ]
-        );
+        
+        if (Platform.OS === 'web') {
+          // On web, use window.confirm instead of Alert
+          const useAnyway = window.confirm(
+            `${validation.error}\n\nDo you want to use it anyway?`
+          );
+          
+          if (useAnyway) {
+            console.log('✓ User wants to use anyway');
+            console.log('📝 Setting qrCodeId to:', trimmedData);
+            setQrCodeId(trimmedData);
+            console.log('⏰ Scheduling step change to 3 in 100ms');
+            setTimeout(() => {
+              console.log('🚀 EXECUTING setStep(3)');
+              setStep(3);
+            }, 100);
+          } else {
+            console.log('❌ User cancelled');
+            setQrScanning(true);
+          }
+        } else {
+          Alert.alert(
+            'QR Code Already Used',
+            validation.error,
+            [
+              { 
+                text: 'Scan Again', 
+                onPress: () => {
+                  console.log('🔄 User chose to scan again');
+                  setQrScanning(true);
+                }
+              },
+              { 
+                text: 'Use Anyway', 
+                onPress: () => {
+                  console.log('✓ User chose to use anyway');
+                  console.log('📝 Setting qrCodeId to:', trimmedData);
+                  setQrCodeId(trimmedData);
+                  console.log('⏰ Scheduling step change to 3 in 100ms');
+                  setTimeout(() => {
+                    console.log('🚀 EXECUTING setStep(3)');
+                    setStep(3);
+                  }, 100);
+                }
+              },
+              { 
+                text: 'Cancel', 
+                style: 'cancel',
+                onPress: () => console.log('❌ User cancelled')
+              },
+            ]
+          );
+        }
         return;
       }
       
       // QR code is valid - accept it
-      console.log('===> QR code is valid, setting qrCodeId:', trimmedData);
+      console.log('✅ QR code is valid and available');
+      console.log('📝 Setting qrCodeId to:', trimmedData);
       setQrCodeId(trimmedData);
+      
+      console.log('⏳ Setting loading to false');
       setLoading(false);
       
-      console.log('===> Waiting 200ms before advancing to step 3');
+      console.log('⏰ Scheduling step change to 3 in 100ms');
       setTimeout(() => {
-        console.log('===> NOW SETTING STEP TO 3');
+        console.log('╔══════════════════════════════════════════════════════════╗');
+        console.log('║  🚀 EXECUTING setStep(3) NOW                             ║');
+        console.log('╚══════════════════════════════════════════════════════════╝');
         setStep(3);
-        console.log('===> setStep(3) called');
-      }, 200);
+      }, 100);
       
     } catch (error) {
-      console.error('===> ERROR in handleQRScanned:', error);
+      console.error('╔══════════════════════════════════════════════════════════╗');
+      console.error('║  ❌ ERROR IN handleQRScanned                             ║');
+      console.error('╚══════════════════════════════════════════════════════════╝');
+      console.error(error);
       setLoading(false);
-      Alert.alert('Error', error.message || 'Failed to process QR code');
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Error: ${error.message || 'Failed to process QR code'}`);
+      } else {
+        Alert.alert('Error', error.message || 'Failed to process QR code');
+      }
     }
   };
 
@@ -579,6 +636,17 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
               <Text style={styles.stepDescription}>
                 Scan the QR code that users will need to complete this quest
               </Text>
+
+              {/* Debug Status Display */}
+              {__DEV__ && (
+                <View style={styles.debugPanel}>
+                  <Text style={styles.debugText}>🐛 DEBUG INFO:</Text>
+                  <Text style={styles.debugText}>Step: {step}</Text>
+                  <Text style={styles.debugText}>QR ID: {qrCodeId || 'none'}</Text>
+                  <Text style={styles.debugText}>Scanning: {qrScanning ? 'YES' : 'NO'}</Text>
+                  <Text style={styles.debugText}>Loading: {loading ? 'YES' : 'NO'}</Text>
+                </View>
+              )}
 
               {qrCodeId ? (
                 <GlassCard style={styles.qrCard} variant="dark">
@@ -984,6 +1052,20 @@ const styles = StyleSheet.create({
     color: COLORS.text.muted,
     textAlign: 'center',
     marginTop: 12,
+  },
+  debugPanel: {
+    backgroundColor: 'rgba(255, 0, 255, 0.2)',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 12,
+    borderWidth: 2,
+    borderColor: 'magenta',
+  },
+  debugText: {
+    color: 'magenta',
+    fontSize: 12,
+    fontFamily: 'monospace',
+    marginVertical: 2,
   },
   orDivider: {
     flexDirection: 'row',
