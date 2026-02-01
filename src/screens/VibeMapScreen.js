@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview'; 
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, SHADOWS } from '../theme';
+import { COLORS, SHADOWS, PALETTE } from '../theme';
 import { useGame } from '../game/GameProvider';
 import { useQuests } from '../game/hooks';
 import { calculateDistance } from '../game/config/quests';
@@ -25,43 +25,61 @@ const { width, height } = Dimensions.get('window');
 const QUEST_INTERACTION_RADIUS = 100;
 const DEFAULT_LOCATION = { latitude: 47.8224, longitude: 13.0456 };
 
-// Map HTML als Blob URL - wird nur EINMAL erstellt
-// Custom map style ohne Straßennamen + Meter-basierte Kreise
+// Dark theme Leaflet map with Eternal Path brand colors
 const MAP_HTML = `<!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
 <style>
-*{margin:0;padding:0}body{font-family:-apple-system,system-ui,sans-serif}
-#map{width:100%;height:100vh;background:#F8FAFC}
+*{margin:0;padding:0}
+body{font-family:-apple-system,system-ui,sans-serif}
+#map{width:100%;height:100vh;background:#0D1B2A}
 .leaflet-control-attribution,.leaflet-control-zoom{display:none}
+/* Dark blue night theme with no labels */
+.leaflet-tile-pane{opacity:1}
+.leaflet-tile-container img{
+  filter:brightness(0.45) contrast(1.2) saturate(0.6) hue-rotate(210deg);
+}
+/* Strong navy tint to inject brand palette */
+#map::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(8,15,26,0.6);pointer-events:none;z-index:400;mix-blend-mode:multiply}
+
+/* Player marker with golden glow */
 .player-wrapper{position:relative;display:flex;align-items:center;justify-content:center}
-.user-core{width:18px;height:18px;background:#4F46E5;border:3px solid #FFF;border-radius:50%;box-shadow:0 2px 10px rgba(79,70,229,0.5);position:relative;z-index:3}
-.user-pulse{position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(79,70,229,0.3);animation:pulse 2s ease-out infinite;z-index:1}
-.user-pulse2{position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(79,70,229,0.2);animation:pulse 2s ease-out infinite;animation-delay:0.5s;z-index:1}
-@keyframes pulse{0%{transform:scale(0.5);opacity:1}100%{transform:scale(2);opacity:0}}
+.user-core{width:18px;height:18px;background:#E8B84A;border:3px solid #0D1B2A;border-radius:50%;box-shadow:0 0 16px rgba(232,184,74,0.6),0 2px 8px rgba(0,0,0,0.4);position:relative;z-index:3}
+.user-pulse{position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(232,184,74,0.25);animation:pulse 2s ease-out infinite;z-index:1}
+.user-pulse2{position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(232,184,74,0.15);animation:pulse 2s ease-out infinite;animation-delay:0.5s;z-index:1}
+@keyframes pulse{0%{transform:scale(0.5);opacity:1}100%{transform:scale(2.5);opacity:0}}
+
+/* Quest markers */
 .quest-container{display:flex;flex-direction:column;align-items:center;transform:translateY(-30px);cursor:pointer}
 .quest-container.disabled{opacity:0.5;filter:grayscale(0.4)}
-.quest-pill{background:#FFF;padding:5px 8px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,0.12);display:flex;align-items:center;gap:6px;white-space:nowrap;border:2px solid}
-.quest-pill.available{border-color:#10B981}.quest-pill.active{border-color:#4F46E5;background:linear-gradient(135deg,#EEF2FF,#FFF)}.quest-pill.locked{border-color:#94A3B8;border-style:dashed}
-.quest-icon{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px}
-.quest-title{font-size:11px;font-weight:700;color:#1E293B}.quest-distance{font-size:9px;color:#64748B}
-.quest-reward{font-size:9px;font-weight:700;background:#F1F5F9;padding:2px 5px;border-radius:6px;color:#4F46E5}
-.quest-point{width:10px;height:10px;background:#FFF;border:3px solid;border-radius:50%;margin-top:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2)}
+.quest-pill{background:#1B2838;padding:6px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.5);display:flex;align-items:center;gap:8px;white-space:nowrap;border:1px solid}
+.quest-pill.available{border-color:rgba(93,173,226,0.5);background:linear-gradient(135deg,#1B2838,#243447)}
+.quest-pill.active{border-color:rgba(232,184,74,0.6);background:linear-gradient(135deg,#243447,#2D4156);box-shadow:0 0 20px rgba(232,184,74,0.2)}
+.quest-pill.locked{border-color:rgba(107,125,143,0.3);border-style:dashed}
+.quest-icon{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.quest-title{font-size:11px;font-weight:700;color:#FFFFFF}
+.quest-distance{font-size:9px;color:#B8C5D3}
+.quest-reward{font-size:9px;font-weight:700;background:rgba(232,184,74,0.15);padding:3px 6px;border-radius:6px;color:#E8B84A}
+.quest-point{width:10px;height:10px;background:#1B2838;border:3px solid;border-radius:50%;margin-top:6px;box-shadow:0 2px 8px rgba(0,0,0,0.4)}
 </style></head><body><div id="map"></div><script>
 const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([47.8224,13.0456],17);
 window.map=map;
-// Positron (no labels) - cleaner map without street names
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);
+// CartoDB Voyager (no labels) - clean night map base
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',{
+  maxZoom:20,
+  attribution:'',
+  subdomains:'abcd'
+}).addTo(map);
 const sendMsg=d=>{window.ReactNativeWebView?window.ReactNativeWebView.postMessage(JSON.stringify(d)):window.parent.postMessage(d,'*')};
 let playerMarker=null,playerCircleRange=null,questMarkers=[];
-const INTERACTION_RADIUS=100; // meters
+const INTERACTION_RADIUS=100;
 window.updatePlayer=function(player){
 const lat=player.latitude||player.lat,lng=player.longitude||player.lng;
 if(!playerMarker){
-// Range circle (100m) - zoom independent, stays 100m in real world
-playerCircleRange=L.circle([lat,lng],{radius:INTERACTION_RADIUS,color:'#4F46E5',weight:2,opacity:0.3,fillColor:'#4F46E5',fillOpacity:0.05,dashArray:'8,8'}).addTo(map);
-// Player marker with pulsing animation (CSS-based, centered)
+// Range circle with golden glow
+playerCircleRange=L.circle([lat,lng],{radius:INTERACTION_RADIUS,color:'#E8B84A',weight:2,opacity:0.4,fillColor:'#E8B84A',fillOpacity:0.06,dashArray:'8,8'}).addTo(map);
+// Player marker with pulsing gold animation
 playerMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="player-wrapper"><div class="user-pulse"></div><div class="user-pulse2"></div><div class="user-core"></div></div>',iconSize:[60,60],iconAnchor:[30,30]}),zIndexOffset:1000}).addTo(map);
 map.setView([lat,lng],17);
 }else{
@@ -74,8 +92,10 @@ questMarkers.forEach(m=>map.removeLayer(m));questMarkers=[];
 if(quests){quests.forEach(q=>{
 const sc=q.status==='active'?'active':q.canInteract?'available':'locked';
 const dt=q.distance?(q.distance<1000?q.distance+'m':(q.distance/1000).toFixed(1)+'km'):'';
-const h='<div class="quest-container '+(sc==='locked'?' disabled':'')+'"><div class="quest-pill '+sc+'"><div class="quest-icon" style="background:'+q.color+'20;color:'+q.color+'">⚔</div><div><div class="quest-title">'+q.title+'</div><div class="quest-distance">'+dt+'</div></div><div class="quest-reward">'+q.reward+'</div></div><div class="quest-point" style="border-color:'+q.color+'"></div></div>';
-const m=L.marker([q.lat,q.lng],{icon:L.divIcon({className:'',html:h,iconSize:[140,45],iconAnchor:[70,45]})}).addTo(map);
+const iconBg=q.status==='active'?'rgba(232,184,74,0.2)':'rgba(93,173,226,0.2)';
+const iconColor=q.status==='active'?'#E8B84A':'#5DADE2';
+const h='<div class="quest-container '+(sc==='locked'?' disabled':'')+'"><div class="quest-pill '+sc+'"><div class="quest-icon" style="background:'+iconBg+';color:'+iconColor+'">⚔</div><div><div class="quest-title">'+q.title+'</div><div class="quest-distance">'+dt+'</div></div><div class="quest-reward">'+q.reward+'</div></div><div class="quest-point" style="border-color:'+(q.status==='active'?'#E8B84A':'#5DADE2')+'"></div></div>';
+const m=L.marker([q.lat,q.lng],{icon:L.divIcon({className:'',html:h,iconSize:[150,50],iconAnchor:[75,50]})}).addTo(map);
 m.on('click',()=>sendMsg({type:'QUEST_TAP',quest:q}));questMarkers.push(m);
 })}
 };
@@ -87,7 +107,7 @@ else if(e.data.type==='CENTER_MAP')map.setView([e.data.lat,e.data.lng],18);
 setTimeout(()=>sendMsg({type:'MAP_READY'}),300);
 <\/script></body></html>`;
 
-// Erstelle Blob URL einmalig beim Module-Load
+// Create Blob URL once at module load
 let mapBlobUrl = null;
 if (Platform.OS === 'web' && typeof Blob !== 'undefined') {
   const blob = new Blob([MAP_HTML], { type: 'text/html' });
@@ -106,20 +126,17 @@ const MapScreen = () => {
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to vertical gestures
         return Math.abs(gestureState.dy) > 10;
       },
       onPanResponderGrant: () => {
         dragStartY.current = 0;
       },
       onPanResponderMove: (_, gestureState) => {
-        // Only allow dragging down (positive dy)
         if (gestureState.dy > 0) {
           slideAnim.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        // If dragged more than 100px down or velocity is high, close
         if (gestureState.dy > 100 || gestureState.vy > 0.5) {
           Animated.timing(slideAnim, { 
             toValue: height, 
@@ -127,7 +144,6 @@ const MapScreen = () => {
             useNativeDriver: true 
           }).start(() => setSelectedQuest(null));
         } else {
-          // Snap back
           Animated.spring(slideAnim, { 
             toValue: 0, 
             useNativeDriver: true 
@@ -168,19 +184,16 @@ const MapScreen = () => {
         setLocationStatus('found');
         updateLocation(coords);
         
-        // Generate quests with new location
         const generatedQuests = (allQuests || []).map((template) => {
           if (!template) return null;
           
           let questLat, questLng;
           
-          // Use location from DB if it exists
           if (template.location && allLocations[template.location]) {
             const loc = allLocations[template.location];
             questLat = loc.lat;
             questLng = loc.lng;
           } else {
-            // Random location nearby
             questLat = coords.latitude + (Math.random() - 0.5) * 0.008;
             questLng = coords.longitude + (Math.random() - 0.5) * 0.008;
           }
@@ -205,9 +218,7 @@ const MapScreen = () => {
     );
   }, [updateLocation]);
 
-  // Generate nearby quests - defined first so it can be used by other hooks
   const generateNearbyQuests = useCallback((coords) => {
-    // Check if we have quests loaded
     if (!allQuests || allQuests.length === 0) return;
 
     const generatedQuests = allQuests.map((template) => {
@@ -241,7 +252,6 @@ const MapScreen = () => {
     return distance <= QUEST_INTERACTION_RADIUS;
   }, [userLoc]);
 
-  // Berechne mapQuests nur wenn sich availableQuests oder activeQuests ändern
   const mapQuests = useMemo(() => {
     const quests = [];
     
@@ -274,12 +284,10 @@ const MapScreen = () => {
 
   const currentActiveQuest = useMemo(() => activeQuests[0] || null, [activeQuests]);
 
-  // Generate quests on mount
   useEffect(() => {
     generateNearbyQuests(DEFAULT_LOCATION);
   }, [generateNearbyQuests]);
 
-  // Request location
   useEffect(() => {
     if (Platform.OS === 'web') {
       if (!navigator.geolocation) {
@@ -287,7 +295,6 @@ const MapScreen = () => {
         return;
       }
       
-      // Delay to let page load
       const timer = setTimeout(() => {
         navigator.geolocation.getCurrentPosition(
           (position) => {
@@ -299,9 +306,6 @@ const MapScreen = () => {
             setLocationStatus('found');
             updateLocation(coords);
             generateNearbyQuests(coords);
-            
-// Kein kontinuierliches Watching auf Web - zu viele Updates verursachen Flackern
-          // Position wird manuell über den Center-Button aktualisiert
           },
           (err) => {
             console.log('Geolocation error:', err.code, err.message);
@@ -318,7 +322,6 @@ const MapScreen = () => {
         }
       };
     } else {
-      // Native: Use expo-location
       let sub = null;
       (async () => {
         try {
@@ -339,7 +342,6 @@ const MapScreen = () => {
             updateLocation(coords);
             generateNearbyQuests(coords);
             
-            // Watch position
             sub = await Location.watchPositionAsync(
               { accuracy: Location.Accuracy.Balanced, distanceInterval: 20 },
               (loc) => {
@@ -367,11 +369,9 @@ const MapScreen = () => {
     }
   }, [updateLocation, generateNearbyQuests]);
 
-  // Speichere letzte Quest-IDs um unnötige Updates zu vermeiden
   const lastQuestIdsRef = useRef('');
   const lastPlayerPosRef = useRef('');
   
-  // Update nur Player Position - sehr oft erlaubt
   useEffect(() => {
     if (!mapReadyRef.current && !mapReady) return;
     
@@ -387,7 +387,6 @@ const MapScreen = () => {
     }
   }, [mapReady, userLoc]);
   
-  // Update Quests - nur wenn sich die Quest-Liste ändert
   useEffect(() => {
     if (!mapReadyRef.current && !mapReady) return;
     
@@ -402,7 +401,7 @@ const MapScreen = () => {
       title: q.title,
       desc: q.description,
       icon: q.icon || 'flag',
-      color: q.color || '#4F46E5',
+      color: q.color || COLORS.secondary,
       reward: `${q.xpReward} XP`,
       status: q.status,
       canInteract: q.canInteract,
@@ -430,17 +429,13 @@ const MapScreen = () => {
   const acceptQuest = useCallback(async () => {
     if (!selectedQuest) return;
     if (!canInteractWithQuest(selectedQuest)) {
-      Alert.alert('Zu weit!', `Näher als ${QUEST_INTERACTION_RADIUS}m kommen.`);
+      Alert.alert('Too far!', `Get closer than ${QUEST_INTERACTION_RADIUS}m.`);
       return;
     }
     
-    // Remove from available quests UI
     setAvailableQuests(prev => prev.filter(q => q.id !== selectedQuest.id));
-    
-    // Start quest - this saves to Supabase!
     await startQuest(selectedQuest);
-    
-    Alert.alert('Quest gestartet!', selectedQuest.title);
+    Alert.alert('Quest started!', selectedQuest.title);
     closeQuestDetail();
   }, [selectedQuest, canInteractWithQuest, startQuest]);
 
@@ -461,7 +456,6 @@ const MapScreen = () => {
     }
   };
 
-  // Web Message Handler - einmal registrieren
   useEffect(() => {
     if (Platform.OS === 'web') {
       const handler = (e) => {
@@ -477,14 +471,12 @@ const MapScreen = () => {
     }
   }, []);
 
-  // Calculate positions based on safe area and navbar
   const topOffset = Platform.OS === 'ios' ? insets.top + 10 : 16;
-  // Navbar actual height from AppNavigator
   const bottomBarBottom = Platform.OS === 'ios' ? insets.bottom + 60 : 12;
 
   return (
     <View style={styles.container}>
-      {/* Map - Full Screen - Blob URL für Stabilität */}
+      {/* Map - Full Screen */}
       <View style={StyleSheet.absoluteFill}>
         {Platform.OS === 'web' && mapBlobUrl ? (
           <iframe 
@@ -519,18 +511,18 @@ const MapScreen = () => {
             if (loc) centerOnQuest({ ...currentActiveQuest, lat: loc.lat, lng: loc.lng });
           }}
         >
-          <LinearGradient colors={['#4F46E5', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.activeQuestGradient}>
+          <LinearGradient colors={COLORS.gradients.gold} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.activeQuestGradient}>
             <View style={styles.activeQuestIcon}>
-              <Ionicons name={currentActiveQuest.icon || 'flag'} size={16} color="#FFF" />
+              <Ionicons name={currentActiveQuest.icon || 'flag'} size={16} color={COLORS.background} />
             </View>
             <View style={styles.activeQuestInfo}>
-              <Text style={styles.activeQuestLabel}>AKTIVE QUEST</Text>
+              <Text style={styles.activeQuestLabel}>ACTIVE QUEST</Text>
               <Text style={styles.activeQuestTitle} numberOfLines={1}>{currentActiveQuest.title}</Text>
             </View>
             <View style={styles.activeQuestProgress}>
               <Text style={styles.activeQuestProgressText}>{currentActiveQuest.progress || 0}/{currentActiveQuest.target || 1}</Text>
             </View>
-            <Ionicons name="navigate" size={18} color="rgba(255,255,255,0.8)" />
+            <Ionicons name="navigate" size={18} color={COLORS.background} />
           </LinearGradient>
         </TouchableOpacity>
       )}
@@ -544,12 +536,12 @@ const MapScreen = () => {
           <Ionicons 
             name={locationStatus === 'denied' ? 'location-outline' : locationStatus === 'error' ? 'warning-outline' : 'locate-outline'} 
             size={14} 
-            color={locationStatus === 'denied' ? '#EF4444' : '#F59E0B'} 
+            color={locationStatus === 'denied' ? COLORS.error : COLORS.warning} 
           />
           <Text style={styles.locationText}>
-            {locationStatus === 'searching' && 'Standort wird gesucht...'}
-            {locationStatus === 'denied' && 'Tippen für Standort-Berechtigung'}
-            {locationStatus === 'error' && 'Standort nicht verfügbar - Tippen zum Retry'}
+            {locationStatus === 'searching' && 'Finding your location...'}
+            {locationStatus === 'denied' && 'Tap to enable location'}
+            {locationStatus === 'error' && 'Location unavailable - Tap to retry'}
           </Text>
         </TouchableOpacity>
       )}
@@ -560,19 +552,19 @@ const MapScreen = () => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.questRow}>
             {mapQuests.filter(q => q.status === 'available').map((quest) => (
               <TouchableOpacity key={quest.id} style={[styles.questCard, !quest.canInteract && styles.questCardLocked]} activeOpacity={0.9} onPress={() => centerOnQuest(quest)}>
-                <View style={[styles.questCardIcon, { backgroundColor: quest.color + '20' }]}>
-                  <Ionicons name={quest.icon || 'flag'} size={18} color={quest.color} />
+                <View style={[styles.questCardIcon, { backgroundColor: quest.canInteract ? 'rgba(93,173,226,0.15)' : 'rgba(107,125,143,0.1)' }]}>
+                  <Ionicons name={quest.icon || 'flag'} size={18} color={quest.canInteract ? COLORS.secondary : COLORS.text.muted} />
                 </View>
                 <View style={styles.questCardInfo}>
                   <Text style={styles.questCardTitle} numberOfLines={1}>{quest.title}</Text>
                   <View style={styles.questCardMeta}>
                     <Text style={styles.questCardDistance}>{quest.distance ? (quest.distance < 1000 ? `${quest.distance}m` : `${(quest.distance/1000).toFixed(1)}km`) : '...'}</Text>
                     <View style={[styles.questCardStatus, quest.canInteract ? styles.statusAvailable : styles.statusLocked]}>
-                      <Ionicons name={quest.canInteract ? 'checkmark-circle' : 'lock-closed'} size={10} color={quest.canInteract ? '#10B981' : '#94A3B8'} />
+                      <Ionicons name={quest.canInteract ? 'checkmark-circle' : 'lock-closed'} size={10} color={quest.canInteract ? COLORS.success : COLORS.text.muted} />
                     </View>
                   </View>
                 </View>
-                <Text style={[styles.questCardReward, { color: quest.color }]}>{quest.xpReward}</Text>
+                <Text style={[styles.questCardReward, { color: COLORS.primary }]}>{quest.xpReward}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -584,20 +576,20 @@ const MapScreen = () => {
         <View style={styles.statsGroup}>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{activeQuests.length}</Text>
-            <Text style={styles.statLabel}>Aktiv</Text>
+            <Text style={styles.statLabel}>Active</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.stat}>
             <Text style={styles.statValue}>{mapQuests.filter(q => q.canInteract && q.status === 'available').length}</Text>
-            <Text style={styles.statLabel}>Erreichbar</Text>
+            <Text style={styles.statLabel}>Nearby</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.locateBtn} onPress={centerOnUser}>
-          <Ionicons name="locate" size={20} color={COLORS.text.primary} />
+          <Ionicons name="locate" size={20} color={COLORS.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* Quest Detail Sheet - Draggable */}
+      {/* Quest Detail Sheet */}
       <Animated.View 
         style={[styles.bottomSheet, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 70 : 20, transform: [{ translateY: slideAnim }] }]}
         {...panResponder.panHandlers}
@@ -606,8 +598,8 @@ const MapScreen = () => {
           <>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
-              <View style={[styles.sheetIcon, { backgroundColor: selectedQuest.color + '20' }]}>
-                <Ionicons name={selectedQuest.icon || 'flag'} size={28} color={selectedQuest.color} />
+              <View style={[styles.sheetIcon, { backgroundColor: selectedQuest.canInteract ? 'rgba(93,173,226,0.15)' : 'rgba(107,125,143,0.1)' }]}>
+                <Ionicons name={selectedQuest.icon || 'flag'} size={28} color={selectedQuest.canInteract ? COLORS.secondary : COLORS.text.muted} />
               </View>
               <View style={styles.sheetContent}>
                 <Text style={styles.sheetTitle}>{selectedQuest.title}</Text>
@@ -620,24 +612,24 @@ const MapScreen = () => {
             
             <View style={styles.sheetStats}>
               <View style={styles.sheetStatItem}>
-                <Text style={styles.sheetStatLabel}>BELOHNUNG</Text>
+                <Text style={styles.sheetStatLabel}>REWARD</Text>
                 <Text style={[styles.sheetStatValue, { color: COLORS.primary }]}>{selectedQuest.xpReward} XP</Text>
               </View>
               <View style={styles.sheetStatItem}>
-                <Text style={styles.sheetStatLabel}>ENTFERNUNG</Text>
+                <Text style={styles.sheetStatLabel}>DISTANCE</Text>
                 <Text style={styles.sheetStatValue}>{selectedQuest.distance ? (selectedQuest.distance < 1000 ? `${selectedQuest.distance}m` : `${(selectedQuest.distance/1000).toFixed(1)}km`) : '-'}</Text>
               </View>
             </View>
 
             {selectedQuest.status === 'available' ? (
-              <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: selectedQuest.canInteract ? selectedQuest.color : '#94A3B8' }]} onPress={acceptQuest} disabled={!selectedQuest.canInteract}>
-                <Text style={styles.sheetBtnText}>{selectedQuest.canInteract ? 'Quest annehmen' : `Noch ${selectedQuest.distance}m`}</Text>
-                <Ionicons name={selectedQuest.canInteract ? 'add-circle' : 'walk'} size={18} color="#FFF" />
+              <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: selectedQuest.canInteract ? COLORS.primary : COLORS.text.muted }]} onPress={acceptQuest} disabled={!selectedQuest.canInteract}>
+                <Text style={styles.sheetBtnText}>{selectedQuest.canInteract ? 'Accept Quest' : `${selectedQuest.distance}m away`}</Text>
+                <Ionicons name={selectedQuest.canInteract ? 'add-circle' : 'walk'} size={18} color={COLORS.background} />
               </TouchableOpacity>
             ) : (
               <View style={styles.activeQuestBadge}>
                 <Ionicons name="play-circle" size={18} color={COLORS.primary} />
-                <Text style={styles.activeQuestBadgeText}>Quest läuft</Text>
+                <Text style={styles.activeQuestBadgeText}>Quest in progress</Text>
               </View>
             )}
           </>
@@ -648,37 +640,39 @@ const MapScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.backgroundDark },
   
-  // Location Indicator (small, non-blocking)
+  // Location Indicator
   locationIndicator: {
     position: 'absolute',
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(254, 243, 199, 0.95)',
+    backgroundColor: COLORS.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
-    borderRadius: 10,
-    gap: 6,
+    padding: 10,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
   },
-  locationText: { fontSize: 12, color: '#92400E', fontWeight: '500' },
+  locationText: { fontSize: 12, color: COLORS.text.secondary, fontWeight: '500' },
 
   // Active Quest
   activeQuestOverlay: { position: 'absolute', left: 16, right: 16, zIndex: 10 },
   activeQuestGradient: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, ...SHADOWS.md },
-  activeQuestIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  activeQuestIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(13,27,42,0.3)', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   activeQuestInfo: { flex: 1 },
-  activeQuestLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 },
-  activeQuestTitle: { fontSize: 14, fontWeight: '700', color: '#FFF', marginTop: 1 },
-  activeQuestProgress: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 8 },
-  activeQuestProgressText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
+  activeQuestLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(13,27,42,0.7)', letterSpacing: 0.5 },
+  activeQuestTitle: { fontSize: 14, fontWeight: '700', color: COLORS.background, marginTop: 1 },
+  activeQuestProgress: { backgroundColor: 'rgba(13,27,42,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 8 },
+  activeQuestProgressText: { fontSize: 12, fontWeight: '700', color: COLORS.background },
 
   // Quest Carousel
   questCarousel: { position: 'absolute', left: 0, right: 0 },
   questRow: { paddingHorizontal: 16, gap: 10 },
-  questCard: { width: width * 0.65, backgroundColor: '#FFF', padding: 12, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 10, ...SHADOWS.md, borderWidth: 1.5, borderColor: '#E2E8F0' },
+  questCard: { width: width * 0.65, backgroundColor: COLORS.surface, padding: 12, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 10, ...SHADOWS.md, borderWidth: 1, borderColor: COLORS.borderLight },
   questCardLocked: { opacity: 0.6, borderStyle: 'dashed' },
   questCardIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   questCardInfo: { flex: 1 },
@@ -686,35 +680,35 @@ const styles = StyleSheet.create({
   questCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   questCardDistance: { fontSize: 11, color: COLORS.text.secondary },
   questCardStatus: { flexDirection: 'row', alignItems: 'center', padding: 3, borderRadius: 4 },
-  statusAvailable: { backgroundColor: '#D1FAE5' },
-  statusLocked: { backgroundColor: '#F1F5F9' },
+  statusAvailable: { backgroundColor: 'rgba(46,204,113,0.15)' },
+  statusLocked: { backgroundColor: 'rgba(107,125,143,0.1)' },
   questCardReward: { fontSize: 13, fontWeight: '800' },
 
   // Bottom Bar
-  bottomBar: { position: 'absolute', left: 16, right: 16, backgroundColor: '#FFF', borderRadius: 16, padding: 10, paddingLeft: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOWS.lg },
+  bottomBar: { position: 'absolute', left: 16, right: 16, backgroundColor: COLORS.surface, borderRadius: 16, padding: 10, paddingLeft: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOWS.lg },
   statsGroup: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   stat: { alignItems: 'center' },
   statValue: { fontSize: 18, fontWeight: '800', color: COLORS.text.primary },
   statLabel: { fontSize: 10, color: COLORS.text.muted, fontWeight: '500' },
-  divider: { width: 1, height: 24, backgroundColor: COLORS.border },
-  locateBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  divider: { width: 1, height: 24, backgroundColor: COLORS.borderLight },
+  locateBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(232,184,74,0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(232,184,74,0.2)' },
 
-  // Bottom Sheet - extra tall to hide edge during animation
-  bottomSheet: { position: 'absolute', bottom: -50, left: 0, right: 0, backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 16, minHeight: 320, ...SHADOWS.xl, zIndex: 30 },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: 16 },
+  // Bottom Sheet
+  bottomSheet: { position: 'absolute', bottom: -50, left: 0, right: 0, backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 16, minHeight: 320, ...SHADOWS.xl, zIndex: 30, borderWidth: 1, borderColor: COLORS.borderLight, borderBottomWidth: 0 },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.text.muted, alignSelf: 'center', marginBottom: 16, opacity: 0.3 },
   sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
   sheetIcon: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   sheetContent: { flex: 1 },
   sheetTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text.primary, marginBottom: 2 },
   sheetSub: { fontSize: 13, color: COLORS.text.secondary, lineHeight: 18 },
   closeSheet: { padding: 4 },
-  sheetStats: { flexDirection: 'row', gap: 24, marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  sheetStats: { flexDirection: 'row', gap: 24, marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   sheetStatItem: {},
   sheetStatLabel: { fontSize: 9, fontWeight: '700', color: COLORS.text.muted, letterSpacing: 0.5, marginBottom: 2 },
   sheetStatValue: { fontSize: 16, fontWeight: '800', color: COLORS.text.primary },
   sheetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
-  sheetBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-  activeQuestBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#EEF2FF', paddingVertical: 12, borderRadius: 12 },
+  sheetBtnText: { color: COLORS.background, fontWeight: '700', fontSize: 15 },
+  activeQuestBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(232,184,74,0.1)', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(232,184,74,0.2)' },
   activeQuestBadgeText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
 });
 

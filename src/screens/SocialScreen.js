@@ -23,7 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { COLORS, SHADOWS } from '../theme';
+import { COLORS, SHADOWS, PALETTE } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../game/GameProvider';
 import { useLeaderboard } from '../game/hooks';
@@ -127,7 +127,7 @@ const SocialScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
       
       <View style={[styles.tabs, { marginTop: insets.top + 10 }]}>
         {[
@@ -521,9 +521,11 @@ const styles = StyleSheet.create({
 
   // Friends Section
   friendsSection: {
-    backgroundColor: '#FFF',
+    backgroundColor: COLORS.surface,
     borderRadius: 20,
     padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     ...SHADOWS.sm,
   },
   sectionHeader: {
@@ -547,13 +549,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceAlt,
+    borderBottomColor: COLORS.borderLight,
   },
   friendAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#E0E7FF',
+    backgroundColor: 'rgba(232, 184, 74, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -579,9 +581,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: 'rgba(232, 184, 74, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(232, 184, 74, 0.2)',
   },
 
   // Challenge Section
@@ -627,7 +631,7 @@ const styles = StyleSheet.create({
   // QR Modal
   qrModal: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -650,7 +654,7 @@ const styles = StyleSheet.create({
   },
   qrContainer: {
     padding: 24,
-    backgroundColor: '#FFF',
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     ...SHADOWS.lg,
   },

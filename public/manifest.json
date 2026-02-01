@@ -1,13 +1,13 @@
 {
-  "name": "Ethernal Paths",
-  "short_name": "Ethernal",
-  "description": "Quest-based adventure game",
+  "name": "Eternal Path: Cartographers of Reality",
+  "short_name": "Eternal Path",
+  "description": "The first living, breathing, digital reality - Quest-based adventure game",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FFFFFF",
-  "theme_color": "#FFFFFF",
+  "background_color": "#0D1B2A",
+  "theme_color": "#0D1B2A",
   "icons": [
     {
       "src": "/icon.png",
@@ -23,5 +23,5 @@
     }
   ],
   "categories": ["games", "entertainment"],
-  "lang": "de"
+  "lang": "en"
 }

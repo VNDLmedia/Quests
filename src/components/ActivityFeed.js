@@ -13,49 +13,49 @@ const ActivityFeed = ({ activities = [], maxItems = 10, showHeader = true }) => 
       quest_complete: {
         icon: 'checkmark-circle',
         color: '#10B981',
-        bgColor: '#ECFDF5',
+        bgColor: 'rgba(16, 185, 129, 0.15)',
         verb: 'completed',
       },
       achievement: {
         icon: 'trophy',
         color: '#F59E0B',
-        bgColor: '#FEF3C7',
+        bgColor: 'rgba(245, 158, 11, 0.15)',
         verb: 'unlocked',
       },
       level_up: {
         icon: 'arrow-up-circle',
         color: '#8B5CF6',
-        bgColor: '#F5F3FF',
+        bgColor: 'rgba(139, 92, 246, 0.15)',
         verb: 'reached',
       },
       friend_added: {
         icon: 'people',
         color: '#EC4899',
-        bgColor: '#FCE7F3',
+        bgColor: 'rgba(236, 72, 153, 0.15)',
         verb: 'became friends with',
       },
       challenge_won: {
         icon: 'flash',
         color: '#EF4444',
-        bgColor: '#FEE2E2',
+        bgColor: 'rgba(239, 68, 68, 0.15)',
         verb: 'won a challenge against',
       },
       challenge_started: {
         icon: 'flag',
         color: '#3B82F6',
-        bgColor: '#EFF6FF',
+        bgColor: 'rgba(59, 130, 246, 0.15)',
         verb: 'started a challenge with',
       },
       reward_claimed: {
         icon: 'gift',
         color: '#0D9488',
-        bgColor: '#CCFBF1',
+        bgColor: 'rgba(13, 148, 136, 0.15)',
         verb: 'claimed',
       },
       streak: {
         icon: 'flame',
         color: '#EF4444',
-        bgColor: '#FEE2E2',
+        bgColor: 'rgba(239, 68, 68, 0.15)',
         verb: 'reached',
       },
     };
@@ -148,9 +148,11 @@ const ActivityFeed = ({ activities = [], maxItems = 10, showHeader = true }) => 
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFF',
+    backgroundColor: COLORS.surface,
     borderRadius: 20,
     padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     ...SHADOWS.sm,
   },
   header: {
@@ -160,7 +162,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceAlt,
+    borderBottomColor: COLORS.borderLight,
   },
   headerText: {
     fontSize: 16,
@@ -188,7 +190,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: COLORS.surface,
     zIndex: 2,
   },
   timelineLine: {
@@ -196,7 +198,7 @@ const styles = StyleSheet.create({
     top: 28,
     bottom: -8,
     width: 2,
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: COLORS.borderLight,
   },
   activityContent: {
     flex: 1,

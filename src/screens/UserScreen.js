@@ -280,21 +280,21 @@ const UserScreen = () => {
         {/* Quick Actions */}
         <View style={styles.actionsRow}>
           <TouchableOpacity style={styles.actionCard} onPress={() => setShowShop(true)}>
-            <View style={[styles.actionIcon, { backgroundColor: '#FDF2F8' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: 'rgba(236, 72, 153, 0.1)' }]}>
               <Ionicons name="gift" size={24} color="#EC4899" />
             </View>
             <Text style={styles.actionLabel}>Shop</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.actionCard} onPress={() => setShowQR(true)}>
-            <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="qr-code" size={24} color="#4F46E5" />
+            <View style={[styles.actionIcon, { backgroundColor: 'rgba(232, 184, 74, 0.1)' }]}>
+              <Ionicons name="qr-code" size={24} color={COLORS.primary} />
             </View>
             <Text style={styles.actionLabel}>My Code</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.actionCard} onPress={startScan}>
-            <View style={[styles.actionIcon, { backgroundColor: '#ECFDF5' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
               <Ionicons name="scan" size={24} color="#10B981" />
             </View>
             <Text style={styles.actionLabel}>Scan</Text>
@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
   xpHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   xpTitle: { ...TYPOGRAPHY.bodyBold, color: COLORS.text.primary },
   xpValue: { ...TYPOGRAPHY.small, color: COLORS.text.secondary },
-  xpBar: { height: 8, backgroundColor: COLORS.surfaceAlt, borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
+  xpBar: { height: 8, backgroundColor: COLORS.surface, borderRadius: 4, overflow: 'hidden', marginBottom: 4, borderWidth: 1, borderColor: COLORS.borderLight },
   xpBarFill: { height: '100%', borderRadius: 4 },
   totalXP: { ...TYPOGRAPHY.caption, color: COLORS.text.muted, textAlign: 'right' },
 
@@ -528,6 +528,8 @@ const styles = StyleSheet.create({
     borderRadius: 18, 
     alignItems: 'center', 
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     ...SHADOWS.sm,
   },
   actionLabel: { fontSize: 12, fontWeight: '600', color: COLORS.text.primary },
@@ -594,12 +596,12 @@ const styles = StyleSheet.create({
   },
 
   // QR Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  qrModal: { backgroundColor: '#FFF', borderRadius: 28, padding: 28, alignItems: 'center', width: '100%', maxWidth: 340 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  qrModal: { backgroundColor: COLORS.surface, borderRadius: 28, padding: 28, alignItems: 'center', width: '100%', maxWidth: 340, borderWidth: 1, borderColor: COLORS.borderLight },
   modalClose: { position: 'absolute', top: 16, right: 16 },
   modalTitle: { fontSize: 24, fontWeight: '800', color: COLORS.text.primary, marginBottom: 4 },
   modalSubtitle: { fontSize: 14, color: COLORS.text.secondary, marginBottom: 24 },
-  qrBox: { padding: 20, backgroundColor: '#F8FAFC', borderRadius: 20, marginBottom: 24 },
+  qrBox: { padding: 20, backgroundColor: '#FFFFFF', borderRadius: 20, marginBottom: 24 },
   memberInfo: { alignItems: 'center' },
   memberName: { fontSize: 18, fontWeight: '700', color: COLORS.text.primary },
   memberIdText: { fontSize: 14, color: COLORS.text.secondary, marginTop: 4, letterSpacing: 1 },

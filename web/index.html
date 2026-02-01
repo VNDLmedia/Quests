@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   
   <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#FFFFFF" />
+  <meta name="theme-color" content="#0D1B2A" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Ethernal Paths" />
-  <meta name="application-name" content="Ethernal Paths" />
-  <meta name="msapplication-TileColor" content="#FFFFFF" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Eternal Path" />
+  <meta name="application-name" content="Eternal Path" />
+  <meta name="msapplication-TileColor" content="#0D1B2A" />
   
   <!-- Fullscreen Display -->
   <meta name="display" content="standalone" />
@@ -22,7 +22,7 @@
   <link rel="icon" href="/favicon.png" />
   <link rel="apple-touch-icon" href="/icon.png" />
   
-  <title>Ethernal Paths</title>
+  <title>Eternal Path</title>
   
   <style>
     /* Fullscreen & Safe Area */
@@ -32,7 +32,7 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background-color: #FFFFFF;
+      background-color: #0D1B2A;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       /* Support safe areas for notch devices */
       padding-top: env(safe-area-inset-top);
@@ -73,7 +73,7 @@
     /* PWA Safe area backgrounds - ensures consistent colors at edges */
     @supports (padding-bottom: env(safe-area-inset-bottom)) {
       html {
-        background-color: #FFFFFF;
+        background-color: #0D1B2A;
       }
       body::before {
         content: '';
@@ -82,7 +82,7 @@
         left: 0;
         right: 0;
         height: env(safe-area-inset-top);
-        background-color: #FFFFFF;
+        background-color: #080F1A;
         z-index: 99999;
       }
       body::after {
@@ -92,7 +92,7 @@
         left: 0;
         right: 0;
         height: env(safe-area-inset-bottom);
-        background-color: #FFFFFF;
+        background-color: #1B2838;
         z-index: 99999;
       }
     }
@@ -108,15 +108,15 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #FFFFFF;
-      color: #0F172A;
+      background: linear-gradient(135deg, #0D1B2A 0%, #080F1A 100%);
+      color: #FFFFFF;
     }
     
     #loading .spinner {
       width: 40px;
       height: 40px;
-      border: 3px solid #E2E8F0;
-      border-top-color: #4F46E5;
+      border: 3px solid rgba(232, 184, 74, 0.2);
+      border-top-color: #E8B84A;
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
@@ -129,15 +129,26 @@
       margin-top: 20px;
       font-size: 24px;
       font-weight: 800;
-      letter-spacing: 1px;
-      color: #4F46E5;
+      letter-spacing: 2px;
+      color: #E8B84A;
+      text-shadow: 0 0 20px rgba(232, 184, 74, 0.3);
+    }
+    
+    #loading .subtitle {
+      margin-top: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      color: #5DADE2;
+      text-transform: uppercase;
     }
   </style>
 </head>
 <body>
   <div id="loading">
     <div class="spinner"></div>
-    <div class="title">Ethernal Paths</div>
+    <div class="title">ETERNAL PATH</div>
+    <div class="subtitle">Cartographers of Reality</div>
   </div>
   <div id="root"></div>
 </body>

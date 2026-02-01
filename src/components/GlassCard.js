@@ -5,37 +5,37 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, RADII, SHADOWS } from '../theme';
 
 /**
- * GlassCard - Glassmorphism 2.0 Komponente
+ * GlassCard - Dark Theme Glassmorphism Component
  * 
- * Milchig-weiße Glasfläche mit:
- * - Blur-Backdrop
- * - 80% Opazität
- * - Weiße 1px Border
- * - Super-Ellipsen (stark abgerundete Ecken)
+ * Optimized for dark navy background with subtle glass effects
  */
 const GlassCard = ({ 
   children, 
   style, 
-  variant = 'light', // 'light' | 'dark' | 'accent'
-  intensity = 60,
+  variant = 'dark', // 'dark' | 'light' | 'accent'
+  intensity = 40,
   padding = 20,
   noPadding = false,
-  accentGradient = null, // z.B. COLORS.gradients.electricBlue
+  accentGradient = null,
+  glow = false,
 }) => {
-  const isLight = variant === 'light';
-  const borderColor = isLight ? COLORS.glass.whiteBorder : COLORS.glass.darkBorder;
-  const backgroundColor = isLight ? COLORS.glass.white : COLORS.glass.dark;
+  const isDark = variant === 'dark';
+  const borderColor = isDark ? COLORS.glass.darkBorder : COLORS.glass.whiteBorder;
+  const backgroundColor = isDark ? COLORS.glass.dark : COLORS.glass.white;
   
-  // Web-Fallback (BlurView funktioniert nicht auf Web)
+  // Web-Fallback
   if (Platform.OS === 'web') {
     return (
       <View style={[
         styles.container,
         { 
-          backgroundColor: isLight ? 'rgba(255, 255, 255, 0.85)' : 'rgba(15, 23, 42, 0.85)',
+          backgroundColor: isDark 
+            ? 'rgba(27, 40, 56, 0.85)' 
+            : 'rgba(255, 255, 255, 0.1)',
           borderColor,
-          backdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(16px)',
         },
+        glow && styles.glowEffect,
         style
       ]}>
         {accentGradient && (
@@ -54,10 +54,16 @@ const GlassCard = ({
   }
 
   return (
-    <View style={[styles.container, { borderColor }, SHADOWS.soft, style]}>
+    <View style={[
+      styles.container, 
+      { borderColor }, 
+      SHADOWS.soft, 
+      glow && SHADOWS.glow,
+      style
+    ]}>
       <BlurView 
         intensity={intensity} 
-        tint={isLight ? 'light' : 'dark'} 
+        tint="dark"
         style={styles.blurContainer}
       >
         <View style={[styles.innerGlass, { backgroundColor }]}>
@@ -94,9 +100,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   accentBar: {
-    height: 4,
+    height: 3,
     width: '100%',
   },
+  glowEffect: Platform.OS === 'web' ? {
+    boxShadow: '0 0 24px rgba(232, 184, 74, 0.2)',
+  } : {},
 });
 
 export default GlassCard;

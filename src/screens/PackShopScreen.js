@@ -20,7 +20,7 @@ import * as Haptics from 'expo-haptics';
 import { useGame } from '../game/GameProvider';
 import { PACK_TYPES } from '../game/config/packs';
 import { RARITY, getCollectionCompletion } from '../game/config/cards';
-import { COLORS, SHADOWS } from '../theme';
+import { COLORS, SHADOWS, PALETTE } from '../theme';
 import PackOpeningOverlay from '../components/PackOpeningOverlay';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -224,7 +224,7 @@ const PackShopScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: COLORS.background,
   },
   scroll: {
     padding: 20,
@@ -438,9 +438,11 @@ const styles = StyleSheet.create({
   
   // Odds Card
   oddsCard: {
-    backgroundColor: '#FFF',
+    backgroundColor: COLORS.surface,
     borderRadius: 20,
     padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     ...SHADOWS.md,
   },
   oddsHeader: {

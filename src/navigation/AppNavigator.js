@@ -1,10 +1,10 @@
 import React, { Suspense, lazy } from 'react';
 import { Platform, StyleSheet, View, ActivityIndicator, StatusBar } from 'react-native';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../theme';
+import { COLORS, PALETTE } from '../theme';
 
 // Lazy load screens
 const MapScreen = lazy(() => import('../screens/VibeMapScreen'));
@@ -34,8 +34,20 @@ const UserScreenWrapped = withSuspense(UserScreen);
 
 const Tab = createBottomTabNavigator();
 
-// Check if running as PWA
-const isPWA = Platform.OS === 'web' && typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches;
+// Custom dark theme for Eternal Path
+const EternalPathTheme = {
+  ...DarkTheme,
+  dark: true,
+  colors: {
+    ...DarkTheme.colors,
+    primary: COLORS.primary,
+    background: COLORS.background,
+    card: COLORS.surface,
+    text: COLORS.text.primary,
+    border: COLORS.background,
+    notification: COLORS.primary,
+  },
+};
 
 const AppNavigator = () => {
   const insets = useSafeAreaInsets();
@@ -51,25 +63,11 @@ const AppNavigator = () => {
   return (
     <>
       <StatusBar 
-        barStyle="dark-content" 
-        backgroundColor="#FFFFFF"
+        barStyle="light-content" 
+        backgroundColor={COLORS.backgroundDark}
         translucent={false}
       />
-      <NavigationContainer
-        theme={{
-          ...DefaultTheme,
-          dark: false,
-          colors: {
-            ...DefaultTheme.colors,
-            primary: COLORS.primary,
-            background: COLORS.background,
-            card: COLORS.surface,
-            text: COLORS.text.primary,
-            border: COLORS.border,
-            notification: COLORS.primary,
-          },
-        }}
-      >
+      <NavigationContainer theme={EternalPathTheme}>
         <Tab.Navigator
           screenOptions={({ route }) => ({
             headerShown: false,
@@ -124,15 +122,15 @@ const AppNavigator = () => {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.surface,
     paddingTop: 8,
-    elevation: 8,
+    elevation: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    borderTopWidth: 0,
+    borderWidth: 0,
   },
   tabLabel: {
     fontSize: 12,

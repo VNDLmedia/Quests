@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, Dimensions, Platform } from 'react-native';
 import { GlassCard } from '../components';
+import { COLORS, PALETTE } from '../theme';
 
-// Dynamischer Import für Native-only Module, um Web-Abstürze zu verhindern
+// Dynamic import for native-only modules
 let MapView, Marker;
 if (Platform.OS !== 'web') {
   try {
@@ -21,7 +22,6 @@ const MapScreen = () => {
 
   useEffect(() => {
     (async () => {
-      // Standort-Logik nur auf Mobile
       if (Platform.OS === 'web') return;
 
       const Location = require('expo-location');
@@ -49,7 +49,7 @@ const MapScreen = () => {
     setQuests(newQuests);
   };
 
-  // Web-spezifische Ansicht
+  // Web view
   if (Platform.OS === 'web') {
     return (
       <View style={styles.container}>
@@ -67,8 +67,8 @@ const MapScreen = () => {
         </View>
 
         <View style={styles.overlay}>
-          <GlassCard style={styles.statusCard}>
-            <Text style={styles.statusText}>Level 5 Adventurer</Text>
+          <GlassCard style={styles.statusCard} variant="dark">
+            <Text style={styles.statusText}>Level 5 Pathfinder</Text>
             <Text style={styles.xpText}>XP: 1250 / 2000</Text>
           </GlassCard>
         </View>
@@ -76,7 +76,7 @@ const MapScreen = () => {
     );
   }
 
-  // Mobile Ansicht
+  // Mobile view
   return (
     <View style={styles.container}>
       {location && MapView ? (
@@ -96,7 +96,7 @@ const MapScreen = () => {
               key={quest.id}
               coordinate={quest.coordinate}
               title={quest.title}
-              pinColor="#38bdf8"
+              pinColor={COLORS.primary}
             />
           ))}
         </MapView>
@@ -107,8 +107,8 @@ const MapScreen = () => {
       )}
 
       <View style={styles.overlay}>
-        <GlassCard style={styles.statusCard}>
-          <Text style={styles.statusText}>Level 5 Adventurer</Text>
+        <GlassCard style={styles.statusCard} variant="dark">
+          <Text style={styles.statusText}>Level 5 Pathfinder</Text>
           <Text style={styles.xpText}>XP: 1250 / 2000</Text>
         </GlassCard>
       </View>
@@ -116,31 +116,32 @@ const MapScreen = () => {
   );
 };
 
+// Dark map style matching Eternal Path theme
 const darkMapStyle = [
-  { "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] },
-  { "elementType": "labels.text.fill", "stylers": [{ "color": "#746855" }] },
-  { "elementType": "labels.text.stroke", "stylers": [{ "color": "#242f3e" }] },
-  { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#d59563" }] },
-  { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#d59563" }] },
-  { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#263c3f" }] },
-  { "featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{ "color": "#6b9a76" }] },
-  { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#38414e" }] },
-  { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#212a37" }] },
-  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#9ca5b3" }] },
-  { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#746855" }] },
-  { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{ "color": "#1f2835" }] },
-  { "featureType": "road.highway", "elementType": "labels.text.fill", "stylers": [{ "color": "#f3d19c" }] },
-  { "featureType": "transit", "elementType": "geometry", "stylers": [{ "color": "#2f3948" }] },
-  { "featureType": "transit.station", "elementType": "labels.text.fill", "stylers": [{ "color": "#d59563" }] },
-  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#17263c" }] },
-  { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#515c6d" }] },
-  { "featureType": "water", "elementType": "labels.text.stroke", "stylers": [{ "color": "#17263c" }] }
+  { "elementType": "geometry", "stylers": [{ "color": PALETTE.navy.dark }] },
+  { "elementType": "labels.text.fill", "stylers": [{ "color": PALETTE.text.muted }] },
+  { "elementType": "labels.text.stroke", "stylers": [{ "color": PALETTE.navy.darkest }] },
+  { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": PALETTE.gold.muted }] },
+  { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": PALETTE.gold.muted }] },
+  { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#1a2d3d" }] },
+  { "featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{ "color": "#4a6b5a" }] },
+  { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": PALETTE.navy.light }] },
+  { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": PALETTE.navy.darkest }] },
+  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": PALETTE.text.secondary }] },
+  { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": PALETTE.navy.muted }] },
+  { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{ "color": PALETTE.navy.darkest }] },
+  { "featureType": "road.highway", "elementType": "labels.text.fill", "stylers": [{ "color": PALETTE.gold.warm }] },
+  { "featureType": "transit", "elementType": "geometry", "stylers": [{ "color": PALETTE.navy.medium }] },
+  { "featureType": "transit.station", "elementType": "labels.text.fill", "stylers": [{ "color": PALETTE.gold.muted }] },
+  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0a1628" }] },
+  { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": PALETTE.text.muted }] },
+  { "featureType": "water", "elementType": "labels.text.stroke", "stylers": [{ "color": PALETTE.navy.darkest }] }
 ];
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: COLORS.backgroundDark,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -152,10 +153,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#020617',
+    backgroundColor: COLORS.backgroundDark,
   },
   loadingText: {
-    color: '#38bdf8',
+    color: COLORS.primary,
     fontSize: 18,
     fontWeight: '500',
   },
@@ -164,13 +165,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    color: '#38bdf8',
+    color: COLORS.primary,
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 10,
   },
   subtitle: {
-    color: '#94a3b8',
+    color: COLORS.text.secondary,
     textAlign: 'center',
     marginBottom: 30,
     maxWidth: 300,
@@ -178,10 +179,10 @@ const styles = StyleSheet.create({
   miniMap: {
     width: 200,
     height: 200,
-    backgroundColor: '#1e293b',
+    backgroundColor: COLORS.surface,
     borderRadius: 100,
     borderWidth: 2,
-    borderColor: '#38bdf8',
+    borderColor: COLORS.primary,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -189,17 +190,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 10,
     height: 10,
-    backgroundColor: '#38bdf8',
+    backgroundColor: COLORS.secondary,
     borderRadius: 5,
   },
   playerDot: {
     position: 'absolute',
     width: 14,
     height: 14,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.primary,
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: '#38bdf8',
+    borderColor: COLORS.background,
   },
   overlay: {
     position: 'absolute',
@@ -211,12 +212,12 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   statusText: {
-    color: '#fff',
+    color: COLORS.text.primary,
     fontSize: 18,
     fontWeight: 'bold',
   },
   xpText: {
-    color: '#ccc',
+    color: COLORS.text.secondary,
     fontSize: 14,
     marginTop: 5,
   },

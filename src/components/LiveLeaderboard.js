@@ -248,9 +248,11 @@ const LiveLeaderboard = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFF',
+    backgroundColor: COLORS.surface,
     borderRadius: 24,
     padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     ...SHADOWS.md,
   },
   header: {
@@ -271,7 +273,7 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 10,
     padding: 3,
   },
@@ -281,7 +283,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   tabActive: {
-    backgroundColor: '#FFF',
+    backgroundColor: COLORS.primaryLight,
     ...SHADOWS.sm,
   },
   tabText: {
@@ -322,7 +324,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#E0E7FF',
+    backgroundColor: 'rgba(232, 184, 74, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
@@ -395,10 +397,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 10,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
   listItemMe: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: 'rgba(232, 184, 74, 0.1)',
     borderWidth: 1,
     borderColor: COLORS.primary,
   },
@@ -417,7 +419,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#E0E7FF',
+    backgroundColor: 'rgba(93, 173, 226, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 10,
@@ -428,7 +430,7 @@ const styles = StyleSheet.create({
   listInitial: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.secondary,
   },
   listInitialMe: {
     color: '#FFF',
@@ -473,7 +475,7 @@ const styles = StyleSheet.create({
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEE2E2',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,

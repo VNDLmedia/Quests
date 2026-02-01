@@ -10,35 +10,34 @@ import {
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { COLORS, RADII, SHADOWS, TYPOGRAPHY } from '../theme';
+import { COLORS, RADII, SHADOWS } from '../theme';
 
 /**
- * GlassButton - Glassmorphism Button mit Gradient-Optionen
+ * GlassButton - Dark Theme Glassmorphism Button
  * 
  * Variants:
- * - glass: Milchig-weißer Glaseffekt
- * - gradient: Farbverlauf (z.B. Sunset Orange)
- * - outline: Transparenter Button mit Border
+ * - glass: Subtle dark glass effect
+ * - gradient: Golden/orange gradient (primary CTA)
+ * - outline: Transparent with border
  */
 const GlassButton = ({
   title,
   onPress,
   style,
   textStyle,
-  variant = 'glass', // 'glass' | 'gradient' | 'outline'
-  gradient = COLORS.gradients.electricBlue,
+  variant = 'glass',
+  gradient = COLORS.gradients.gold,
   icon,
   iconPosition = 'left',
   disabled = false,
   loading = false,
-  size = 'md', // 'sm' | 'md' | 'lg'
+  size = 'md',
   haptic = true,
 }) => {
   
   const handlePress = async () => {
     if (disabled || loading) return;
     
-    // Haptic Feedback
     if (haptic && Platform.OS !== 'web') {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -61,7 +60,7 @@ const GlassButton = ({
   const renderContent = () => (
     <View style={[styles.contentRow, sizeStyles[size]]}>
       {loading ? (
-        <ActivityIndicator color={variant === 'gradient' ? '#FFF' : COLORS.text.primary} />
+        <ActivityIndicator color={variant === 'gradient' ? COLORS.background : COLORS.text.primary} />
       ) : (
         <>
           {icon && iconPosition === 'left' && (
@@ -85,7 +84,7 @@ const GlassButton = ({
     </View>
   );
 
-  // Gradient Variant
+  // Gradient Variant (Primary CTA)
   if (variant === 'gradient') {
     return (
       <TouchableOpacity
@@ -95,7 +94,7 @@ const GlassButton = ({
         style={[styles.container, disabled && styles.disabled, style]}
       >
         <LinearGradient
-          colors={disabled ? ['#CBD5E1', '#94A3B8'] : gradient}
+          colors={disabled ? [COLORS.text.muted, COLORS.surface] : gradient}
           style={styles.gradientContainer}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
@@ -125,7 +124,7 @@ const GlassButton = ({
     );
   }
 
-  // Glass Variant (Default)
+  // Glass Variant (Default - Dark theme)
   if (Platform.OS === 'web') {
     return (
       <TouchableOpacity
@@ -151,7 +150,7 @@ const GlassButton = ({
       activeOpacity={0.7}
       style={[styles.container, SHADOWS.soft, disabled && styles.disabled, style]}
     >
-      <BlurView intensity={50} tint="light" style={styles.blurContainer}>
+      <BlurView intensity={30} tint="dark" style={styles.blurContainer}>
         <View style={styles.glassInner}>
           {renderContent()}
         </View>
@@ -169,23 +168,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   glassInner: {
-    backgroundColor: COLORS.glass.white,
+    backgroundColor: COLORS.glass.dark,
     borderWidth: 1,
-    borderColor: COLORS.glass.whiteBorder,
+    borderColor: COLORS.glass.darkBorder,
     borderRadius: RADII.lg,
   },
   webGlass: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(27, 40, 56, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(12px)',
   },
   gradientContainer: {
     borderRadius: RADII.lg,
   },
   outlineContainer: {
     backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: COLORS.glass.whiteBorder,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
   },
   contentRow: {
     flexDirection: 'row',
@@ -198,17 +198,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   textGradient: {
-    color: '#FFFFFF',
+    color: COLORS.background,
     fontWeight: '700',
   },
   textOutline: {
-    color: '#FFFFFF',
+    color: COLORS.text.primary,
   },
   textDisabled: {
-    color: '#94A3B8',
+    color: COLORS.text.muted,
   },
   disabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   iconLeft: {
     marginRight: 8,

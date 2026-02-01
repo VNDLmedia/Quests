@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  Image,
   Dimensions,
   Platform,
 } from 'react-native';
@@ -11,31 +11,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassButton, GlassCard } from '../components';
-import { COLORS, TYPOGRAPHY, BRAND, RADII } from '../theme';
+import { COLORS, TYPOGRAPHY, BRAND, RADII, SHADOWS } from '../theme';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const FEATURES = [
-  {
-    icon: 'compass',
-    title: 'Discover',
-    description: 'Explore your city and find hidden places',
-  },
-  {
-    icon: 'layers',
-    title: 'Quests',
-    description: 'Complete adventures and collect rewards',
-  },
-  {
-    icon: 'people',
-    title: 'Community',
-    description: 'Connect with other explorers',
-  },
-  {
-    icon: 'trophy',
-    title: 'Achievements',
-    description: 'Unlock achievements and level up',
-  },
+  { icon: 'map', label: 'Explore' },
+  { icon: 'trophy', label: 'Quests' },
+  { icon: 'people', label: 'Connect' },
+  { icon: 'star', label: 'Rewards' },
 ];
 
 const LandingScreen = ({ onGetStarted }) => {
@@ -45,87 +29,87 @@ const LandingScreen = ({ onGetStarted }) => {
     <View style={styles.container}>
       {/* Background Gradient */}
       <LinearGradient
-        colors={[COLORS.primaryLight, COLORS.background, COLORS.background]}
+        colors={COLORS.gradients.hero}
         style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 0.6 }}
       />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 40 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+      {/* Decorative circuit lines */}
+      <View style={styles.circuitDecor}>
+        <View style={[styles.circuitLine, styles.circuitLine1]} />
+        <View style={[styles.circuitLine, styles.circuitLine2]} />
+        <View style={[styles.circuitDot, { top: '15%', right: '20%' }]} />
+        <View style={[styles.circuitDot, { top: '25%', left: '15%' }]} />
+      </View>
+
+      <View style={[styles.content, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 40 }]}>
+        
         {/* Hero Section */}
         <View style={styles.heroSection}>
-          {/* App Icon / Logo */}
-          <View style={styles.logoContainer}>
-            <LinearGradient
-              colors={COLORS.gradients.primary}
-              style={styles.logoGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Ionicons name="compass" size={48} color="#FFFFFF" />
-            </LinearGradient>
-          </View>
+          {/* Logo Image */}
+          <Image
+            source={require('../../public/img/header.png')}
+            style={styles.headerImage}
+            resizeMode="contain"
+          />
 
-          {/* Brand Name */}
-          <Text style={styles.brandName}>{BRAND.name}</Text>
-          
           {/* Tagline */}
-          <Text style={styles.tagline}>{BRAND.tagline}</Text>
-
-          {/* Hero Description */}
-          <Text style={styles.heroDescription}>
-            Turn your everyday life into an adventure. Discover new places, 
-            complete quests and become part of a community of explorers.
+          <Text style={styles.heroTagline}>
+            Welcome to the first{'\n'}
+            <Text style={styles.heroHighlight}>living</Text>,{' '}
+            <Text style={styles.heroHighlight}>breathing</Text>,{' '}
+            <Text style={styles.heroHighlightGold}>digital</Text> reality.
           </Text>
         </View>
 
-        {/* Features Section */}
-        <View style={styles.featuresSection}>
-          <Text style={styles.sectionTitle}>What awaits you</Text>
-          
-          <View style={styles.featuresGrid}>
-            {FEATURES.map((feature, index) => (
-              <GlassCard key={index} style={styles.featureCard}>
-                <View style={styles.featureIconContainer}>
-                  <Ionicons
-                    name={feature.icon}
-                    size={28}
-                    color={COLORS.primary}
-                  />
-                </View>
-                <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureDescription}>
-                  {feature.description}
-                </Text>
-              </GlassCard>
-            ))}
-          </View>
+        {/* Features Row */}
+        <View style={styles.featuresRow}>
+          {FEATURES.map((feature, index) => (
+            <View key={index} style={styles.featureItem}>
+              <View style={styles.featureIcon}>
+                <Ionicons name={feature.icon} size={20} color={COLORS.primary} />
+              </View>
+              <Text style={styles.featureLabel}>{feature.label}</Text>
+            </View>
+          ))}
         </View>
+
+        {/* Info Card */}
+        <GlassCard style={styles.infoCard} variant="dark">
+          <View style={styles.infoRow}>
+            <Ionicons name="location" size={18} color={COLORS.secondary} />
+            <Text style={styles.infoText}>Transform your world into an adventure</Text>
+          </View>
+          <View style={styles.infoDivider} />
+          <View style={styles.infoRow}>
+            <Ionicons name="flash" size={18} color={COLORS.primary} />
+            <Text style={styles.infoText}>Complete quests, earn rewards, level up</Text>
+          </View>
+        </GlassCard>
+
+        {/* Spacer */}
+        <View style={styles.spacer} />
 
         {/* CTA Section */}
         <View style={styles.ctaSection}>
           <GlassButton
-            title="Start your path"
+            title="Start Your Quest"
             onPress={onGetStarted}
             variant="gradient"
-            gradient={COLORS.gradients.primary}
+            gradient={COLORS.gradients.gold}
             size="lg"
             style={styles.ctaButton}
-            icon={<Ionicons name="arrow-forward" size={20} color="#FFFFFF" />}
-            iconPosition="right"
+            icon={<Ionicons name="compass" size={22} color="#0D1B2A" />}
+            iconPosition="left"
+            textStyle={styles.ctaButtonText}
           />
 
           <Text style={styles.ctaSubtext}>
-            Kostenlos starten • Keine Kreditkarte erforderlich
+            Free to play • No credit card required
           </Text>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 };
@@ -135,104 +119,124 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  scrollContent: {
-    flexGrow: 1,
+  circuitDecor: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  circuitLine: {
+    position: 'absolute',
+    backgroundColor: COLORS.primary,
+    opacity: 0.15,
+  },
+  circuitLine1: {
+    width: 2,
+    height: 120,
+    top: 80,
+    right: 60,
+    transform: [{ rotate: '45deg' }],
+  },
+  circuitLine2: {
+    width: 80,
+    height: 2,
+    top: 150,
+    right: 30,
+  },
+  circuitDot: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.primary,
+    opacity: 0.3,
+  },
+  content: {
+    flex: 1,
     paddingHorizontal: 24,
+    justifyContent: 'space-between',
   },
   heroSection: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginTop: 20,
   },
-  logoContainer: {
+  headerImage: {
+    width: width * 0.85,
+    height: 80,
     marginBottom: 24,
   },
-  logoGradient: {
-    width: 96,
-    height: 96,
-    borderRadius: RADII.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-      web: {
-        boxShadow: `0px 8px 24px ${COLORS.primary}40`,
-      },
-    }),
-  },
-  brandName: {
-    ...TYPOGRAPHY.h1,
-    color: COLORS.text.primary,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  tagline: {
-    ...TYPOGRAPHY.h3,
-    color: COLORS.primary,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  heroDescription: {
+  heroTagline: {
     ...TYPOGRAPHY.body,
     color: COLORS.text.secondary,
     textAlign: 'center',
-    maxWidth: 320,
-    lineHeight: 24,
+    lineHeight: 26,
+    maxWidth: 280,
   },
-  featuresSection: {
-    marginBottom: 48,
+  heroHighlight: {
+    color: COLORS.secondary,
+    fontWeight: '600',
   },
-  sectionTitle: {
-    ...TYPOGRAPHY.h2,
-    color: COLORS.text.primary,
-    textAlign: 'center',
+  heroHighlightGold: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  featuresRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 32,
     marginBottom: 24,
   },
-  featuresGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  featureCard: {
-    width: width > 400 ? (width - 64) / 2 : '100%',
-    padding: 20,
+  featureItem: {
     alignItems: 'center',
+    gap: 8,
   },
-  featureIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: RADII.lg,
-    backgroundColor: COLORS.primaryLight,
+  featureIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: RADII.md,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    ...SHADOWS.md,
   },
-  featureTitle: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.text.primary,
-    marginBottom: 4,
-    textAlign: 'center',
+  featureLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.text.muted,
   },
-  featureDescription: {
+  infoCard: {
+    padding: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  infoText: {
     ...TYPOGRAPHY.small,
     color: COLORS.text.secondary,
-    textAlign: 'center',
+    flex: 1,
+  },
+  infoDivider: {
+    height: 1,
+    backgroundColor: COLORS.borderLight,
+    marginVertical: 4,
+  },
+  spacer: {
+    flex: 1,
   },
   ctaSection: {
     alignItems: 'center',
-    marginTop: 'auto',
+    marginBottom: 20,
   },
   ctaButton: {
     width: '100%',
     maxWidth: 320,
+    ...SHADOWS.glow,
+  },
+  ctaButtonText: {
+    color: '#0D1B2A',
+    fontWeight: '800',
   },
   ctaSubtext: {
     ...TYPOGRAPHY.caption,

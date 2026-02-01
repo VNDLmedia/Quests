@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuests, usePlayer } from '../game/hooks';
 import { QuestCard, Skeleton, StreakBanner, ScreenHeader } from '../components';
-import { COLORS, SHADOWS } from '../theme';
+import { COLORS, SHADOWS, PALETTE } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { LocationService } from '../game/services/LocationService';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -133,7 +133,7 @@ const QuestLogScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.backgroundDark} />
       
       <ScrollView 
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
@@ -142,7 +142,7 @@ const QuestLogScreen = ({ navigation }) => {
       >
         {/* Hero Stats Card */}
         <LinearGradient
-          colors={COLORS.gradients.primary}
+          colors={COLORS.gradients.gold}
           style={styles.heroCard}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -190,7 +190,7 @@ const QuestLogScreen = ({ navigation }) => {
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator size="small" color="#FFF" />
+                <ActivityIndicator size="small" color={COLORS.background} />
               ) : (
                 <Text style={styles.refreshBtnText}>Check for New Quests</Text>
               )}
@@ -198,10 +198,10 @@ const QuestLogScreen = ({ navigation }) => {
           </View>
         ) : (
           <>
-            {renderSection('Daily Missions', daily, '#F59E0B')}
-            {renderSection('Story Progression', story, '#8B5CF6')}
+            {renderSection('Daily Missions', daily, COLORS.primary)}
+            {renderSection('Story Progression', story, '#9B59B6')}
             {renderSection('Challenges', challenges, '#EC4899')}
-            {renderSection('Social', social, '#3B82F6')}
+            {renderSection('Social', social, COLORS.secondary)}
           </>
         )}
       </ScrollView>
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   heroLabel: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(13,27,42,0.6)',
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -257,26 +257,26 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   heroTitle: {
-    color: '#FFF',
+    color: COLORS.background,
     fontSize: 24,
     fontWeight: '800',
   },
   levelBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(13,27,42,0.15)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(13,27,42,0.2)',
   },
   levelText: {
-    color: '#FFF',
+    color: COLORS.background,
     fontWeight: '700',
     fontSize: 12,
   },
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(13,27,42,0.1)',
     borderRadius: 16,
     padding: 16,
     justifyContent: 'space-between',
@@ -287,20 +287,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statValue: {
-    color: '#FFF',
+    color: COLORS.background,
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 2,
   },
   statLabel: {
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(13,27,42,0.7)',
     fontSize: 11,
     fontWeight: '600',
   },
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(13,27,42,0.15)',
   },
   section: {
     marginBottom: 24,
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#E0E7FF',
+    backgroundColor: PALETTE.gold.glow,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
@@ -361,13 +361,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 48,
-    ...SHADOWS.md,
+    ...SHADOWS.glow,
   },
   refreshBtnDisabled: {
     opacity: 0.8,
   },
   refreshBtnText: {
-    color: '#FFF',
+    color: COLORS.background,
     fontWeight: '700',
     fontSize: 16,
   },
