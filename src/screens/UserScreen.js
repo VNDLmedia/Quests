@@ -17,8 +17,13 @@ import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassCard } from '../components';
 import QuestCreationModal from '../components/QuestCreationModal';
-import UniversalQRScanner from '../components/UniversalQRScanner';
 import { useGame } from '../game/GameProvider';
+
+// Dynamischer Import nur für Web - verhindert Crash auf Native
+let UniversalQRScanner = null;
+if (Platform.OS === 'web') {
+  UniversalQRScanner = require('../components/UniversalQRScanner').default;
+}
 import { LEVEL_CONFIG } from '../game/config/rewards';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../theme';
 import PackShopScreen from './PackShopScreen';
@@ -314,7 +319,7 @@ const UserScreen = () => {
 
       {/* Scanner Modal */}
       <Modal visible={isScanning} animationType="slide">
-        {Platform.OS === 'web' ? (
+        {Platform.OS === 'web' && UniversalQRScanner ? (
           <UniversalQRScanner onScan={handleBarCodeScanned} onClose={() => setIsScanning(false)} />
         ) : CameraView ? (
           <View style={styles.cameraContainer}>

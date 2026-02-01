@@ -14,7 +14,12 @@ import { COLORS, SHADOWS } from '../theme';
 import Card3D from '../components/Card3D';
 import { supabase, isSupabaseConfigured } from '../config/supabase';
 import { processQRCode } from '../game/services/QRScannerService';
-import UniversalQRScanner from '../components/UniversalQRScanner';
+
+// Dynamischer Import nur für Web - verhindert Crash auf Native
+let UniversalQRScanner = null;
+if (Platform.OS === 'web') {
+  UniversalQRScanner = require('../components/UniversalQRScanner').default;
+}
 
 const SCAN_FRAME_SIZE = 280;
 
@@ -997,7 +1002,7 @@ const ProfileScreen = () => {
       {/* IMPROVED SCANNER MODAL WITH ANIMATIONS */}
       <Modal visible={isScanning} animationType="slide" statusBarTranslucent>
         <View style={styles.cameraContainer}>
-          {Platform.OS === 'web' ? (
+          {Platform.OS === 'web' && UniversalQRScanner ? (
             <UniversalQRScanner
               onScan={handleBarCodeScanned}
               onClose={() => setIsScanning(false)}

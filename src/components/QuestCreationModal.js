@@ -29,7 +29,12 @@ import {
 } from '../game/services/QuestCreationService';
 import GlassCard from './GlassCard';
 import GlassButton from './GlassButton';
-import UniversalQRScanner from './UniversalQRScanner';
+
+// Dynamischer Import nur für Web - verhindert Crash auf Native
+let UniversalQRScanner = null;
+if (Platform.OS === 'web') {
+  UniversalQRScanner = require('./UniversalQRScanner').default;
+}
 
 const { width } = Dimensions.get('window');
 
@@ -353,7 +358,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   if (step === 2 && qrScanning) {
     return (
       <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-        {Platform.OS === 'web' ? (
+        {Platform.OS === 'web' && UniversalQRScanner ? (
           <UniversalQRScanner onScan={handleQRScanned} onClose={() => setQrScanning(false)} />
         ) : CameraView ? (
           <View style={styles.cameraContainer}>
