@@ -187,36 +187,7 @@ const MapScreen = () => {
   const mapReadyRef = useRef(false);
   const isInitialLoadRef = useRef(true);
 
-  // Request location - can be called manually for retry
-  const requestLocation = useCallback(() => {
-    if (Platform.OS !== 'web') return;
-    
-    setLocationStatus('searching');
-    
-    if (!navigator.geolocation) {
-      setLocationStatus('error');
-      return;
-    }
-    
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const coords = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-        setUserLoc(coords);
-        setLocationStatus('found');
-        updateLocation(coords);
-        generateNearbyQuests(coords);
-      },
-      (err) => {
-        console.log('Geolocation retry error:', err.code, err.message);
-        setLocationStatus(err.code === 1 ? 'denied' : 'error');
-      },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-    );
-  }, [updateLocation, generateNearbyQuests]);
-
+  // Generate nearby quests - defined first to avoid circular dependency
   const generateNearbyQuests = useCallback((coords) => {
     if (!allQuests || allQuests.length === 0) return;
 
@@ -252,8 +223,38 @@ const MapScreen = () => {
     setAvailableQuests(generatedQuests);
   }, [allQuests, allLocations]);
 
+  // Request location - can be called manually for retry
+  const requestLocation = useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    
+    setLocationStatus('searching');
+    
+    if (!navigator.geolocation) {
+      setLocationStatus('error');
+      return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setUserLoc(coords);
+        setLocationStatus('found');
+        updateLocation(coords);
+        generateNearbyQuests(coords);
+      },
+      (err) => {
+        console.log('Geolocation retry error:', err.code, err.message);
+        setLocationStatus(err.code === 1 ? 'denied' : 'error');
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  }, [updateLocation, generateNearbyQuests]);
+
   const canInteractWithQuest = useCallback((quest) => {
-    if (!quest) return false;
+    if (!quest || !quest.lat || !quest.lng) return false;
     const distance = calculateDistance(userLoc.latitude, userLoc.longitude, quest.lat, quest.lng);
     return distance <= QUEST_INTERACTION_RADIUS;
   }, [userLoc]);
@@ -263,6 +264,7 @@ const MapScreen = () => {
     
     // Available quests (not started yet)
     availableQuests.forEach(q => {
+      if (!q.lat || !q.lng) return; // Skip quests without coordinates
       const dist = calculateDistance(userLoc.latitude, userLoc.longitude, q.lat, q.lng);
       quests.push({
         ...q,

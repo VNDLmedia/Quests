@@ -30,6 +30,30 @@ const LandingScreen = ({ onGetStarted }) => {
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [isLocked, setIsLocked] = useState(shouldLockApp());
   const bypassTimerRef = useRef(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [canInstall, setCanInstall] = useState(false);
+
+  // PWA Install prompt handler
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setCanInstall(true);
+    };
+    
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setCanInstall(false);
+    }
+    
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
 
   // Update countdown timer every second
   useEffect(() => {
@@ -72,6 +96,19 @@ const LandingScreen = ({ onGetStarted }) => {
     if (!isLocked) {
       onGetStarted();
     }
+  };
+
+  // Handle PWA install
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      setCanInstall(false);
+    }
+    setDeferredPrompt(null);
   };
 
   // Hidden bypass: hold button for 15 seconds to unlock (production only)
@@ -132,6 +169,20 @@ const LandingScreen = ({ onGetStarted }) => {
             </View>
           ))}
         </View>
+
+        {/* PWA Install Button */}
+        {canInstall && Platform.OS === 'web' && (
+          <TouchableOpacity style={styles.installButton} onPress={handleInstallPWA}>
+            <View style={styles.installIconContainer}>
+              <Ionicons name="download" size={18} color={COLORS.primary} />
+            </View>
+            <View style={styles.installTextContainer}>
+              <Text style={styles.installTitle}>App installieren</Text>
+              <Text style={styles.installSubtitle}>Für schnellen Zugriff zum Home-Screen hinzufügen</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.text.muted} />
+          </TouchableOpacity>
+        )}
 
         {/* Info Card */}
         <GlassCard style={styles.infoCard} variant="dark">
@@ -330,6 +381,39 @@ const styles = StyleSheet.create({
   },
   linkedinSeparator: {
     ...TYPOGRAPHY.small,
+    color: COLORS.text.muted,
+  },
+  installButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADII.md,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    ...SHADOWS.sm,
+  },
+  installIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: RADII.sm,
+    backgroundColor: 'rgba(232, 184, 74, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  installTextContainer: {
+    flex: 1,
+  },
+  installTitle: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.text.primary,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  installSubtitle: {
+    ...TYPOGRAPHY.caption,
     color: COLORS.text.muted,
   },
 });
