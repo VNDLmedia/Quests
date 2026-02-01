@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   Image,
   Dimensions,
   Platform,
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +29,7 @@ const LandingScreen = ({ onGetStarted }) => {
   const insets = useSafeAreaInsets();
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [isLocked, setIsLocked] = useState(shouldLockApp());
+  const bypassTimerRef = useRef(null);
 
   // Update countdown timer every second
   useEffect(() => {
@@ -55,10 +58,36 @@ const LandingScreen = ({ onGetStarted }) => {
     }
   }, []);
 
+  // Cleanup bypass timer on unmount
+  useEffect(() => {
+    return () => {
+      if (bypassTimerRef.current) {
+        clearTimeout(bypassTimerRef.current);
+      }
+    };
+  }, []);
+
   // Handle button press - only works when not locked
   const handleGetStarted = () => {
     if (!isLocked) {
       onGetStarted();
+    }
+  };
+
+  // Hidden bypass: hold button for 15 seconds to unlock (production only)
+  const handleTouchStart = () => {
+    if (isLocked) {
+      bypassTimerRef.current = setTimeout(() => {
+        setIsLocked(false);
+        bypassTimerRef.current = null;
+      }, 15000); // 15 seconds
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (bypassTimerRef.current) {
+      clearTimeout(bypassTimerRef.current);
+      bypassTimerRef.current = null;
     }
   };
 
@@ -123,10 +152,14 @@ const LandingScreen = ({ onGetStarted }) => {
         {/* CTA Section */}
         <View style={styles.ctaSection}>
           {/* Countdown Button Wrapper with Orange Glow */}
-          <View style={[
-            styles.ctaButtonWrapper,
-            isLocked && styles.ctaButtonWrapperLocked
-          ]}>
+          <View
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            style={[
+              styles.ctaButtonWrapper,
+              isLocked && styles.ctaButtonWrapperLocked
+            ]}
+          >
             <GlassButton
               title={isLocked ? `Starts in ${formatTimeRemaining(timeRemaining)}` : "Start Your Quest"}
               onPress={handleGetStarted}
@@ -143,8 +176,27 @@ const LandingScreen = ({ onGetStarted }) => {
           <Text style={[styles.ctaSubtext, isLocked && styles.ctaSubtextLocked]}>
             {isLocked 
               ? "Launch countdown • Coming soon" 
-              : "Free to play • No credit card required"}
+              : ""}
           </Text>
+
+          {/* LinkedIn Links */}
+          <View style={styles.linkedinContainer}>
+            <TouchableOpacity
+              onPress={() => Linking.openURL('https://de.linkedin.com/in/ramy-t%C3%B6pperwien-11150b25b')}
+              style={styles.linkedinLink}
+            >
+              <Ionicons name="logo-linkedin" size={16} color={COLORS.primary} />
+              <Text style={styles.linkedinText}>Ramy Töpperwien</Text>
+            </TouchableOpacity>
+            <Text style={styles.linkedinSeparator}>•</Text>
+            <TouchableOpacity
+              onPress={() => Linking.openURL('https://ch.linkedin.com/in/ivo-strohhammer-07358972')}
+              style={styles.linkedinLink}
+            >
+              <Ionicons name="logo-linkedin" size={16} color={COLORS.primary} />
+              <Text style={styles.linkedinText}>Ivo Strohhammer</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
@@ -167,8 +219,8 @@ const styles = StyleSheet.create({
   },
   headerImage: {
     width: width * 0.95,
-    height: 240,
-    marginBottom: 32,
+    height: 60,
+    marginBottom: 20
   },
   heroTagline: {
     ...TYPOGRAPHY.body,
@@ -211,13 +263,13 @@ const styles = StyleSheet.create({
     color: COLORS.text.muted,
   },
   infoCard: {
-    padding: 16,
+    padding: 0,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   infoText: {
     ...TYPOGRAPHY.small,
@@ -227,7 +279,7 @@ const styles = StyleSheet.create({
   infoDivider: {
     height: 1,
     backgroundColor: COLORS.borderLight,
-    marginVertical: 4,
+    marginVertical: 2,
   },
   spacer: {
     flex: 1,
@@ -276,6 +328,27 @@ const styles = StyleSheet.create({
   ctaSubtextLocked: {
     color: COLORS.primary,
     fontWeight: '600',
+  },
+  linkedinContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    gap: 12,
+  },
+  linkedinLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  linkedinText: {
+    ...TYPOGRAPHY.small,
+    color: COLORS.primary,
+    fontWeight: '500',
+  },
+  linkedinSeparator: {
+    ...TYPOGRAPHY.small,
+    color: COLORS.text.muted,
   },
 });
 

@@ -234,10 +234,12 @@ const styles = StyleSheet.create({
   },
   toggleContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: COLORS.backgroundDark,
     borderRadius: 12,
     padding: 4,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   toggleButton: {
     flex: 1,
@@ -251,11 +253,11 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.2,
         shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
