@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { GlassCard } from './index'; // Assuming GlassCard is exported from index
+import GlassCard from './GlassCard';
 import { COLORS, SHADOWS } from '../theme';
 
 const QuestCard = ({ 

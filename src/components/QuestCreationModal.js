@@ -27,7 +27,8 @@ import {
   createQuest,
   getAvailableIcons,
 } from '../game/services/QuestCreationService';
-import { GlassCard, GlassButton } from './index';
+import GlassCard from './GlassCard';
+import GlassButton from './GlassButton';
 
 const { width } = Dimensions.get('window');
 
@@ -541,7 +542,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                 <>
                   <GlassButton
                     title="Scan QR Code"
-                    onPress={handleStartScanning}
+                    onPress={() => setQrScanning(true)}
                     variant="gradient"
                     gradient={COLORS.gradients.gold}
                     icon={<Ionicons name="qr-code" size={22} color={COLORS.text.primary} />}
