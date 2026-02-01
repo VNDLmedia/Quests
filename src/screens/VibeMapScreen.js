@@ -513,7 +513,7 @@ const MapScreen = () => {
         >
           <LinearGradient colors={COLORS.gradients.gold} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.activeQuestGradient}>
             <View style={styles.activeQuestIcon}>
-              <Ionicons name={currentActiveQuest.icon || 'flag'} size={16} color={COLORS.background} />
+              <Ionicons name={currentActiveQuest.icon || 'flag'} size={16} color={COLORS.text.primary} />
             </View>
             <View style={styles.activeQuestInfo}>
               <Text style={styles.activeQuestLabel}>ACTIVE QUEST</Text>
@@ -522,7 +522,7 @@ const MapScreen = () => {
             <View style={styles.activeQuestProgress}>
               <Text style={styles.activeQuestProgressText}>{currentActiveQuest.progress || 0}/{currentActiveQuest.target || 1}</Text>
             </View>
-            <Ionicons name="navigate" size={18} color={COLORS.background} />
+            <Ionicons name="navigate" size={18} color={COLORS.text.primary} />
           </LinearGradient>
         </TouchableOpacity>
       )}
@@ -623,8 +623,8 @@ const MapScreen = () => {
 
             {selectedQuest.status === 'available' ? (
               <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: selectedQuest.canInteract ? COLORS.primary : COLORS.text.muted }]} onPress={acceptQuest} disabled={!selectedQuest.canInteract}>
-                <Text style={styles.sheetBtnText}>{selectedQuest.canInteract ? 'Accept Quest' : `${selectedQuest.distance}m away`}</Text>
-                <Ionicons name={selectedQuest.canInteract ? 'add-circle' : 'walk'} size={18} color={COLORS.background} />
+                <Text style={[styles.sheetBtnText, { color: selectedQuest.canInteract ? COLORS.text.primary : COLORS.text.primary }]}>{selectedQuest.canInteract ? 'Accept Quest' : `${selectedQuest.distance}m away`}</Text>
+                <Ionicons name={selectedQuest.canInteract ? 'add-circle' : 'walk'} size={18} color={COLORS.text.primary} />
               </TouchableOpacity>
             ) : (
               <View style={styles.activeQuestBadge}>
@@ -664,10 +664,10 @@ const styles = StyleSheet.create({
   activeQuestGradient: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, ...SHADOWS.md },
   activeQuestIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(13,27,42,0.3)', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   activeQuestInfo: { flex: 1 },
-  activeQuestLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(13,27,42,0.7)', letterSpacing: 0.5 },
-  activeQuestTitle: { fontSize: 14, fontWeight: '700', color: COLORS.background, marginTop: 1 },
+  activeQuestLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.8)', letterSpacing: 0.5 },
+  activeQuestTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text.primary, marginTop: 1 },
   activeQuestProgress: { backgroundColor: 'rgba(13,27,42,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 8 },
-  activeQuestProgressText: { fontSize: 12, fontWeight: '700', color: COLORS.background },
+  activeQuestProgressText: { fontSize: 12, fontWeight: '700', color: COLORS.text.primary },
 
   // Quest Carousel
   questCarousel: { position: 'absolute', left: 0, right: 0 },
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
   sheetStatLabel: { fontSize: 9, fontWeight: '700', color: COLORS.text.muted, letterSpacing: 0.5, marginBottom: 2 },
   sheetStatValue: { fontSize: 16, fontWeight: '800', color: COLORS.text.primary },
   sheetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
-  sheetBtnText: { color: COLORS.background, fontWeight: '700', fontSize: 15 },
+  sheetBtnText: { color: COLORS.text.primary, fontWeight: '700', fontSize: 15 },
   activeQuestBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(232,184,74,0.1)', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(232,184,74,0.2)' },
   activeQuestBadgeText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
 });

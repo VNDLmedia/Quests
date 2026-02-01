@@ -208,6 +208,7 @@ const UserScreen = () => {
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}
       >
+        <div style={{height: 30}}></div>
         {/* MEMBER CARD */}
         <TouchableOpacity 
           style={styles.cardContainer} 
@@ -260,6 +261,8 @@ const UserScreen = () => {
           <View style={[styles.cardShadow, { width: cardWidth - 30 }]} />
         </TouchableOpacity>
 
+        <div style={{height: 30}}></div>
+
         {/* XP Progress */}
         <View style={styles.xpSection}>
           <View style={styles.xpHeader}>
@@ -276,6 +279,8 @@ const UserScreen = () => {
           </View>
           <Text style={styles.totalXP}>Total: {player.xp} XP</Text>
         </View>
+
+        <div style={{height: 10}}></div>
 
         {/* Quick Actions */}
         <View style={styles.actionsRow}>
@@ -300,6 +305,8 @@ const UserScreen = () => {
             <Text style={styles.actionLabel}>Scan</Text>
           </TouchableOpacity>
         </View>
+
+        <div style={{height: 20}}></div>
 
         {/* Stats Card */}
         <GlassCard style={styles.card}>

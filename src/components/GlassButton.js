@@ -60,7 +60,7 @@ const GlassButton = ({
   const renderContent = () => (
     <View style={[styles.contentRow, sizeStyles[size]]}>
       {loading ? (
-        <ActivityIndicator color={variant === 'gradient' ? COLORS.background : COLORS.text.primary} />
+        <ActivityIndicator color={variant === 'gradient' ? COLORS.text.primary : COLORS.text.primary} />
       ) : (
         <>
           {icon && iconPosition === 'left' && (
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   textGradient: {
-    color: COLORS.background,
+    color: COLORS.text.primary,
     fontWeight: '700',
   },
   textOutline: {

@@ -183,7 +183,7 @@ const LandingScreen = ({ onGetStarted }) => {
               gradient={isLocked ? [COLORS.text.muted, COLORS.surface, COLORS.text.muted] : COLORS.gradients.gold}
               size="lg"
               style={[styles.ctaButton, isLocked && styles.ctaButtonLocked]}
-              icon={isLocked ? <Ionicons name="time" size={24} color={COLORS.text.primary} /> : <Ionicons name="compass" size={22} color="#0D1B2A" />}
+              icon={isLocked ? <Ionicons name="time" size={24} color={COLORS.text.primary} /> : <Ionicons name="compass" size={22} color={COLORS.text.primary} />}
               iconPosition="left"
               textStyle={[styles.ctaButtonText, isLocked && styles.ctaButtonTextLocked]}
             />
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     opacity: 1,
   },
   ctaButtonText: {
-    color: '#0D1B2A',
+    color: COLORS.text.primary,
     fontWeight: '800',
   },
   ctaButtonTextLocked: {

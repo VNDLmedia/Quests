@@ -68,7 +68,7 @@ const LiveLeaderboard = ({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="trophy" size={20} color={COLORS.gold} />
+          <Ionicons name="trophy" size={20} color={COLORS.text.primary} />
           <Text style={styles.title}>{title}</Text>
         </View>
         
@@ -236,12 +236,6 @@ const LiveLeaderboard = ({
           </View>
         )}
       </ScrollView>
-
-      {/* Live Indicator */}
-      <View style={styles.liveIndicator}>
-        <View style={styles.liveDot} />
-        <Text style={styles.liveText}>Live</Text>
-      </View>
     </View>
   );
 };
@@ -466,31 +460,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: COLORS.text.muted,
     marginBottom: 8,
-  },
-
-  // Live Indicator
-  liveIndicator: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#EF4444',
-    marginRight: 4,
-  },
-  liveText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#EF4444',
   },
 });
 

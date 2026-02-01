@@ -190,7 +190,7 @@ const QuestLogScreen = ({ navigation }) => {
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator size="small" color={COLORS.background} />
+                <ActivityIndicator size="small" color={COLORS.text.primary} />
               ) : (
                 <Text style={styles.refreshBtnText}>Check for New Quests</Text>
               )}
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   heroLabel: {
-    color: 'rgba(13,27,42,0.6)',
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   heroTitle: {
-    color: COLORS.background,
+    color: COLORS.text.primary,
     fontSize: 24,
     fontWeight: '800',
   },
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(13,27,42,0.2)',
   },
   levelText: {
-    color: COLORS.background,
+    color: COLORS.text.primary,
     fontWeight: '700',
     fontSize: 12,
   },
@@ -287,13 +287,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statValue: {
-    color: COLORS.background,
+    color: COLORS.text.primary,
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 2,
   },
   statLabel: {
-    color: 'rgba(13,27,42,0.7)',
+    color: 'rgba(255,255,255,0.9)',
     fontSize: 11,
     fontWeight: '600',
   },
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   refreshBtnText: {
-    color: COLORS.background,
+    color: COLORS.text.primary,
     fontWeight: '700',
     fontSize: 16,
   },
