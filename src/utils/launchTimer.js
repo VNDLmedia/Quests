@@ -27,34 +27,32 @@ export const isLocalhost = () => {
 };
 
 /**
- * Get midnight tonight (00:00:00) as a Date object
- * @returns {Date} Midnight tonight
+ * Get launch time (Feb 3, 2026, 09:00:00)
+ * @returns {Date} Launch time
  */
-const getMidnightTonight = () => {
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0); // Next midnight (00:00:00)
-  return midnight;
+const getLaunchTime = () => {
+  // Fixed launch time: Feb 3, 2026, 09:00:00
+  return new Date(2026, 1, 3, 9, 0, 0);
 };
 
 /**
- * Check if launch time has been reached (midnight tonight)
- * @returns {boolean} True if current time is past midnight tonight
+ * Check if launch time has been reached
+ * @returns {boolean} True if current time is past launch time
  */
 export const isLaunchTimeReached = () => {
   const now = new Date();
-  const midnight = getMidnightTonight();
-  return now >= midnight;
+  const launchTime = getLaunchTime();
+  return now >= launchTime;
 };
 
 /**
- * Get time remaining until launch (midnight tonight)
+ * Get time remaining until launch
  * @returns {Object} Object with hours, minutes, seconds remaining
  */
 export const getTimeUntilLaunch = () => {
   const now = new Date();
-  const midnight = getMidnightTonight();
-  const diff = midnight - now;
+  const launchTime = getLaunchTime();
+  const diff = launchTime - now;
   
   // If launch time has passed, return zeros
   if (diff <= 0) {
