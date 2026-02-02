@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuests, usePlayer, useGame, useChallenges } from '../game/hooks';
+import { useQuests, usePlayer, useGame, useChallenges, useLeaderboard } from '../game/hooks';
 import { QuestCard, Skeleton, StreakBanner, ScreenHeader, EventChallengeCard, ChallengeCreationModal } from '../components';
 import { COLORS, SHADOWS, PALETTE } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +24,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getChallengesWithProgress, CHALLENGE_TIERS, fetchChallengeQuests } from '../game/config/challenges';
 import { COLLECTIBLE_CARDS } from '../game/config/cardsData';
 import GlassCard from '../components/GlassCard';
+import LiveLeaderboard from '../components/LiveLeaderboard';
 
 const { width } = Dimensions.get('window');
 
@@ -62,12 +63,19 @@ const QuestLogScreen = ({ navigation }) => {
     getChallengeStatus,
     refreshChallenges,
   } = useChallenges();
+
+  const { 
+    leaderboard,
+    myRank, 
+    refresh: refreshLeaderboard,
+    isLoadingLeaderboard,
+  } = useLeaderboard();
   
   const [isLoading, setIsLoading] = useState(false);
   const [checkingLocation, setCheckingLocation] = useState(null);
   const [scanningQuest, setScanningQuest] = useState(null);
   const [permission, requestPermission] = useCameraPermissions();
-  const [activeTab, setActiveTab] = useState('quests'); // 'quests' oder 'challenges'
+  const [activeTab, setActiveTab] = useState('quests'); // 'quests', 'challenges' oder 'leaderboard'
   const [expandedChallenge, setExpandedChallenge] = useState(null);
   const [questlineDetails, setQuestlineDetails] = useState(null);
   const [loadingQuestline, setLoadingQuestline] = useState(false);
@@ -375,9 +383,30 @@ const QuestLogScreen = ({ navigation }) => {
               </View>
             )}
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'leaderboard' && styles.tabActive]}
+            onPress={() => setActiveTab('leaderboard')}
+          >
+            <Ionicons 
+              name="podium" 
+              size={18} 
+              color={activeTab === 'leaderboard' ? COLORS.primary : COLORS.text.muted} 
+            />
+            <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.tabTextActive]}>
+              Ranking
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {activeTab === 'quests' ? (
+        {activeTab === 'leaderboard' ? (
+          // === LEADERBOARD TAB ===
+          <LiveLeaderboard
+            data={leaderboard}
+            myRank={myRank}
+            isLoading={isLoadingLeaderboard}
+          />
+        ) : activeTab === 'quests' ? (
           // === QUESTS TAB ===
           activeQuests.length === 0 ? (
             <View style={styles.emptyState}>

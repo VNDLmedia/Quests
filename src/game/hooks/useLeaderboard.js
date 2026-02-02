@@ -2,7 +2,7 @@
 // PULSE - useLeaderboard Hook
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useRef, useEffect, useState } from 'react';
 import { useGame } from '../GameProvider';
 
 export function useLeaderboard() {
@@ -13,13 +13,23 @@ export function useLeaderboard() {
   const player = gameContext?.player || { id: null, xp: 0, level: 1, username: 'Guest', displayName: 'Guest' };
   const fetchLeaderboard = gameContext?.fetchLeaderboard || (() => Promise.resolve());
   const isOnline = gameContext?.isOnline || false;
+  
+  // Track loading state
+  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
+  
+  // Track if we've already fetched to prevent duplicate fetches
+  const hasFetched = useRef(false);
 
-  // Fetch on mount
+  // Fetch on mount (only once)
   useEffect(() => {
-    if (isOnline) {
-      fetchLeaderboard();
+    if (isOnline && !hasFetched.current && leaderboard.length === 0) {
+      hasFetched.current = true;
+      setIsLoadingLeaderboard(true);
+      fetchLeaderboard().finally(() => {
+        setIsLoadingLeaderboard(false);
+      });
     }
-  }, [isOnline, fetchLeaderboard]);
+  }, [isOnline, fetchLeaderboard, leaderboard.length]);
 
   // Top 3 players
   const topThree = useMemo(() => {
@@ -106,6 +116,7 @@ export function useLeaderboard() {
     
     // State
     isOnline,
+    isLoadingLeaderboard,
   };
 }
 

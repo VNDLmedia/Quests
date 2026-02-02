@@ -26,8 +26,6 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { COLORS, SHADOWS } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../game/GameProvider';
-import { useLeaderboard } from '../game/hooks';
-import LiveLeaderboard from '../components/LiveLeaderboard';
 import { TEAMS } from '../config/teams';
 
 // Safe import for UniversalQRScanner (Web only)
@@ -40,26 +38,19 @@ try {
   console.warn('UniversalQRScanner not available:', error);
 }
 
+
 const SocialScreen = () => {
   const insets = useSafeAreaInsets();
   const { 
     player, 
     friends, 
     addFriend,
-    updateProfile,
     fetchFriends,
     user,
   } = useGame();
-  
-  const { 
-    friendsLeaderboard, 
-    myFriendsRank, 
-    refresh: refreshLeaderboard,
-  } = useLeaderboard();
 
   const [showQRModal, setShowQRModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
-  const [showConsentModal, setShowConsentModal] = useState(!player.leaderboardVisible);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [manualCode, setManualCode] = useState('');
   const [newFriend, setNewFriend] = useState(null); // For friend added modal
@@ -69,16 +60,8 @@ const SocialScreen = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await Promise.all([
-      refreshLeaderboard(),
-      user?.id ? fetchFriends(user.id) : Promise.resolve(),
-    ]);
+    await (user?.id ? fetchFriends(user.id) : Promise.resolve());
     setIsRefreshing(false);
-  };
-  
-  const handleAcceptConsent = async () => {
-    await updateProfile({ leaderboardVisible: true });
-    setShowConsentModal(false);
   };
 
   const handleBarCodeScanned = async ({ data }) => {
@@ -147,7 +130,7 @@ const SocialScreen = () => {
       
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Text style={styles.headerTitle}>Leaderboard</Text>
+        <Text style={styles.headerTitle}>Friends</Text>
         <TouchableOpacity onPress={startScan} style={styles.addFriendBtn}>
           <Ionicons name="person-add" size={20} color={COLORS.primary} />
         </TouchableOpacity>
@@ -160,169 +143,43 @@ const SocialScreen = () => {
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Consent Notice if not accepted */}
-        {!player.leaderboardVisible && (
-          <TouchableOpacity 
-            style={styles.consentBanner}
-            onPress={() => setShowConsentModal(true)}
-          >
-            <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
-            <View style={styles.consentBannerText}>
-              <Text style={styles.consentBannerTitle}>Join Leaderboard</Text>
-              <Text style={styles.consentBannerSub}>Tap here to participate</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.text.muted} />
-          </TouchableOpacity>
-        )}
-
-        {/* My Score Card */}
-        <LinearGradient
-          colors={COLORS.gradients.primary}
-          style={styles.rankCard}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.rankLeft}>
-            <Text style={styles.rankLabel}>Your Rank</Text>
-            <Text style={styles.rankNumber}>#{myFriendsRank || '-'}</Text>
-          </View>
-          <View style={styles.rankRight}>
-            <Text style={styles.rankXP}>{player.score || 0} Points</Text>
-            <Text style={styles.rankLevel}>{player.totalQuestsCompleted || 0} Quests</Text>
-          </View>
-        </LinearGradient>
-
-        <div style={{height: 15}}></div>
-
-        {/* Leaderboard - only show if consent given */}
-        {player.leaderboardVisible ? (
-          <LiveLeaderboard
-            data={friendsLeaderboard}
-            myRank={myFriendsRank}
-            friendsOnly={true}
-            onRefresh={refreshLeaderboard}
-            isLoading={isRefreshing}
-            title="Leaderboard"
-          />
-        ) : (
-          <View style={styles.lockedLeaderboard}>
-            <Ionicons name="lock-closed" size={48} color={COLORS.text.muted} />
-            <Text style={styles.lockedText}>Leaderboard Locked</Text>
-            <Text style={styles.lockedSubtext}>Accept the privacy policy to see other players</Text>
-            <TouchableOpacity 
-              style={styles.unlockBtn}
-              onPress={() => setShowConsentModal(true)}
-            >
-              <Text style={styles.unlockBtnText}>Unlock</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         {/* Friends List */}
-        <View style={styles.friendsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Friends ({friends.length})</Text>
-            <TouchableOpacity onPress={startScan}>
-              <Text style={styles.sectionAction}>+ Add</Text>
-            </TouchableOpacity>
+        {friends.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="people-outline" size={48} color={COLORS.text.muted} />
+            <Text style={styles.emptyText}>No friends yet</Text>
+            <Text style={styles.emptySubtext}>Scan a QR code to add friends</Text>
           </View>
-          
-          {friends.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={48} color={COLORS.text.muted} />
-              <Text style={styles.emptyText}>No friends yet</Text>
-              <Text style={styles.emptySubtext}>Scan a QR code to add friends</Text>
-            </View>
-          ) : (
-            friends.map((friend) => (
+        ) : (
+          <View style={styles.friendsList}>
+            {friends.filter(f => f && f.id).map((friend) => (
               <TouchableOpacity 
                 key={friend.id} 
-                style={styles.friendItem}
+                style={[
+                  styles.friendItem,
+                  friend.team && TEAMS[friend.team] ? { borderLeftWidth: 3, borderLeftColor: TEAMS[friend.team].color } : null
+                ]}
                 onPress={() => setSelectedFriend(friend)}
                 activeOpacity={0.7}
               >
-                {/* Avatar with Team Color Border */}
-                <View style={[
-                  styles.friendAvatar,
-                  friend.team && TEAMS[friend.team] && {
-                    borderWidth: 2,
-                    borderColor: TEAMS[friend.team].color,
-                  }
-                ]}>
-                  <Text style={styles.friendInitial}>
-                    {(friend.display_name || friend.username || '?').charAt(0).toUpperCase()}
-                  </Text>
+                <View style={styles.friendAvatar}>
+                  <Text style={styles.friendInitial}>{String(friend.display_name || friend.username || 'U').charAt(0).toUpperCase()}</Text>
                 </View>
-                
-                {/* Friend Info */}
                 <View style={styles.friendInfo}>
                   <View style={styles.friendNameRow}>
-                    <Text style={styles.friendName}>
-                      {friend.display_name || friend.username}
-                    </Text>
-                    {/* Team Icon */}
-                    {friend.team && TEAMS[friend.team] && (
-                      <Ionicons 
-                        name={TEAMS[friend.team].icon} 
-                        size={14} 
-                        color={TEAMS[friend.team].color} 
-                        style={{ marginLeft: 6 }}
-                      />
-                    )}
+                    <Text style={styles.friendName}>{String(friend.display_name || friend.username || 'Unknown')}</Text>
+                    {friend.team && TEAMS[friend.team] ? (
+                      <Ionicons name={TEAMS[friend.team].icon} size={14} color={TEAMS[friend.team].color} style={{ marginLeft: 6 }} />
+                    ) : null}
                   </View>
-                  <Text style={styles.friendLevel}>{friend.score || 0} Points</Text>
+                  <Text style={styles.friendLevel}>{String(friend.score || 0)} Points</Text>
                 </View>
-                
-                {/* Arrow indicator */}
                 <Ionicons name="chevron-forward" size={20} color={COLORS.text.muted} />
               </TouchableOpacity>
-            ))
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Consent Modal */}
-      <Modal visible={showConsentModal} animationType="fade" transparent>
-        <View style={styles.consentModalOverlay}>
-          <View style={styles.consentModal}>
-            <View style={styles.consentIcon}>
-              <Ionicons name="shield-checkmark" size={48} color={COLORS.primary} />
-            </View>
-            <Text style={styles.consentTitle}>Join Leaderboard</Text>
-            <Text style={styles.consentText}>
-              To participate in the leaderboard and see other players, we need to share the following data:
-            </Text>
-            <View style={styles.consentList}>
-              <View style={styles.consentListItem}>
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                <Text style={styles.consentListText}>Your display name</Text>
-              </View>
-              <View style={styles.consentListItem}>
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                <Text style={styles.consentListText}>Your score</Text>
-              </View>
-              <View style={styles.consentListItem}>
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                <Text style={styles.consentListText}>Your bio (if available)</Text>
-              </View>
-            </View>
-            <View style={styles.consentButtons}>
-              <TouchableOpacity 
-                style={styles.consentCancelBtn}
-                onPress={() => setShowConsentModal(false)}
-              >
-                <Text style={styles.consentCancelText}>Later</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.consentAcceptBtn}
-                onPress={handleAcceptConsent}
-              >
-                <Text style={styles.consentAcceptText}>Accept</Text>
-              </TouchableOpacity>
-            </View>
+            ))}
           </View>
-        </View>
-      </Modal>
+        )}
+      </ScrollView>
 
       {/* QR Code Modal */}
       <Modal visible={showQRModal} animationType="slide">
@@ -445,16 +302,16 @@ const SocialScreen = () => {
                 {/* Friend Avatar with Team Color */}
                 <View style={[
                   styles.friendModalAvatar,
-                  { borderColor: TEAMS[newFriend.team]?.color || COLORS.primary }
+                  { borderColor: (newFriend.team && TEAMS[newFriend.team]?.color) || COLORS.primary }
                 ]}>
                   <Text style={styles.friendModalAvatarText}>
-                    {(newFriend.display_name || newFriend.username || '?').charAt(0).toUpperCase()}
+                    {String((newFriend.display_name || newFriend.username || '?')).charAt(0).toUpperCase()}
                   </Text>
                 </View>
                 
                 {/* Friend Name */}
                 <Text style={styles.friendModalName}>
-                  {newFriend.display_name || newFriend.username}
+                  {String(newFriend.display_name || newFriend.username || 'Unknown')}
                 </Text>
                 
                 {/* Team Badge */}
@@ -462,15 +319,20 @@ const SocialScreen = () => {
                   <View style={[styles.teamBadge, { backgroundColor: TEAMS[newFriend.team].bgColor }]}>
                     <Ionicons name={TEAMS[newFriend.team].icon} size={16} color={TEAMS[newFriend.team].color} />
                     <Text style={[styles.teamBadgeText, { color: TEAMS[newFriend.team].color }]}>
-                      {TEAMS[newFriend.team].name}
+                      {String(TEAMS[newFriend.team].name)}
                     </Text>
                   </View>
                 )}
                 
+                {/* Score */}
+                <Text style={styles.friendModalScore}>
+                  {String(newFriend.score || 0)} Points
+                </Text>
+
                 {/* Bio Preview */}
                 {newFriend.bio && (
                   <Text style={styles.friendModalBio} numberOfLines={2}>
-                    "{newFriend.bio}"
+                    "{String(newFriend.bio)}"
                   </Text>
                 )}
                 
@@ -484,11 +346,6 @@ const SocialScreen = () => {
                     <Text style={styles.linkedinBtnText}>View LinkedIn</Text>
                   </TouchableOpacity>
                 )}
-                
-                {/* Score */}
-                <Text style={styles.friendModalScore}>
-                  {newFriend.score || 0} Points
-                </Text>
               </>
             )}
             
@@ -502,79 +359,53 @@ const SocialScreen = () => {
         </View>
       </Modal>
 
-      {/* Friend Profile Modal */}
-      <Modal visible={!!selectedFriend} animationType="slide" transparent>
-        <View style={styles.friendModalOverlay}>
-          <View style={styles.friendProfileModal}>
-            <TouchableOpacity 
-              style={styles.friendProfileClose}
-              onPress={() => setSelectedFriend(null)}
-            >
-              <Ionicons name="close" size={24} color={COLORS.text.muted} />
-            </TouchableOpacity>
-            
-            {selectedFriend && (
-              <>
-                {/* Header with Team Color */}
-                <LinearGradient
-                  colors={[
-                    TEAMS[selectedFriend.team]?.color || COLORS.primary,
-                    TEAMS[selectedFriend.team]?.darkColor || COLORS.primary,
-                  ]}
-                  style={styles.friendProfileHeader}
-                >
-                  <View style={styles.friendProfileAvatarLarge}>
-                    <Text style={styles.friendProfileAvatarText}>
-                      {(selectedFriend.display_name || selectedFriend.username || '?').charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  
-                  <Text style={styles.friendProfileName}>
-                    {selectedFriend.display_name || selectedFriend.username}
-                  </Text>
-                  
-                  {selectedFriend.team && TEAMS[selectedFriend.team] && (
-                    <View style={styles.teamBadgeWhite}>
-                      <Ionicons name={TEAMS[selectedFriend.team].icon} size={14} color="#FFF" />
-                      <Text style={styles.teamBadgeWhiteText}>{TEAMS[selectedFriend.team].name}</Text>
-                    </View>
-                  )}
-                </LinearGradient>
-                
-                {/* Profile Content */}
-                <View style={styles.friendProfileContent}>
-                  {/* Bio */}
-                  {selectedFriend.bio ? (
-                    <View style={styles.friendProfileSection}>
-                      <Text style={styles.friendProfileSectionTitle}>About</Text>
-                      <Text style={styles.friendProfileBio}>{selectedFriend.bio}</Text>
-                    </View>
-                  ) : null}
-                  
-                  {/* Stats */}
-                  <View style={styles.friendProfileStats}>
-                    <View style={styles.friendProfileStat}>
-                      <Text style={styles.friendProfileStatValue}>{selectedFriend.score || 0}</Text>
-                      <Text style={styles.friendProfileStatLabel}>Points</Text>
-                    </View>
-                  </View>
-                  
-                  {/* LinkedIn */}
-                  {selectedFriend.linkedin_url && (
-                    <TouchableOpacity 
-                      style={styles.linkedinBtnLarge}
-                      onPress={() => Linking.openURL(selectedFriend.linkedin_url)}
-                    >
-                      <Ionicons name="logo-linkedin" size={24} color="#FFF" />
-                      <Text style={styles.linkedinBtnLargeText}>View LinkedIn Profile</Text>
-                    </TouchableOpacity>
-                  )}
+      {selectedFriend !== null ? (
+        <View style={styles.friendProfileOverlayFixed}>
+          <TouchableOpacity 
+            style={styles.friendProfileOverlay} 
+            activeOpacity={1} 
+            onPress={() => setSelectedFriend(null)}
+          >
+            <TouchableOpacity activeOpacity={1} style={styles.friendProfileCard}>
+              <TouchableOpacity style={styles.friendProfileCloseBtn} onPress={() => setSelectedFriend(null)}>
+                <Ionicons name="close" size={24} color={COLORS.text.muted} />
+              </TouchableOpacity>
+              <View style={[styles.friendProfileHeader, { backgroundColor: selectedFriend.team && TEAMS[selectedFriend.team] ? TEAMS[selectedFriend.team].color : COLORS.primary }]}>
+                <View style={styles.friendProfileAvatarCircle}>
+                  <Text style={styles.friendProfileAvatarLetter}>{String(selectedFriend.display_name || selectedFriend.username || 'U').charAt(0).toUpperCase()}</Text>
                 </View>
-              </>
-            )}
-          </View>
+                <Text style={styles.friendProfileDisplayName}>{String(selectedFriend.display_name || selectedFriend.username || 'Unknown')}</Text>
+                {selectedFriend.team && TEAMS[selectedFriend.team] ? (
+                  <View style={styles.friendProfileTeamBadge}>
+                    <Ionicons name={TEAMS[selectedFriend.team].icon} size={14} color="#FFF" />
+                    <Text style={styles.friendProfileTeamText}>{String(TEAMS[selectedFriend.team].name)}</Text>
+                  </View>
+                ) : null}
+              </View>
+              <View style={styles.friendProfileBody}>
+                <View style={styles.friendProfileScoreRow}>
+                  <View style={styles.friendProfileScoreItem}>
+                    <Text style={styles.friendProfileScoreValue}>{String(selectedFriend.score || 0)}</Text>
+                    <Text style={styles.friendProfileScoreLabel}>Points</Text>
+                  </View>
+                </View>
+                {selectedFriend.bio && String(selectedFriend.bio).trim() !== '' ? (
+                  <View style={styles.friendProfileBioSection}>
+                    <Text style={styles.friendProfileBioTitle}>About</Text>
+                    <Text style={styles.friendProfileBioText}>{String(selectedFriend.bio)}</Text>
+                  </View>
+                ) : null}
+                {selectedFriend.linkedin_url && String(selectedFriend.linkedin_url).trim() !== '' ? (
+                  <TouchableOpacity style={styles.friendProfileLinkedIn} onPress={() => Linking.openURL(selectedFriend.linkedin_url)}>
+                    <Ionicons name="logo-linkedin" size={24} color="#FFF" />
+                    <Text style={styles.friendProfileLinkedInText}>View LinkedIn Profile</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </View>
-      </Modal>
+      ) : null}
     </View>
   );
 };
@@ -737,38 +568,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Friends Section
-  friendsSection: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    padding: 16,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    ...SHADOWS.sm,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text.primary,
-  },
-  sectionAction: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.primary,
+  // Friends List
+  friendsList: {
+    gap: 8,
   },
   friendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
   friendAvatar: {
     width: 40,
@@ -888,18 +697,17 @@ const styles = StyleSheet.create({
   // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 40,
+    gap: 12,
   },
   emptyText: {
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.text.primary,
-    marginTop: 12,
   },
   emptySubtext: {
     fontSize: 13,
     color: COLORS.text.muted,
-    marginTop: 4,
   },
 
   // QR Modal
@@ -1257,6 +1065,128 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFF',
+  },
+  friendProfileOverlayFixed: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  friendProfileOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  friendProfileCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 360,
+    overflow: 'hidden',
+  },
+  friendProfileCloseBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    padding: 4,
+  },
+  friendProfileHeader: {
+    paddingTop: 30,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  friendProfileAvatarCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  friendProfileAvatarLetter: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  friendProfileDisplayName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFF',
+    textAlign: 'center',
+  },
+  friendProfileTeamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  friendProfileTeamText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFF',
+    marginLeft: 6,
+  },
+  friendProfileBody: {
+    padding: 20,
+  },
+  friendProfileScoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  friendProfileScoreItem: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  friendProfileScoreValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
+  friendProfileScoreLabel: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    marginTop: 4,
+  },
+  friendProfileBioSection: {
+    marginBottom: 16,
+  },
+  friendProfileBioTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.text.muted,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  friendProfileBioText: {
+    fontSize: 14,
+    color: COLORS.text.secondary,
+    lineHeight: 20,
+  },
+  friendProfileLinkedIn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0A66C2',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  friendProfileLinkedInText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFF',
+    marginLeft: 10,
   },
 });
 

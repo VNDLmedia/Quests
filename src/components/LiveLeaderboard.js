@@ -2,57 +2,68 @@
 // PULSE - Live Leaderboard Component
 // ═══════════════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  Animated,
-  RefreshControl,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, SHADOWS } from '../theme';
+import { COLORS } from '../theme';
+import { TEAMS } from '../config/teams';
 import Skeleton from './Skeleton';
 
 const LiveLeaderboard = ({
   data = [],
   myRank = null,
-  friendsOnly = false,
-  onRefresh,
   isLoading = false,
-  title = 'This Week',
 }) => {
-  const [activeTab, setActiveTab] = useState(friendsOnly ? 'friends' : 'global');
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
 
-  // Animate rank changes
-  const animateChange = () => {
-    Animated.sequence([
-      Animated.timing(slideAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+  // Memoize and ensure stable sorting of leaderboard data
+  const sortedData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
+    // Filter out invalid entries and create a stable copy
+    const validData = data.filter(p => p && p.id);
+    
+    // Sort by score (descending), then by id (for stability when scores are equal)
+    return [...validData].sort((a, b) => {
+      const scoreA = a.score || a.weeklyXP || 0;
+      const scoreB = b.score || b.weeklyXP || 0;
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+      // Stable sort by id when scores are equal
+      return (a.id || '').localeCompare(b.id || '');
+    });
+  }, [data]);
 
-  const topThree = data.slice(0, 3);
-  const rest = data.slice(3);
-
-  const getMedalColor = (rank) => {
+  const getRankStyle = (rank) => {
     switch (rank) {
-      case 1: return { bg: '#FEF3C7', icon: '#F59E0B', border: '#F59E0B' };
-      case 2: return { bg: '#F1F5F9', icon: '#94A3B8', border: '#CBD5E1' };
-      case 3: return { bg: '#FED7AA', icon: '#EA580C', border: '#EA580C' };
-      default: return { bg: '#F8FAFC', icon: COLORS.text.muted, border: 'transparent' };
+      case 1: return { 
+        bg: 'rgba(245, 158, 11, 0.15)', 
+        color: '#F59E0B', 
+        border: '#F59E0B',
+      };
+      case 2: return { 
+        bg: 'rgba(148, 163, 184, 0.15)', 
+        color: '#94A3B8', 
+        border: '#CBD5E1',
+      };
+      case 3: return { 
+        bg: 'rgba(234, 88, 12, 0.15)', 
+        color: '#EA580C', 
+        border: '#EA580C',
+      };
+      default: return { 
+        bg: 'rgba(255,255,255,0.03)', 
+        color: COLORS.text.muted, 
+        border: 'transparent',
+      };
     }
   };
 
@@ -63,168 +74,121 @@ const LiveLeaderboard = ({
     return score?.toString() || '0';
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Ionicons name="trophy" size={20} color={COLORS.text.primary} />
-          <Text style={styles.title}>{title}</Text>
-        </View>
-        
-        {/* Tabs */}
-        <View style={styles.tabs}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'global' && styles.tabActive]}
-            onPress={() => setActiveTab('global')}
-          >
-            <Text style={[styles.tabText, activeTab === 'global' && styles.tabTextActive]}>
-              Global
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'friends' && styles.tabActive]}
-            onPress={() => setActiveTab('friends')}
-          >
-            <Text style={[styles.tabText, activeTab === 'friends' && styles.tabTextActive]}>
-              Friends
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+  const getPlayerName = (player) => {
+    return player.display_name || player.displayName || player.username || '?';
+  };
 
-      {/* Top 3 Podium */}
-      {isLoading ? (
-        <View style={{flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 20}}>
-           <View style={{alignItems: 'center', marginTop: 30}}>
-             <Skeleton width={48} height={48} borderRadius={24} style={{marginBottom: 8}} />
-             <Skeleton width={60} height={12} borderRadius={4} />
-           </View>
-           <View style={{alignItems: 'center'}}>
-             <Skeleton width={60} height={60} borderRadius={30} style={{marginBottom: 8}} />
-             <Skeleton width={80} height={16} borderRadius={4} />
-           </View>
-           <View style={{alignItems: 'center', marginTop: 30}}>
-             <Skeleton width={48} height={48} borderRadius={24} style={{marginBottom: 8}} />
-             <Skeleton width={60} height={12} borderRadius={4} />
-           </View>
-        </View>
-      ) : (
-      topThree.length >= 3 && (
-        <View style={styles.podium}>
-          {/* 2nd Place */}
-          <View style={[styles.podiumItem, styles.podiumSecond]}>
-            <View style={[styles.podiumAvatar, { borderColor: getMedalColor(2).border }]}>
-              <Text style={styles.podiumInitial}>
-                {topThree[1]?.displayName?.charAt(0) || topThree[1]?.username?.charAt(0) || '?'}
-              </Text>
-            </View>
-            <View style={[styles.podiumMedal, { backgroundColor: getMedalColor(2).bg }]}>
-              <Text style={[styles.podiumRank, { color: getMedalColor(2).icon }]}>2</Text>
-            </View>
-            <Text style={styles.podiumName} numberOfLines={1}>
-              {topThree[1]?.displayName || topThree[1]?.username}
-            </Text>
-            <Text style={styles.podiumXP}>{formatScore(topThree[1]?.score || topThree[1]?.weeklyXP)}</Text>
-          </View>
+  const getPlayerInitial = (player) => {
+    return getPlayerName(player).charAt(0).toUpperCase();
+  };
 
-          {/* 1st Place */}
-          <View style={[styles.podiumItem, styles.podiumFirst]}>
-            <View style={styles.crownContainer}>
-              <Ionicons name="crown" size={24} color="#F59E0B" />
-            </View>
-            <View style={[styles.podiumAvatar, styles.podiumAvatarFirst, { borderColor: getMedalColor(1).border }]}>
-              <Text style={[styles.podiumInitial, styles.podiumInitialFirst]}>
-                {topThree[0]?.displayName?.charAt(0) || topThree[0]?.username?.charAt(0) || '?'}
-              </Text>
-            </View>
-            <View style={[styles.podiumMedal, styles.podiumMedalFirst, { backgroundColor: getMedalColor(1).bg }]}>
-              <Text style={[styles.podiumRank, { color: getMedalColor(1).icon }]}>1</Text>
-            </View>
-            <Text style={[styles.podiumName, styles.podiumNameFirst]} numberOfLines={1}>
-              {topThree[0]?.displayName || topThree[0]?.username}
-            </Text>
-            <Text style={[styles.podiumXP, styles.podiumXPFirst]}>{formatScore(topThree[0]?.score || topThree[0]?.weeklyXP)}</Text>
-          </View>
-
-          {/* 3rd Place */}
-          <View style={[styles.podiumItem, styles.podiumThird]}>
-            <View style={[styles.podiumAvatar, { borderColor: getMedalColor(3).border }]}>
-              <Text style={styles.podiumInitial}>
-                {topThree[2]?.displayName?.charAt(0) || topThree[2]?.username?.charAt(0) || '?'}
-              </Text>
-            </View>
-            <View style={[styles.podiumMedal, { backgroundColor: getMedalColor(3).bg }]}>
-              <Text style={[styles.podiumRank, { color: getMedalColor(3).icon }]}>3</Text>
-            </View>
-            <Text style={styles.podiumName} numberOfLines={1}>
-              {topThree[2]?.displayName || topThree[2]?.username}
-            </Text>
-            <Text style={styles.podiumXP}>{formatScore(topThree[2]?.score || topThree[2]?.weeklyXP)}</Text>
-          </View>
-        </View>
-      ))}
-
-      {/* Rest of Leaderboard */}
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} />
-        }
+  const renderPlayer = (player, index) => {
+    const rank = index + 1;
+    const isMe = player.isMe;
+    const rankStyle = getRankStyle(rank);
+    const isTopThree = rank <= 3;
+    
+    return (
+      <TouchableOpacity 
+        key={player.id || rank}
+        style={[
+          styles.listItem, 
+          isTopThree && { backgroundColor: rankStyle.bg, borderColor: rankStyle.border, borderWidth: 1 },
+          isMe && styles.listItemMe
+        ]}
+        onPress={() => setSelectedPlayer({ ...player, rank })}
+        activeOpacity={0.7}
       >
-        {isLoading ? (
-             Array.from({ length: 5 }).map((_, i) => (
-                <View key={i} style={styles.listItem}>
-                    <Skeleton width={20} height={20} borderRadius={4} />
-                    <Skeleton width={36} height={36} borderRadius={18} style={{marginHorizontal: 10}} />
-                    <View style={{flex: 1}}>
-                        <Skeleton width={120} height={16} borderRadius={4} style={{marginBottom: 4}} />
-                        <Skeleton width={60} height={12} borderRadius={4} />
-                    </View>
-                    <Skeleton width={40} height={16} borderRadius={4} />
-                </View>
-             ))
-        ) : (
-        rest.map((player, index) => {
-          const rank = index + 4;
-          const isMe = player.isMe;
-          
-          return (
-            <View 
-              key={player.id || rank}
-              style={[styles.listItem, isMe && styles.listItemMe]}
-            >
-              <Text style={[styles.listRank, isMe && styles.listRankMe]}>
-                {rank}
-              </Text>
-              <View style={[styles.listAvatar, isMe && styles.listAvatarMe]}>
-                <Text style={[styles.listInitial, isMe && styles.listInitialMe]}>
-                  {player.displayName?.charAt(0) || player.username?.charAt(0) || '?'}
-                </Text>
-              </View>
-              <View style={styles.listInfo}>
-                <Text style={[styles.listName, isMe && styles.listNameMe]}>
-                  {player.displayName || player.username}
-                  {isMe && ' (You)'}
-                </Text>
-                <Text style={styles.listLevel}>{formatScore(player.score || player.weeklyXP)} Points</Text>
-              </View>
-              <Text style={[styles.listXP, isMe && styles.listXPMe]}>
-                {formatScore(player.score || player.weeklyXP)}
-              </Text>
+        {/* Rank */}
+        <View style={[
+          styles.rankContainer,
+          isTopThree && { backgroundColor: rankStyle.color }
+        ]}>
+          <Text style={[
+            styles.listRank, 
+            isTopThree && styles.listRankTopThree,
+            isMe && styles.listRankMe
+          ]}>
+            {rank}
+          </Text>
+        </View>
+
+        {/* Avatar */}
+        <View style={[
+          styles.listAvatar, 
+          isTopThree && { borderColor: rankStyle.color, borderWidth: 2 },
+          isMe && styles.listAvatarMe
+        ]}>
+          <Text style={[
+            styles.listInitial, 
+            isTopThree && { color: rankStyle.color },
+            isMe && styles.listInitialMe
+          ]}>
+            {getPlayerInitial(player)}
+          </Text>
+        </View>
+
+        {/* Info */}
+        <View style={styles.listInfo}>
+          <Text style={[
+            styles.listName, 
+            isTopThree && { color: rankStyle.color },
+            isMe && styles.listNameMe
+          ]}>
+            {getPlayerName(player)}
+            {isMe && ' (You)'}
+          </Text>
+          <Text style={styles.listLevel}>{formatScore(player.score || player.weeklyXP)} Points</Text>
+        </View>
+
+        {/* Arrow */}
+        <Ionicons name="chevron-forward" size={18} color={COLORS.text.muted} />
+      </TouchableOpacity>
+    );
+  };
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <View style={styles.listContent}>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <View key={i} style={styles.listItem}>
+            <Skeleton width={28} height={28} borderRadius={14} />
+            <Skeleton width={36} height={36} borderRadius={18} style={{marginHorizontal: 10}} />
+            <View style={{flex: 1}}>
+              <Skeleton width={120} height={16} borderRadius={4} style={{marginBottom: 4}} />
+              <Skeleton width={60} height={12} borderRadius={4} />
             </View>
-          );
-        })
-        )}
+            <Skeleton width={40} height={16} borderRadius={4} />
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  // Empty state
+  if (sortedData.length === 0) {
+    return (
+      <View style={styles.emptyState}>
+        <Ionicons name="people-outline" size={48} color={COLORS.text.muted} />
+        <Text style={styles.emptyText}>No players yet</Text>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <View style={styles.listContent}>
+        {sortedData.map((player, index) => renderPlayer(player, index))}
 
         {/* My Rank (if not in visible list) */}
-        {!isLoading && myRank && myRank > data.length && (
+        {myRank && myRank > sortedData.length && (
           <View style={styles.myRankContainer}>
             <Text style={styles.myRankDots}>• • •</Text>
             <View style={[styles.listItem, styles.listItemMe]}>
-              <Text style={[styles.listRank, styles.listRankMe]}>{myRank}</Text>
+              <View style={styles.rankContainer}>
+                <Text style={[styles.listRank, styles.listRankMe]}>{myRank}</Text>
+              </View>
               <View style={[styles.listAvatar, styles.listAvatarMe]}>
                 <Text style={[styles.listInitial, styles.listInitialMe]}>Y</Text>
               </View>
@@ -235,154 +199,72 @@ const LiveLeaderboard = ({
             </View>
           </View>
         )}
-      </ScrollView>
-    </View>
+      </View>
+
+      {/* Player Profile Modal */}
+      <Modal visible={!!selectedPlayer} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.profileModal}>
+            <TouchableOpacity 
+              style={styles.profileClose}
+              onPress={() => setSelectedPlayer(null)}
+            >
+              <Ionicons name="close" size={24} color="rgba(255,255,255,0.8)" />
+            </TouchableOpacity>
+            
+            {selectedPlayer && (
+              <>
+                {/* Header with Team Color */}
+                <LinearGradient
+                  colors={[
+                    TEAMS[selectedPlayer.team]?.color || COLORS.primary,
+                    TEAMS[selectedPlayer.team]?.darkColor || COLORS.primary,
+                  ]}
+                  style={styles.profileHeader}
+                >
+                  <View style={styles.profileAvatar}>
+                    <Text style={styles.profileAvatarText}>
+                      {getPlayerInitial(selectedPlayer)}
+                    </Text>
+                  </View>
+                  
+                  <Text style={styles.profileName}>
+                    {getPlayerName(selectedPlayer)}
+                  </Text>
+                  
+                  {selectedPlayer.team && TEAMS[selectedPlayer.team] && (
+                    <View style={styles.teamBadge}>
+                      <Ionicons name={TEAMS[selectedPlayer.team].icon} size={14} color="#FFF" />
+                      <Text style={styles.teamBadgeText}>{TEAMS[selectedPlayer.team].name}</Text>
+                    </View>
+                  )}
+                </LinearGradient>
+                
+                {/* Profile Content */}
+                <View style={styles.profileContent}>
+                  {/* Stats */}
+                  <View style={styles.profileStats}>
+                    <View style={styles.profileStat}>
+                      <Text style={styles.profileStatValue}>{selectedPlayer.score || 0}</Text>
+                      <Text style={styles.profileStatLabel}>Points</Text>
+                    </View>
+                    <View style={styles.profileStatDivider} />
+                    <View style={styles.profileStat}>
+                      <Text style={styles.profileStatValue}>#{selectedPlayer.rank || '-'}</Text>
+                      <Text style={styles.profileStatLabel}>Rank</Text>
+                    </View>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    ...SHADOWS.md,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text.primary,
-  },
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 10,
-    padding: 3,
-  },
-  tab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  tabActive: {
-    backgroundColor: COLORS.primaryLight,
-    ...SHADOWS.sm,
-  },
-  tabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.text.muted,
-  },
-  tabTextActive: {
-    color: COLORS.text.primary,
-  },
-
-  // Podium
-  podium: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-    marginBottom: 20,
-    paddingHorizontal: 10,
-  },
-  podiumItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  podiumFirst: {
-    marginBottom: 20,
-  },
-  podiumSecond: {
-    marginBottom: 0,
-  },
-  podiumThird: {
-    marginBottom: 0,
-  },
-  crownContainer: {
-    marginBottom: -8,
-    zIndex: 10,
-  },
-  podiumAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(232, 184, 74, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    marginBottom: 8,
-  },
-  podiumAvatarFirst: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 4,
-  },
-  podiumInitial: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  podiumInitialFirst: {
-    fontSize: 22,
-  },
-  podiumMedal: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -16,
-    marginBottom: 8,
-    zIndex: 10,
-  },
-  podiumMedalFirst: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginTop: -18,
-  },
-  podiumRank: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  podiumName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.text.primary,
-    maxWidth: 80,
-    textAlign: 'center',
-  },
-  podiumNameFirst: {
-    fontSize: 14,
-  },
-  podiumXP: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.text.secondary,
-    marginTop: 2,
-  },
-  podiumXPFirst: {
-    fontSize: 13,
-    color: COLORS.gold,
-  },
-
-  // List
-  list: {
-    maxHeight: 250,
-  },
   listContent: {
     gap: 8,
   },
@@ -398,12 +280,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.primary,
   },
-  listRank: {
+  rankContainer: {
     width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  listRank: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text.muted,
     textAlign: 'center',
+  },
+  listRankTopThree: {
+    color: '#FFF',
+    fontWeight: '700',
   },
   listRankMe: {
     color: COLORS.primary,
@@ -461,7 +354,107 @@ const styles = StyleSheet.create({
     color: COLORS.text.muted,
     marginBottom: 8,
   },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.text.muted,
+  },
+
+  // Profile Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  profileModal: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 340,
+    overflow: 'hidden',
+  },
+  profileClose: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  profileHeader: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  profileAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  profileAvatarText: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  profileName: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFF',
+    marginTop: 12,
+  },
+  teamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  teamBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  profileContent: {
+    padding: 24,
+  },
+  profileStats: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileStat: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  profileStatValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.text.primary,
+  },
+  profileStatLabel: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    marginTop: 4,
+  },
+  profileStatDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: COLORS.borderLight,
+  },
 });
 
 export default LiveLeaderboard;
-
