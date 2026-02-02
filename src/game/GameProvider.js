@@ -1745,13 +1745,13 @@ export function GameProvider({ children }) {
     if (!isSupabaseConfigured()) return;
     
     try {
-      // Use profiles table with score instead of separate leaderboard table
+      // Use profiles table with score - show ALL users ranked by points
+      // Order by score DESC, then by id for stable ordering
       const { data, error } = await supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url, score, team')
-        .gt('score', 0)
         .order('score', { ascending: false })
-        .limit(50);
+        .order('id', { ascending: true });
       
       if (error) {
         // Silently handle - table might not exist or have issues
@@ -1759,7 +1759,15 @@ export function GameProvider({ children }) {
       }
       
       if (data) {
-        const leaderboardData = data.map((item, index) => ({
+        // Ensure stable sorting: by score DESC, then by id ASC for equal scores
+        const sortedData = [...data].sort((a, b) => {
+          const scoreA = a.score || 0;
+          const scoreB = b.score || 0;
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return (a.id || '').localeCompare(b.id || '');
+        });
+        
+        const leaderboardData = sortedData.map((item, index) => ({
           rank: index + 1,
           id: item.id,
           username: item.username,

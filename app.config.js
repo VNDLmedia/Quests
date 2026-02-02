@@ -5,21 +5,21 @@ module.exports = {
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
-    userInterfaceStyle: 'light',
+    userInterfaceStyle: 'dark',
     newArchEnabled: true,
     splash: {
       image: './assets/splash-icon.png',
       resizeMode: 'contain',
-      backgroundColor: '#4F46E5'
+      backgroundColor: '#0D1B2A'
     },
     ios: {
       supportsTablet: true,
-      statusBarStyle: 'dark-content',
+      statusBarStyle: 'light-content',
     },
     android: {
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#4F46E5'
+        backgroundColor: '#0D1B2A'
       },
       edgeToEdgeEnabled: true,
     },
@@ -31,8 +31,8 @@ module.exports = {
       shortName: 'Ethernal',
       description: 'Quest-based adventure game',
       lang: 'de',
-      themeColor: '#4F46E5',
-      backgroundColor: '#F8FAFC',
+      themeColor: '#0D1B2A',
+      backgroundColor: '#0D1B2A',
       display: 'standalone',
       orientation: 'portrait',
       scope: '/',
@@ -40,7 +40,7 @@ module.exports = {
       // Status bar configuration for PWA
       statusBar: {
         hidden: false,
-        backgroundColor: '#4F46E5',
+        backgroundColor: '#0D1B2A',
       },
     },
     // Plugins
