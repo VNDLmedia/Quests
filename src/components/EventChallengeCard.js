@@ -120,7 +120,7 @@ const EventChallengeCard = ({
                   color="#FFD700" 
                 />
                 <Text style={styles.rarityText}>
-                  {card.rarity === 'legendary' ? 'Legendär' : 'Epic'}
+                  {card.rarity === 'legendary' ? 'Legendary' : 'Epic'}
                 </Text>
               </View>
             </LinearGradient>
@@ -240,12 +240,12 @@ const EventChallengeCard = ({
             <Ionicons name="card" size={16} color={COLORS.gold} />
             <Text style={styles.rewardLabel}>Reward:</Text>
             <Text style={styles.rewardValue}>
-              {card?.name || 'Sammelkarte'}
+              {card?.name || 'Collectible Card'}
             </Text>
           </View>
           <View style={styles.xpReward}>
             <Ionicons name="flash" size={14} color={COLORS.primary} />
-            <Text style={styles.xpText}>+{challenge.xpReward} XP</Text>
+            <Text style={styles.xpText}>+{challenge.scoreReward || challenge.xpReward || 0} Points</Text>
           </View>
         </View>
 
