@@ -36,6 +36,8 @@ const initialState = {
     bio: '',
     linkedinUrl: '',
     leaderboardVisible: false,
+    // Team System
+    team: null, // blue, yellow, green, or purple
   },
   
   // Collection (cards earned through quests)
@@ -376,6 +378,18 @@ export function GameProvider({ children }) {
             .eq('id', userId);
         }
 
+        // Assign random team if not set
+        let playerTeam = profile.team;
+        if (!playerTeam) {
+          const teams = ['blue', 'yellow', 'green', 'purple'];
+          playerTeam = teams[Math.floor(Math.random() * teams.length)];
+          // Save to database
+          await supabase
+            .from('profiles')
+            .update({ team: playerTeam })
+            .eq('id', profile.id);
+        }
+
         // Map profile fields to player state
         dispatch({
           type: ACTIONS.SET_PLAYER,
@@ -395,6 +409,8 @@ export function GameProvider({ children }) {
             bio: profile.bio || '',
             linkedinUrl: profile.linkedin_url || '',
             leaderboardVisible: profile.leaderboard_visible || false,
+            // Team System
+            team: playerTeam,
           },
         });
         
@@ -1030,28 +1046,57 @@ export function GameProvider({ children }) {
 
   // Add friend
   const addFriend = useCallback(async (friendId) => {
-    if (isSupabaseConfigured() && state.user) {
-      const { data, error } = await supabase
-        .from('friendships')
-        .insert({ user_id: state.user.id, friend_id: friendId });
-      
-      if (!error) {
-        // Get friend profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', friendId)
-          .single();
-        
-        if (profile) {
-          dispatch({ type: ACTIONS.ADD_FRIEND, payload: profile });
-          checkAchievements({ friendsCount: state.player.friendsCount + 1 });
-        }
-      }
-      return { data, error };
+    if (!isSupabaseConfigured() || !state.user) {
+      return { error: 'Not connected', friend: null };
     }
-    return { error: 'Not connected' };
-  }, [state.user, state.player.friendsCount, checkAchievements]);
+
+    // Check if already friends
+    const existingFriend = state.friends.find(f => f.id === friendId);
+    if (existingFriend) {
+      return { error: 'already_friends', friend: existingFriend };
+    }
+
+    // Get friend profile first
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', friendId)
+      .single();
+    
+    if (profileError || !profile) {
+      return { error: 'User not found', friend: null };
+    }
+
+    // Create friendship
+    const { error } = await supabase
+      .from('friendships')
+      .insert({ user_id: state.user.id, friend_id: friendId });
+    
+    if (error) {
+      // Might be duplicate - check if already friends in DB
+      if (error.code === '23505') {
+        return { error: 'already_friends', friend: profile };
+      }
+      return { error: error.message, friend: null };
+    }
+
+    // Map profile to friend object with all social info
+    const friendData = {
+      id: profile.id,
+      username: profile.username,
+      display_name: profile.display_name,
+      avatar_url: profile.avatar_url,
+      score: profile.score || 0,
+      team: profile.team,
+      bio: profile.bio || '',
+      linkedin_url: profile.linkedin_url || '',
+    };
+
+    dispatch({ type: ACTIONS.ADD_FRIEND, payload: friendData });
+    checkAchievements({ friendsCount: state.player.friendsCount + 1 });
+    
+    return { error: null, friend: friendData };
+  }, [state.user, state.player.friendsCount, state.friends, checkAchievements]);
 
   // Create challenge
   const createChallenge = useCallback(async (opponentId, questKey) => {

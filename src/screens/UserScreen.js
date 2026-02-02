@@ -32,6 +32,7 @@ try {
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../theme';
 import { CARDS } from '../game/config/cards';
 import CardCollection from '../components/CardCollection';
+import { TEAMS } from '../config/teams';
 
 const { width } = Dimensions.get('window');
 
@@ -116,7 +117,10 @@ const UserScreen = () => {
           onPress={() => setShowQR(true)}
         >
           <LinearGradient
-            colors={['#4F46E5', '#7C3AED', '#9333EA']}
+            colors={player.team && TEAMS[player.team] 
+              ? [TEAMS[player.team].color, TEAMS[player.team].darkColor]
+              : ['#4F46E5', '#7C3AED']
+            }
             style={[styles.memberCard, { width: cardWidth }]}
             start={{ x: 0, y: 0 }} 
             end={{ x: 1, y: 1 }}
@@ -133,7 +137,12 @@ const UserScreen = () => {
                 <Ionicons name="compass" size={20} color="#FFF" />
                 <Text style={styles.cardBrand}>Ethernal Paths</Text>
               </View>
-              <Ionicons name="wifi" size={18} color="rgba(255,255,255,0.5)" />
+              {/* Team Icon */}
+              {player.team && TEAMS[player.team] && (
+                <View style={styles.teamIconBadge}>
+                  <Ionicons name={TEAMS[player.team].icon} size={16} color="#FFF" />
+                </View>
+              )}
             </View>
             
             {/* Mini QR */}
@@ -148,8 +157,8 @@ const UserScreen = () => {
                 <Text style={styles.cardValue}>{(player.displayName || player.username || 'User').toUpperCase()}</Text>
               </View>
               <View style={styles.cardRight}>
-                <Text style={styles.cardLabel}>ID</Text>
-                <Text style={styles.cardValue}>{memberId}</Text>
+                <Text style={styles.cardLabel}>TEAM</Text>
+                <Text style={styles.cardValue}>{player.team ? TEAMS[player.team]?.name?.split(' ')[0].toUpperCase() : 'NONE'}</Text>
               </View>
             </View>
             
@@ -302,7 +311,20 @@ const UserScreen = () => {
             <Text style={styles.modalTitle}>Member Card</Text>
             <Text style={styles.modalSubtitle}>Show this code for scanning</Text>
             
-            <View style={styles.qrBox}>
+            {/* Team Badge */}
+            {player.team && TEAMS[player.team] && (
+              <View style={[styles.qrTeamBadge, { backgroundColor: TEAMS[player.team].bgColor }]}>
+                <Ionicons name={TEAMS[player.team].icon} size={18} color={TEAMS[player.team].color} />
+                <Text style={[styles.qrTeamText, { color: TEAMS[player.team].color }]}>
+                  {TEAMS[player.team].name}
+                </Text>
+              </View>
+            )}
+            
+            <View style={[
+              styles.qrBox, 
+              player.team && TEAMS[player.team] && { borderColor: TEAMS[player.team].color, borderWidth: 3 }
+            ]}>
               <QRCode value={memberId} size={200} />
             </View>
             
@@ -475,6 +497,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   levelChipText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  teamIconBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+    padding: 6,
+  },
   cardShadow: {
     position: 'absolute',
     top: 15,
@@ -583,6 +610,19 @@ const styles = StyleSheet.create({
   memberIdText: { fontSize: 14, color: COLORS.text.secondary, marginTop: 4, letterSpacing: 1 },
   memberLevel: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   memberLevelText: { fontSize: 13, fontWeight: '600', color: '#F59E0B' },
+  qrTeamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  qrTeamText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
 
   // Admin Section
   adminSection: {
