@@ -407,9 +407,9 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
           <View style={styles.cameraContainer}>
             <View style={styles.scannerError}>
               <Ionicons name="camera-off" size={48} color={COLORS.text.muted} />
-              <Text style={styles.scannerErrorText}>Kamera nicht verfügbar</Text>
+              <Text style={styles.scannerErrorText}>Camera not available</Text>
               <TouchableOpacity style={styles.scannerCloseBtn} onPress={() => setQrScanning(false)}>
-                <Text style={styles.scannerCloseBtnText}>Schließen</Text>
+                <Text style={styles.scannerCloseBtnText}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -484,7 +484,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
             <View style={styles.stepContainer}>
               <Text style={styles.stepTitle}>📍 Quest Location</Text>
               <Text style={styles.stepDescription}>
-                Die Quest wird an deiner aktuellen Position platziert
+                The quest will be placed at your current position
               </Text>
 
               {location ? (
@@ -512,13 +512,13 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                     style={styles.recaptureButton}
                     onPress={() => setLocation(null)}
                   >
-                    <Text style={styles.recaptureText}>Position neu erfassen</Text>
+                    <Text style={styles.recaptureText}>Recapture position</Text>
                   </TouchableOpacity>
                 </GlassCard>
               ) : (
                 <>
                   <GlassButton
-                    title={loading ? "GPS wird erfasst..." : "Aktuelle Position erfassen"}
+                    title={loading ? "Getting GPS..." : "Get current position"}
                     onPress={handleCaptureLocation}
                     variant="gradient"
                     gradient={COLORS.gradients.gold}
@@ -529,7 +529,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                   
                   <Text style={styles.locationHint}>
                     Stelle sicher, dass du dich am genauen Standort der Quest befindest.
-                    Die Position wird exakt dort platziert, wo du jetzt bist.
+                    The position will be placed exactly where you are now.
                   </Text>
                   
                   {locationError && (

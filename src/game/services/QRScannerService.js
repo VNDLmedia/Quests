@@ -30,7 +30,7 @@ export const processQRCode = async (scannedData, userId) => {
       success: true,
       type: 'player',
       data: trimmedData,
-      message: 'Spieler-Code erkannt'
+      message: 'Player code recognized'
     };
   }
 
@@ -50,7 +50,7 @@ export const processQRCode = async (scannedData, userId) => {
   return {
     success: false,
     type: 'unknown',
-    error: `QR-Code "${trimmedData}" ist nicht registriert`,
+    error: `QR code "${trimmedData}" is not registered`,
     data: trimmedData
   };
 };
@@ -94,7 +94,7 @@ const checkQuestCode = async (qrCodeId, userId) => {
         found: true,
         success: false,
         type: 'quest',
-        error: 'Diese Quest wurde bereits abgeschlossen',
+        error: 'This quest has already been completed',
         quest: quests
       };
     }
@@ -133,7 +133,7 @@ const checkQuestCode = async (qrCodeId, userId) => {
         gems: quests.gem_reward || 0
       },
       infoContent, // Return info content to display to user
-      message: `Quest abgeschlossen! +${quests.xp_reward} XP, +${quests.gem_reward} Gems`
+      message: `Quest completed! +10 Points`
     };
 
   } catch (error) {
@@ -173,7 +173,7 @@ const checkRewardCode = async (qrCodeId, userId) => {
         found: true,
         success: false,
         type: 'reward',
-        error: 'QR-Code ist nicht mehr aktiv'
+        error: 'QR code is no longer active'
       };
     }
 
@@ -282,10 +282,10 @@ const formatRewardMessage = (rewards) => {
   if (rewards.pack) parts.push(`1x ${rewards.pack} Pack`);
 
   if (parts.length === 0) {
-    return 'Belohnung erhalten!';
+    return 'Reward received!';
   }
 
-  return parts.join(', ') + ' erhalten!';
+  return parts.join(', ') + ' received!';
 };
 
 export default {

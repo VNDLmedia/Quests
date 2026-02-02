@@ -115,7 +115,7 @@ const QuestCard = ({
         {isCompleted && (
           <View style={styles.completedBanner}>
             <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-            <Text style={styles.completedText}>Abgeschlossen!</Text>
+            <Text style={styles.completedText}>Completed!</Text>
           </View>
         )}
       </TouchableOpacity>

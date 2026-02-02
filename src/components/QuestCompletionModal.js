@@ -239,7 +239,7 @@ const QuestCompletionModal = ({
           </View>
 
           {/* Title */}
-          <Text style={styles.congratsText}>Quest Abgeschlossen!</Text>
+          <Text style={styles.congratsText}>Quest Complete!</Text>
           <Text style={styles.questTitle}>{quest.title}</Text>
 
           {/* Rewards */}
@@ -256,7 +256,7 @@ const QuestCompletionModal = ({
               >
                 <Ionicons name="trophy" size={28} color={COLORS.primary} />
                 <Text style={[styles.rewardValue, { color: COLORS.primary }]}>+{scoreReward}</Text>
-                <Text style={styles.rewardLabel}>Punkte</Text>
+                <Text style={styles.rewardLabel}>Points</Text>
               </LinearGradient>
             </Animated.View>
 
@@ -275,7 +275,7 @@ const QuestCompletionModal = ({
                   <Text style={[styles.rewardValue, { color: '#FFF', fontSize: 14 }]}>
                     {cardReward.name}
                   </Text>
-                  <Text style={[styles.rewardLabel, { color: 'rgba(255,255,255,0.8)' }]}>Neue Karte!</Text>
+                  <Text style={[styles.rewardLabel, { color: 'rgba(255,255,255,0.8)' }]}>New Card!</Text>
                 </LinearGradient>
               </Animated.View>
             )}
@@ -287,7 +287,7 @@ const QuestCompletionModal = ({
               <View style={styles.infoHeader}>
                 <Ionicons name="information-circle" size={20} color={COLORS.primary} />
                 <Text style={styles.infoTitle}>
-                  {infoContent.title || 'Wusstest du?'}
+                  {infoContent.title || 'Did you know?'}
                 </Text>
               </View>
               <ScrollView style={styles.infoScroll} showsVerticalScrollIndicator={false}>
@@ -311,7 +311,7 @@ const QuestCompletionModal = ({
               end={{ x: 1, y: 0 }}
               style={styles.continueGradient}
             >
-              <Text style={styles.continueText}>Weiter</Text>
+              <Text style={styles.continueText}>Continue</Text>
               <Ionicons name="arrow-forward" size={20} color={COLORS.text.primary} />
             </LinearGradient>
           </TouchableOpacity>

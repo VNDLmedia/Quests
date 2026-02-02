@@ -238,7 +238,7 @@ const EventChallengeCard = ({
         <View style={styles.rewardSection}>
           <View style={styles.rewardInfo}>
             <Ionicons name="card" size={16} color={COLORS.gold} />
-            <Text style={styles.rewardLabel}>Belohnung:</Text>
+            <Text style={styles.rewardLabel}>Reward:</Text>
             <Text style={styles.rewardValue}>
               {card?.name || 'Sammelkarte'}
             </Text>
@@ -254,7 +254,7 @@ const EventChallengeCard = ({
           <View style={[styles.claimLocation, isCompleted && !isClaimed && styles.claimLocationActive]}>
             <Ionicons name="location" size={14} color={isCompleted && !isClaimed ? "#10B981" : COLORS.text.muted} />
             <Text style={[styles.claimLocationText, isCompleted && !isClaimed && styles.claimLocationTextActive]}>
-              Abholen: {challenge.reward.claimLocation}
+              Pick up: {challenge.reward.claimLocation}
             </Text>
           </View>
         )}
@@ -266,7 +266,7 @@ const EventChallengeCard = ({
               colors={['#10B981', '#059669']}
               style={styles.claimButton}
             >
-              <Text style={styles.claimButtonText}>Belohnung abholen</Text>
+              <Text style={styles.claimButtonText}>Claim reward</Text>
               <Ionicons name="arrow-forward" size={18} color="#FFF" />
             </LinearGradient>
           </TouchableOpacity>

@@ -159,15 +159,15 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
 
           <Text style={styles.manualTitle}>
             {!detectorSupported
-              ? 'QR-Scanner nicht verfügbar'
+              ? 'QR scanner not available'
               : !hasCamera
-              ? 'Kamera nicht verfügbar'
-              : 'Manuelle Eingabe'}
+              ? 'Camera not available'
+              : 'Manual Entry'}
           </Text>
 
           <Text style={styles.manualSubtitle}>
             {!detectorSupported
-              ? 'Dein Browser unterstützt keinen QR-Scanner. Bitte gib die Code-ID manuell ein.'
+              ? 'Your browser does not support QR scanning. Please enter the code ID manually.'
               : 'Bitte gib die Code-ID manuell ein (z.B. ID001, ID002, ...)'}
           </Text>
 
@@ -197,7 +197,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
             <View style={styles.browserHint}>
               <Ionicons name="information-circle" size={16} color={COLORS.text.muted} />
               <Text style={styles.browserHintText}>
-                Tipp: Für QR-Scanning verwende Chrome oder Edge
+                Tip: For QR scanning use Chrome or Edge
               </Text>
             </View>
           )}
@@ -238,14 +238,14 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
           <View style={styles.scanLine} />
         </View>
 
-        <Text style={styles.scanText}>QR-Code in den Rahmen halten</Text>
+        <Text style={styles.scanText}>Hold QR code in the frame</Text>
 
         <TouchableOpacity
           style={styles.manualBtn}
           onPress={() => setShowManualInput(true)}
         >
           <Ionicons name="create-outline" size={20} color="white" />
-          <Text style={styles.manualBtnText}>Manuelle Eingabe</Text>
+          <Text style={styles.manualBtnText}>Manual Entry</Text>
         </TouchableOpacity>
       </View>
     </View>

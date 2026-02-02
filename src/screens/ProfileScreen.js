@@ -40,7 +40,7 @@ const CARD_HEIGHT = CARD_WIDTH * 1.4;
 
 // QR Code Feature Types
 const FEATURE_TYPES = [
-  { id: 'reward', label: 'Belohnung', icon: 'gift' },
+  { id: 'reward', label: 'Reward', icon: 'gift' },
   { id: 'gems', label: 'Gems', icon: 'diamond' },
   { id: 'xp', label: 'XP', icon: 'flash' },
   { id: 'pack', label: 'Pack', icon: 'cube' },
@@ -258,7 +258,7 @@ const ProfileScreen = () => {
   // Registriere einen neuen QR-Code
   const registerQRCode = async (qrCodeId, options = {}) => {
     if (!isSupabaseConfigured() || !user) {
-      Alert.alert('Fehler', 'Nicht angemeldet');
+      Alert.alert('Error', 'Not logged in');
       return { error: 'Not authenticated' };
     }
 
@@ -278,14 +278,14 @@ const ProfileScreen = () => {
 
       if (error) {
         if (error.code === '23505') {
-          Alert.alert('Bereits registriert', 'Dieser QR-Code ist bereits registriert.');
+          Alert.alert('Already registered', 'This QR code is already registered.');
         } else {
           Alert.alert('Fehler', error.message);
         }
         return { error };
       }
 
-      Alert.alert('Erfolg!', `QR-Code "${qrCodeId}" wurde registriert.`);
+      Alert.alert('Success!', `QR code "${qrCodeId}" has been registered.`);
       loadRegisteredQRCodes();
       return { data };
     } catch (error) {
@@ -306,11 +306,11 @@ const ProfileScreen = () => {
         .single();
 
       if (findError || !qrCode) {
-        return { found: false, success: false, error: 'QR-Code nicht registriert' };
+        return { found: false, success: false, error: 'QR code not registered' };
       }
 
       if (!qrCode.is_active) {
-        return { found: true, success: false, error: 'QR-Code ist nicht mehr aktiv' };
+        return { found: true, success: false, error: 'QR code is no longer active' };
       }
 
       const { data: existingScan } = await supabase
@@ -348,7 +348,7 @@ const ProfileScreen = () => {
         success: true,
         type: 'reward',
         rewards: rewardGiven,
-        message: 'Belohnung erhalten!'
+        message: 'Reward received!'
       };
     } catch (error) {
       console.error('Error processing QR code:', error);
@@ -364,7 +364,7 @@ const ProfileScreen = () => {
       'QR-Code löschen',
       'Bist du sicher, dass du diesen QR-Code löschen möchtest?',
       [
-        { text: 'Abbrechen', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Löschen',
           style: 'destructive',
@@ -439,14 +439,14 @@ const ProfileScreen = () => {
         if (!res.granted) {
           Alert.alert(
             'Kamera-Berechtigung benötigt',
-            'Bitte erlaube den Kamera-Zugriff in den Einstellungen, um QR-Codes zu scannen.',
+            'Please allow camera access in settings to scan QR codes.',
             [{ text: 'OK' }]
           );
           return;
         }
       } catch (error) {
         console.error('Permission error:', error);
-        setCameraError('Kamera-Berechtigung konnte nicht angefragt werden');
+        setCameraError('Camera permission could not be requested');
         return;
       }
     }
@@ -457,7 +457,7 @@ const ProfileScreen = () => {
     scanTimeoutRef.current = setTimeout(() => {
       if (isScanning) {
         setIsScanning(false);
-        Alert.alert('Timeout', 'Kein QR-Code erkannt. Bitte versuche es erneut.');
+        Alert.alert('Timeout', 'No QR code detected. Please try again.');
       }
     }, 60000);
   };
@@ -523,7 +523,7 @@ const ProfileScreen = () => {
         // Wait for animation then show result
         setTimeout(() => {
           setIsScanning(false);
-          Alert.alert('Erfolg! 🎉', result.message || 'Belohnung erhalten!');
+          Alert.alert('Success! 🎉', result.message || 'Reward received!');
         }, 1200);
       } else {
         // Error haptic
@@ -535,11 +535,11 @@ const ProfileScreen = () => {
           setIsScanning(false);
 
           if (result.type === 'player') {
-            Alert.alert('Spieler gefunden', `Player Code: ${result.data}`);
+            Alert.alert('Player found', `Player Code: ${result.data}`);
           } else if (result.type === 'unknown') {
-            Alert.alert('Unbekannt', result.error || 'QR-Code nicht erkannt');
+            Alert.alert('Unknown', result.error || 'QR code not recognized');
           } else {
-            Alert.alert('Info', result.error || result.message || 'QR-Code konnte nicht verarbeitet werden');
+            Alert.alert('Info', result.error || result.message || 'QR code could not be processed');
           }
         }, 500);
       }
@@ -553,7 +553,7 @@ const ProfileScreen = () => {
 
   const onCameraError = (error) => {
     console.error('Camera error:', error);
-    setCameraError('Kamera konnte nicht gestartet werden');
+    setCameraError('Camera could not be started');
   };
 
   // Cleanup on unmount
@@ -623,7 +623,7 @@ const ProfileScreen = () => {
         {/* Admin Header */}
         <View style={styles.adminHeader}>
           <Text style={styles.adminTitle}>QR-Code Verwaltung</Text>
-          <Text style={styles.adminSubtitle}>Registriere und verwalte deine QR-Codes</Text>
+          <Text style={styles.adminSubtitle}>Register and manage your QR codes</Text>
         </View>
 
         {/* Quick Actions */}
@@ -637,8 +637,8 @@ const ProfileScreen = () => {
               style={styles.adminActionGradient}
             >
               <Ionicons name="qr-code" size={28} color="white" />
-              <Text style={styles.adminActionText}>QR-Code Scannen</Text>
-              <Text style={styles.adminActionDesc}>Zum Registrieren</Text>
+              <Text style={styles.adminActionText}>Scan QR Code</Text>
+              <Text style={styles.adminActionDesc}>To register</Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -667,7 +667,7 @@ const ProfileScreen = () => {
             <Text style={styles.adminStatNumber}>
               {registeredQRCodes.filter(qr => qr.is_active).length}
             </Text>
-            <Text style={styles.adminStatLabel}>Aktiv</Text>
+            <Text style={styles.adminStatLabel}>Active</Text>
           </View>
           <View style={styles.adminStatBox}>
             <Text style={styles.adminStatNumber}>
@@ -688,8 +688,8 @@ const ProfileScreen = () => {
         ) : registeredQRCodes.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="qr-code-outline" size={48} color={COLORS.text.muted} />
-            <Text style={styles.emptyStateText}>Noch keine QR-Codes registriert</Text>
-            <Text style={styles.emptyStateSubtext}>Scanne oder gib einen QR-Code ein</Text>
+            <Text style={styles.emptyStateText}>No QR codes registered yet</Text>
+            <Text style={styles.emptyStateSubtext}>Scan or enter a QR code</Text>
           </View>
         ) : (
           <View style={styles.qrCodesList}>
@@ -829,8 +829,8 @@ const ProfileScreen = () => {
           
           {/* Score Display */}
           <View style={styles.scoreSection}>
-            <Text style={styles.scoreLabel}>Dein Score</Text>
-            <Text style={styles.scoreValue}>{player.score || 0} Punkte</Text>
+            <Text style={styles.scoreLabel}>Your Score</Text>
+            <Text style={styles.scoreValue}>{player.score || 0} Points</Text>
           </View>
         </View>
 
@@ -985,7 +985,7 @@ const ProfileScreen = () => {
                 style={styles.cancelButton}
                 onPress={() => setIsScanning(false)}
               >
-                <Text style={styles.cancelButtonText}>Abbrechen</Text>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -1024,7 +1024,7 @@ const ProfileScreen = () => {
                   </TouchableOpacity>
                   <View style={styles.scannerTitleContainer}>
                     <Text style={styles.scannerTitle}>
-                      {scanMode === 'register' ? 'QR-Code registrieren' : 'QR-Code scannen'}
+                      {scanMode === 'register' ? 'Register QR Code' : 'Scan QR Code'}
                     </Text>
                     <View style={[styles.scanModeBadge, scanMode === 'register' && styles.scanModeBadgeAdmin]}>
                       <Text style={styles.scanModeBadgeText}>
@@ -1134,7 +1134,7 @@ const ProfileScreen = () => {
                       <View style={styles.successCircle}>
                         <Ionicons name="checkmark" size={60} color="white" />
                       </View>
-                      <Text style={styles.successText}>Erkannt!</Text>
+                      <Text style={styles.successText}>Recognized!</Text>
                     </Animated.View>
                   )}
                   
@@ -1144,7 +1144,7 @@ const ProfileScreen = () => {
                       <View style={styles.loadingSpinner}>
                         <ActivityIndicator size="large" color={COLORS.primary} />
                       </View>
-                      <Text style={styles.cameraLoadingText}>Kamera wird aktiviert...</Text>
+                      <Text style={styles.cameraLoadingText}>Activating camera...</Text>
                       <Text style={styles.cameraLoadingSubtext}>Bitte warten</Text>
                     </View>
                   )}
@@ -1178,13 +1178,13 @@ const ProfileScreen = () => {
                   <View style={styles.statusContainer}>
                     <View style={[styles.statusDot, cameraReady && styles.statusDotActive]} />
                     <Text style={styles.statusText}>
-                      {cameraReady ? 'Bereit zum Scannen' : 'Initialisiere...'}
+                      {cameraReady ? 'Ready to scan' : 'Initializing...'}
                     </Text>
                   </View>
                   
                   <Text style={styles.scannerHint}>
                     {scanMode === 'register' 
-                      ? '📱 Halte den QR-Code in den Rahmen'
+                      ? '📱 Hold the QR code in the frame'
                       : '🎯 Tippe zum Fokussieren'}
                   </Text>
                   
@@ -1200,7 +1200,7 @@ const ProfileScreen = () => {
                         }}
                       >
                         <Ionicons name="flashlight-outline" size={22} color="white" />
-                        <Text style={styles.scannerActionText}>Licht</Text>
+                        <Text style={styles.scannerActionText}>Light</Text>
                       </TouchableOpacity>
                     )}
                     
@@ -1212,7 +1212,7 @@ const ProfileScreen = () => {
                       }}
                     >
                       <Ionicons name="close-circle" size={22} color="white" />
-                      <Text style={styles.scannerActionText}>Abbrechen</Text>
+                      <Text style={styles.scannerActionText}>Cancel</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1226,13 +1226,13 @@ const ProfileScreen = () => {
       <Modal visible={showRegisterModal} transparent animationType="fade">
         <View style={styles.modalContainer}>
           <View style={styles.registerModal}>
-            <Text style={styles.registerTitle}>QR-Code registrieren</Text>
+            <Text style={styles.registerTitle}>Register QR Code</Text>
             
             {/* QR Code ID */}
             <Text style={styles.inputLabel}>QR-Code ID *</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Gescannte oder manuelle ID"
+              placeholder="Scanned or manual ID"
               placeholderTextColor={COLORS.text.muted}
               value={newQRCode.qr_code_id}
               onChangeText={(text) => setNewQRCode(prev => ({ ...prev, qr_code_id: text }))}
@@ -1249,7 +1249,7 @@ const ProfileScreen = () => {
             />
             
             {/* Feature Type */}
-            <Text style={styles.inputLabel}>Belohnungstyp</Text>
+            <Text style={styles.inputLabel}>Reward Type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.featureTypeScroll}>
               {FEATURE_TYPES.map(type => (
                 <TouchableOpacity
@@ -1320,7 +1320,7 @@ const ProfileScreen = () => {
                   });
                 }}
               >
-                <Text style={styles.registerCancelText}>Abbrechen</Text>
+                <Text style={styles.registerCancelText}>Cancel</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -1343,7 +1343,7 @@ const ProfileScreen = () => {
                   }
                 }}
               >
-                <Text style={styles.registerSubmitText}>Registrieren</Text>
+                <Text style={styles.registerSubmitText}>Register</Text>
               </TouchableOpacity>
             </View>
           </View>

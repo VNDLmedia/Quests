@@ -96,7 +96,7 @@ const CollectibleCard = ({ card, isCollected, onPress, size = 'normal' }) => {
               </View>
             </>
           ) : (
-            <Text style={styles.lockedText}>Noch nicht freigeschaltet</Text>
+            <Text style={styles.lockedText}>Not unlocked yet</Text>
           )}
         </LinearGradient>
         
@@ -136,7 +136,7 @@ const BonusOverview = ({ bonuses }) => {
       <View style={styles.noBonusContainer}>
         <Ionicons name="gift-outline" size={32} color={COLORS.text.muted} />
         <Text style={styles.noBonusText}>
-          Sammle Karten um Boni freizuschalten!
+          Collect cards to unlock bonuses!
         </Text>
       </View>
     );
@@ -330,14 +330,14 @@ const CardDetailModal = ({ card, visible, onClose, isCollected }) => {
               <View style={styles.modalLocked}>
                 <Ionicons name="lock-closed" size={16} color={COLORS.text.muted} />
                 <Text style={styles.modalLockedText}>
-                  Schließe Challenges ab um diese Karte freizuschalten
+                  Complete challenges to unlock this card
                 </Text>
               </View>
             )}
           </View>
           
           <TouchableOpacity style={styles.modalCloseBtn} onPress={onClose}>
-            <Text style={styles.modalCloseBtnText}>Schließen</Text>
+            <Text style={styles.modalCloseBtnText}>Close</Text>
           </TouchableOpacity>
         </View>
       </View>

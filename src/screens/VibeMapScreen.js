@@ -577,16 +577,16 @@ const MapScreen = () => {
         closeQuestDetail();
       } else {
         // Wrong code or error
-        const errorMsg = result.error || 'Falscher QR-Code. Bitte versuche es erneut.';
+        const errorMsg = result.error || 'Wrong QR code. Please try again.';
         if (Platform.OS === 'web') {
           window.alert(errorMsg);
         } else {
-          Alert.alert('Fehler', errorMsg);
+          Alert.alert('Error', errorMsg);
         }
       }
     } catch (error) {
       console.error('[VibeMapScreen] QR scan error:', error);
-      const errorMsg = error.message || 'Fehler beim Verarbeiten des QR-Codes';
+      const errorMsg = error.message || 'Error processing QR code';
       if (Platform.OS === 'web') {
         window.alert(errorMsg);
       } else {
@@ -793,12 +793,12 @@ const MapScreen = () => {
                 onPress={() => openQRScanner(selectedQuest)}
               >
                 <Ionicons name="qr-code" size={20} color={COLORS.text.primary} />
-                <Text style={styles.sheetBtnText}>QR-Code Scannen</Text>
+                <Text style={styles.sheetBtnText}>Scan QR Code</Text>
               </TouchableOpacity>
             ) : selectedQuest.status === 'completed' ? (
               <View style={styles.completedQuestBadge}>
                 <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
-                <Text style={styles.completedQuestBadgeText}>Quest abgeschlossen</Text>
+                <Text style={styles.completedQuestBadgeText}>Quest completed</Text>
               </View>
             ) : (
               <View style={styles.activeQuestBadge}>

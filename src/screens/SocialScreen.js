@@ -113,7 +113,7 @@ const SocialScreen = () => {
       
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Text style={styles.headerTitle}>Rangliste</Text>
+        <Text style={styles.headerTitle}>Leaderboard</Text>
         <TouchableOpacity onPress={startScan} style={styles.addFriendBtn}>
           <Ionicons name="person-add" size={20} color={COLORS.primary} />
         </TouchableOpacity>
@@ -134,8 +134,8 @@ const SocialScreen = () => {
           >
             <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
             <View style={styles.consentBannerText}>
-              <Text style={styles.consentBannerTitle}>Rangliste beitreten</Text>
-              <Text style={styles.consentBannerSub}>Tippe hier um teilzunehmen</Text>
+              <Text style={styles.consentBannerTitle}>Join Leaderboard</Text>
+              <Text style={styles.consentBannerSub}>Tap here to participate</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={COLORS.text.muted} />
           </TouchableOpacity>
@@ -149,11 +149,11 @@ const SocialScreen = () => {
           end={{ x: 1, y: 1 }}
         >
           <View style={styles.rankLeft}>
-            <Text style={styles.rankLabel}>Dein Rang</Text>
+            <Text style={styles.rankLabel}>Your Rank</Text>
             <Text style={styles.rankNumber}>#{myFriendsRank || '-'}</Text>
           </View>
           <View style={styles.rankRight}>
-            <Text style={styles.rankXP}>{player.score || 0} Punkte</Text>
+            <Text style={styles.rankXP}>{player.score || 0} Points</Text>
             <Text style={styles.rankLevel}>{player.totalQuestsCompleted || 0} Quests</Text>
           </View>
         </LinearGradient>
@@ -166,18 +166,18 @@ const SocialScreen = () => {
             friendsOnly={true}
             onRefresh={refreshLeaderboard}
             isLoading={isRefreshing}
-            title="Rangliste"
+            title="Leaderboard"
           />
         ) : (
           <View style={styles.lockedLeaderboard}>
             <Ionicons name="lock-closed" size={48} color={COLORS.text.muted} />
-            <Text style={styles.lockedText}>Rangliste gesperrt</Text>
-            <Text style={styles.lockedSubtext}>Akzeptiere die Datenschutzrichtlinie um andere Spieler zu sehen</Text>
+            <Text style={styles.lockedText}>Leaderboard Locked</Text>
+            <Text style={styles.lockedSubtext}>Accept the privacy policy to see other players</Text>
             <TouchableOpacity 
               style={styles.unlockBtn}
               onPress={() => setShowConsentModal(true)}
             >
-              <Text style={styles.unlockBtnText}>Freischalten</Text>
+              <Text style={styles.unlockBtnText}>Unlock</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -185,17 +185,17 @@ const SocialScreen = () => {
         {/* Friends List */}
         <View style={styles.friendsSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Freunde ({friends.length})</Text>
+            <Text style={styles.sectionTitle}>Friends ({friends.length})</Text>
             <TouchableOpacity onPress={startScan}>
-              <Text style={styles.sectionAction}>+ Hinzufügen</Text>
+              <Text style={styles.sectionAction}>+ Add</Text>
             </TouchableOpacity>
           </View>
           
           {friends.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={48} color={COLORS.text.muted} />
-              <Text style={styles.emptyText}>Noch keine Freunde</Text>
-              <Text style={styles.emptySubtext}>Scanne einen QR-Code um Freunde hinzuzufügen</Text>
+              <Text style={styles.emptyText}>No friends yet</Text>
+              <Text style={styles.emptySubtext}>Scan a QR code to add friends</Text>
             </View>
           ) : (
             friends.map((friend) => (
@@ -209,7 +209,7 @@ const SocialScreen = () => {
                   <Text style={styles.friendName}>
                     {friend.display_name || friend.username}
                   </Text>
-                  <Text style={styles.friendLevel}>{friend.score || 0} Punkte</Text>
+                  <Text style={styles.friendLevel}>{friend.score || 0} Points</Text>
                 </View>
               </View>
             ))
@@ -224,22 +224,22 @@ const SocialScreen = () => {
             <View style={styles.consentIcon}>
               <Ionicons name="shield-checkmark" size={48} color={COLORS.primary} />
             </View>
-            <Text style={styles.consentTitle}>Rangliste beitreten</Text>
+            <Text style={styles.consentTitle}>Join Leaderboard</Text>
             <Text style={styles.consentText}>
-              Um an der Rangliste teilzunehmen und andere Spieler zu sehen, müssen wir folgende Daten mit anderen teilen:
+              To participate in the leaderboard and see other players, we need to share the following data:
             </Text>
             <View style={styles.consentList}>
               <View style={styles.consentListItem}>
                 <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                <Text style={styles.consentListText}>Dein Anzeigename</Text>
+                <Text style={styles.consentListText}>Your display name</Text>
               </View>
               <View style={styles.consentListItem}>
                 <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                <Text style={styles.consentListText}>Dein Score</Text>
+                <Text style={styles.consentListText}>Your score</Text>
               </View>
               <View style={styles.consentListItem}>
                 <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                <Text style={styles.consentListText}>Deine Bio (wenn vorhanden)</Text>
+                <Text style={styles.consentListText}>Your bio (if available)</Text>
               </View>
             </View>
             <View style={styles.consentButtons}>
@@ -247,13 +247,13 @@ const SocialScreen = () => {
                 style={styles.consentCancelBtn}
                 onPress={() => setShowConsentModal(false)}
               >
-                <Text style={styles.consentCancelText}>Später</Text>
+                <Text style={styles.consentCancelText}>Later</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.consentAcceptBtn}
                 onPress={handleAcceptConsent}
               >
-                <Text style={styles.consentAcceptText}>Akzeptieren</Text>
+                <Text style={styles.consentAcceptText}>Accept</Text>
               </TouchableOpacity>
             </View>
           </View>

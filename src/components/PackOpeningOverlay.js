@@ -170,7 +170,7 @@ const PackOpeningOverlay = () => {
         {step >= 1 && (
           <Animated.View style={[styles.cardsArea, { opacity: cardsOpacity }]}>
             <Text style={styles.title}>
-              {step === 2 ? '🎉 DEINE KARTEN!' : 'Öffne...'}
+              {step === 2 ? '🎉 YOUR CARDS!' : 'Opening...'}
             </Text>
             
             <View style={styles.cardsGrid}>
@@ -218,7 +218,7 @@ const PackOpeningOverlay = () => {
                     style={styles.collectGradient}
                   >
                     <Ionicons name="checkmark-circle" size={22} color="#FFF" />
-                    <Text style={styles.collectText}>EINSAMMELN</Text>
+                    <Text style={styles.collectText}>COLLECT</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>

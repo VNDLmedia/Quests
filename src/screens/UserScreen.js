@@ -155,7 +155,7 @@ const UserScreen = () => {
             
             {/* Score Badge */}
             <View style={styles.levelChip}>
-              <Text style={styles.levelChipText}>{player.score || 0} Punkte</Text>
+              <Text style={styles.levelChipText}>{player.score || 0} Points</Text>
             </View>
           </LinearGradient>
           <View style={[styles.cardShadow, { width: cardWidth - 30 }]} />
@@ -204,7 +204,7 @@ const UserScreen = () => {
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
               <Ionicons name="create" size={24} color="#8b5cf6" />
             </View>
-            <Text style={styles.actionLabel}>Bearbeiten</Text>
+            <Text style={styles.actionLabel}>Edit</Text>
           </TouchableOpacity>
         </View>
 
@@ -213,7 +213,7 @@ const UserScreen = () => {
         {/* Bio & Social Card */}
         <GlassCard style={styles.card}>
           <View style={styles.bioHeader}>
-            <Text style={styles.sectionTitle}>Über mich</Text>
+            <Text style={styles.sectionTitle}>About Me</Text>
             <TouchableOpacity onPress={() => setEditingBio(true)}>
               <Ionicons name="pencil" size={18} color={COLORS.primary} />
             </TouchableOpacity>
@@ -223,7 +223,7 @@ const UserScreen = () => {
             <Text style={styles.bioText}>{player.bio}</Text>
           ) : (
             <TouchableOpacity onPress={() => setEditingBio(true)}>
-              <Text style={styles.bioPlaceholder}>Tippe hier um etwas über dich zu schreiben...</Text>
+              <Text style={styles.bioPlaceholder}>Tap here to write something about yourself...</Text>
             </TouchableOpacity>
           )}
           
@@ -243,7 +243,7 @@ const UserScreen = () => {
 
         {/* Score Card */}
         <GlassCard style={styles.card}>
-          <Text style={styles.sectionTitle}>Mein Fortschritt</Text>
+          <Text style={styles.sectionTitle}>My Progress</Text>
           
           <View style={styles.scoreRow}>
             <View style={styles.scoreItem}>
@@ -258,7 +258,7 @@ const UserScreen = () => {
             <View style={styles.scoreDivider} />
             <View style={styles.scoreItem}>
               <Text style={styles.scoreValue}>{ownedCardsCount}/{totalCardsCount}</Text>
-              <Text style={styles.scoreLabel}>Karten</Text>
+              <Text style={styles.scoreLabel}>Cards</Text>
             </View>
           </View>
         </GlassCard>
@@ -267,7 +267,7 @@ const UserScreen = () => {
 
         {/* Card Collection Preview */}
         <GlassCard style={styles.card}>
-          <Text style={styles.sectionTitle}>Meine Sammlung</Text>
+          <Text style={styles.sectionTitle}>My Collection</Text>
           <CardCollection compact={true} />
         </GlassCard>
 
@@ -287,7 +287,7 @@ const UserScreen = () => {
           onPress={handleSignOut}
         >
           <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
-          <Text style={styles.logoutText}>Abmelden</Text>
+          <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -311,7 +311,7 @@ const UserScreen = () => {
               <Text style={styles.memberIdText}>{memberId}</Text>
               <View style={styles.memberLevel}>
                 <Ionicons name="trophy" size={14} color="#F59E0B" />
-                <Text style={styles.memberLevelText}>{player.score || 0} Punkte</Text>
+                <Text style={styles.memberLevelText}>{player.score || 0} Points</Text>
               </View>
             </View>
           </View>
@@ -322,14 +322,14 @@ const UserScreen = () => {
       <Modal visible={editingBio} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.bioModal}>
-            <Text style={styles.modalTitle}>Profil bearbeiten</Text>
+            <Text style={styles.modalTitle}>Edit Profile</Text>
             
-            <Text style={styles.inputLabel}>Über mich</Text>
+            <Text style={styles.inputLabel}>About Me</Text>
             <TextInput
               style={styles.bioInput}
               value={bioText}
               onChangeText={setBioText}
-              placeholder="Erzähl etwas über dich..."
+              placeholder="Tell us about yourself..."
               placeholderTextColor={COLORS.text.muted}
               multiline
               numberOfLines={4}
@@ -355,14 +355,14 @@ const UserScreen = () => {
                   setEditingBio(false);
                 }}
               >
-                <Text style={styles.cancelButtonText}>Abbrechen</Text>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
                 style={styles.saveButton}
                 onPress={handleSaveProfile}
               >
-                <Text style={styles.saveButtonText}>Speichern</Text>
+                <Text style={styles.saveButtonText}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -397,9 +397,9 @@ const UserScreen = () => {
         ) : (
           <View style={styles.noCameraContainer}>
             <Ionicons name="camera-off" size={48} color="#94A3B8" />
-            <Text style={styles.noCameraText}>Kamera nicht verfügbar</Text>
+            <Text style={styles.noCameraText}>Camera not available</Text>
             <TouchableOpacity style={styles.closeCameraBtn} onPress={() => setIsScanning(false)}>
-              <Text style={styles.closeCameraBtnText}>Schließen</Text>
+              <Text style={styles.closeCameraBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
         )}

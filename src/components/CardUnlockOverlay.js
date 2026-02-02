@@ -209,7 +209,7 @@ export const CardUnlockOverlay = () => {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
-                  <Text style={styles.collectText}>EINSAMMELN</Text>
+                  <Text style={styles.collectText}>COLLECT</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </Animated.View>

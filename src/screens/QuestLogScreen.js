@@ -86,9 +86,9 @@ const QuestLogScreen = ({ navigation }) => {
     
     // Belohnungsanzeige mit Kartenname
     Alert.alert(
-      '🎉 Challenge abgeschlossen!',
-      `Du hast +10 Punkte erhalten!\n\n🃏 Deine Belohnung:\n"${cardName}" Sammelkarte\n\n📍 Abholen bei:\n${challenge.reward?.claimLocation || 'Info-Stand'}`,
-      [{ text: 'Verstanden!' }]
+      '🎉 Challenge completed!',
+      `You earned +10 points!\n\n🃏 Your reward:\n"${cardName}" collectible card\n\n📍 Pick up at:\n${challenge.reward?.claimLocation || 'Info Desk'}`,
+      [{ text: 'Got it!' }]
     );
   };
 
@@ -197,8 +197,8 @@ const QuestLogScreen = ({ navigation }) => {
         >
           <View style={styles.heroHeaderRow}>
             <View>
-              <Text style={styles.heroLabel}>Dein Fortschritt</Text>
-              <Text style={styles.heroTitle}>{score || 0} Punkte</Text>
+              <Text style={styles.heroLabel}>Your Progress</Text>
+              <Text style={styles.heroTitle}>{score || 0} Points</Text>
             </View>
             <View style={styles.levelBadge}>
               <Text style={styles.levelText}>{playerStats?.totalCompleted || 0} Quests</Text>
@@ -275,8 +275,8 @@ const QuestLogScreen = ({ navigation }) => {
               <View style={styles.emptyIconContainer}>
                 <Ionicons name="map" size={48} color={COLORS.primary} />
               </View>
-              <Text style={styles.emptyText}>Keine aktiven Quests</Text>
-              <Text style={styles.emptySub}>Erkunde die Karte um neue Abenteuer zu finden oder warte auf den täglichen Reset!</Text>
+              <Text style={styles.emptyText}>No active quests</Text>
+              <Text style={styles.emptySub}>Explore the map to find new adventures or wait for the daily reset!</Text>
               <TouchableOpacity 
                 style={[styles.refreshBtn, isLoading && styles.refreshBtnDisabled]} 
                 onPress={handleRefresh}
@@ -285,13 +285,13 @@ const QuestLogScreen = ({ navigation }) => {
                 {isLoading ? (
                   <ActivityIndicator size="small" color={COLORS.text.primary} />
                 ) : (
-                  <Text style={styles.refreshBtnText}>Nach Quests suchen</Text>
+                  <Text style={styles.refreshBtnText}>Search for quests</Text>
                 )}
               </TouchableOpacity>
             </View>
           ) : (
             <>
-              {renderSection('Tägliche Missionen', daily, COLORS.primary)}
+              {renderSection('Daily Missions', daily, COLORS.primary)}
               {renderSection('Story', story, '#9B59B6')}
               {renderSection('Challenges', challenges, '#EC4899')}
               {renderSection('Social', social, COLORS.secondary)}
@@ -321,14 +321,14 @@ const QuestLogScreen = ({ navigation }) => {
                 <View style={styles.challengeInfoText}>
                   <Text style={styles.challengeInfoTitle}>Event Challenges</Text>
                   <Text style={styles.challengeInfoSub}>
-                    Schließe Challenges ab für echte Sammelkarten!
+                    Complete challenges for real collectible cards!
                   </Text>
                 </View>
               </View>
               <View style={styles.challengeInfoStats}>
                 <View style={styles.challengeInfoStat}>
                   <Text style={styles.challengeInfoStatValue}>{challengeStats.completed}</Text>
-                  <Text style={styles.challengeInfoStatLabel}>Fertig</Text>
+                  <Text style={styles.challengeInfoStatLabel}>Done</Text>
                 </View>
                 <View style={styles.challengeInfoDivider} />
                 <View style={styles.challengeInfoStat}>
@@ -374,7 +374,7 @@ const QuestLogScreen = ({ navigation }) => {
                   <View style={styles.challengeGroupHeader}>
                     <Ionicons name="gift" size={16} color="#10B981" />
                     <Text style={[styles.challengeGroupTitle, { color: '#10B981' }]}>
-                      Belohnung abholen
+                      Claim reward
                     </Text>
                   </View>
                   {eventChallenges
@@ -415,13 +415,13 @@ const QuestLogScreen = ({ navigation }) => {
                 }
               </View>
 
-              {/* Abgeschlossene Challenges */}
+              {/* Completed Challenges */}
               {eventChallenges.filter(c => c.isCompleted && claimedChallenges.includes(c.id)).length > 0 && (
                 <View style={styles.challengeGroup}>
                   <View style={styles.challengeGroupHeader}>
                     <Ionicons name="checkmark-done-circle" size={16} color={COLORS.text.muted} />
                     <Text style={[styles.challengeGroupTitle, { color: COLORS.text.muted }]}>
-                      Abgeschlossen
+                      Completed
                     </Text>
                   </View>
                   {eventChallenges
