@@ -9,7 +9,8 @@ import {
   Platform,
   Dimensions,
   Alert,
-  Linking
+  Linking,
+  TextInput
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,19 +29,21 @@ try {
 } catch (error) {
   console.error('Error loading UniversalQRScanner:', error);
 }
-import { LEVEL_CONFIG } from '../game/config/rewards';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../theme';
-import PackShopScreen from './PackShopScreen';
+import { CARDS } from '../game/config/cards';
+import CardCollection from '../components/CardCollection';
 
 const { width } = Dimensions.get('window');
 
 const UserScreen = () => {
   const insets = useSafeAreaInsets();
-  const { user, player, signOut } = useGame();
+  const { user, player, signOut, updateProfile, uniqueCards } = useGame();
   const [showQR, setShowQR] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [showShop, setShowShop] = useState(false);
   const [showQuestCreation, setShowQuestCreation] = useState(false);
+  const [editingBio, setEditingBio] = useState(false);
+  const [bioText, setBioText] = useState(player.bio || '');
+  const [linkedinUrl, setLinkedinUrl] = useState(player.linkedinUrl || '');
   
   // Dynamischer Import für Native Camera
   const [CameraView, setCameraView] = useState(null);
@@ -83,17 +86,21 @@ const UserScreen = () => {
     Alert.alert('Gescannt!', `Daten: ${data}`);
   };
 
-  // Calculate XP progress using LEVEL_CONFIG
-  const currentXP = player.xp || 0;
-  const currentLevel = player.level || 1;
-  const xpForCurrentLevel = LEVEL_CONFIG.getXPForLevel(currentLevel - 1);
-  const xpForNextLevel = LEVEL_CONFIG.getXPForLevel(currentLevel);
-  const xpInCurrentLevel = currentXP - xpForCurrentLevel;
-  const xpNeededForNext = xpForNextLevel - xpForCurrentLevel;
-  const xpProgress = LEVEL_CONFIG.getLevelProgress(currentXP);
-
   const memberId = `EP-${player.username?.slice(0, 4)?.toUpperCase() || 'USER'}-${player.id?.slice(0, 4) || '0000'}`;
   const cardWidth = Math.min(width - 40, 380);
+  
+  // Card collection stats
+  const ownedCardsCount = uniqueCards?.length || 0;
+  const totalCardsCount = CARDS.length;
+  
+  // Save profile updates
+  const handleSaveProfile = async () => {
+    await updateProfile({
+      bio: bioText,
+      linkedinUrl: linkedinUrl,
+    });
+    setEditingBio(false);
+  };
 
   return (
     <View style={styles.container}>
@@ -146,9 +153,9 @@ const UserScreen = () => {
               </View>
             </View>
             
-            {/* Level Badge */}
+            {/* Score Badge */}
             <View style={styles.levelChip}>
-              <Text style={styles.levelChipText}>Level {currentLevel}</Text>
+              <Text style={styles.levelChipText}>{player.score || 0} Punkte</Text>
             </View>
           </LinearGradient>
           <View style={[styles.cardShadow, { width: cardWidth - 30 }]} />
@@ -177,34 +184,8 @@ const UserScreen = () => {
           </View>
         )}
 
-        {/* XP Progress */}
-        <View style={styles.xpSection}>
-          <View style={styles.xpHeader}>
-            <Text style={styles.xpTitle}>Experience</Text>
-            <Text style={styles.xpValue}>{Math.floor(xpInCurrentLevel)} / {xpNeededForNext} XP</Text>
-          </View>
-          <View style={styles.xpBar}>
-            <LinearGradient
-              colors={['#4F46E5', '#7C3AED']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.xpBarFill, { width: `${xpProgress}%` }]}
-            />
-          </View>
-          <Text style={styles.totalXP}>Total: {player.xp} XP</Text>
-        </View>
-
-        <div style={{height: 10}}></div>
-
         {/* Quick Actions */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionCard} onPress={() => setShowShop(true)}>
-            <View style={[styles.actionIcon, { backgroundColor: 'rgba(236, 72, 153, 0.1)' }]}>
-              <Ionicons name="gift" size={24} color="#EC4899" />
-            </View>
-            <Text style={styles.actionLabel}>Shop</Text>
-          </TouchableOpacity>
-          
           <TouchableOpacity style={styles.actionCard} onPress={() => setShowQR(true)}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(232, 184, 74, 0.1)' }]}>
               <Ionicons name="qr-code" size={24} color={COLORS.primary} />
@@ -218,47 +199,76 @@ const UserScreen = () => {
             </View>
             <Text style={styles.actionLabel}>Scan</Text>
           </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionCard} onPress={() => setEditingBio(true)}>
+            <View style={[styles.actionIcon, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
+              <Ionicons name="create" size={24} color="#8b5cf6" />
+            </View>
+            <Text style={styles.actionLabel}>Bearbeiten</Text>
+          </TouchableOpacity>
         </View>
 
-        <div style={{height: 20}}></div>
+        <View style={{height: 20}} />
 
-        {/* Stats Card */}
+        {/* Bio & Social Card */}
         <GlassCard style={styles.card}>
-          <Text style={styles.sectionTitle}>Statistics</Text>
+          <View style={styles.bioHeader}>
+            <Text style={styles.sectionTitle}>Über mich</Text>
+            <TouchableOpacity onPress={() => setEditingBio(true)}>
+              <Ionicons name="pencil" size={18} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
           
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <View style={[styles.statIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                <Ionicons name="trophy" size={24} color="#10b981" />
-              </View>
-              <Text style={styles.statValue}>{player.totalQuestsCompleted || 0}</Text>
-              <Text style={styles.statLabel}>Quests</Text>
-            </View>
+          {player.bio ? (
+            <Text style={styles.bioText}>{player.bio}</Text>
+          ) : (
+            <TouchableOpacity onPress={() => setEditingBio(true)}>
+              <Text style={styles.bioPlaceholder}>Tippe hier um etwas über dich zu schreiben...</Text>
+            </TouchableOpacity>
+          )}
+          
+          {player.linkedinUrl ? (
+            <TouchableOpacity 
+              style={styles.linkedinRow}
+              onPress={() => Linking.openURL(player.linkedinUrl)}
+            >
+              <Ionicons name="logo-linkedin" size={20} color="#0A66C2" />
+              <Text style={styles.linkedinText}>LinkedIn Profil</Text>
+              <Ionicons name="open-outline" size={16} color={COLORS.text.muted} />
+            </TouchableOpacity>
+          ) : null}
+        </GlassCard>
 
-            <View style={styles.statItem}>
-              <View style={[styles.statIcon, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-                <Ionicons name="flame" size={24} color="#f59e0b" />
-              </View>
-              <Text style={styles.statValue}>{player.loginStreak || 0}</Text>
-              <Text style={styles.statLabel}>Streak</Text>
-            </View>
+        <View style={{height: 16}} />
 
-            <View style={styles.statItem}>
-              <View style={[styles.statIcon, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
-                <Ionicons name="people" size={24} color="#3b82f6" />
-              </View>
-              <Text style={styles.statValue}>{player.friendsCount || 0}</Text>
-              <Text style={styles.statLabel}>Friends</Text>
+        {/* Score Card */}
+        <GlassCard style={styles.card}>
+          <Text style={styles.sectionTitle}>Mein Fortschritt</Text>
+          
+          <View style={styles.scoreRow}>
+            <View style={styles.scoreItem}>
+              <Text style={styles.scoreValue}>{player.score || 0}</Text>
+              <Text style={styles.scoreLabel}>Score</Text>
             </View>
-
-            <View style={styles.statItem}>
-              <View style={[styles.statIcon, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
-                <Ionicons name="footsteps" size={24} color="#8b5cf6" />
-              </View>
-              <Text style={styles.statValue}>{Math.round(player.totalDistanceWalked || 0)}</Text>
-              <Text style={styles.statLabel}>km</Text>
+            <View style={styles.scoreDivider} />
+            <View style={styles.scoreItem}>
+              <Text style={styles.scoreValue}>{player.totalQuestsCompleted || 0}</Text>
+              <Text style={styles.scoreLabel}>Quests</Text>
+            </View>
+            <View style={styles.scoreDivider} />
+            <View style={styles.scoreItem}>
+              <Text style={styles.scoreValue}>{ownedCardsCount}/{totalCardsCount}</Text>
+              <Text style={styles.scoreLabel}>Karten</Text>
             </View>
           </View>
+        </GlassCard>
+
+        <View style={{height: 16}} />
+
+        {/* Card Collection Preview */}
+        <GlassCard style={styles.card}>
+          <Text style={styles.sectionTitle}>Meine Sammlung</Text>
+          <CardCollection compact={true} />
         </GlassCard>
 
         {/* Account Settings */}
@@ -300,24 +310,62 @@ const UserScreen = () => {
               <Text style={styles.memberName}>{player.displayName || player.username || 'User'}</Text>
               <Text style={styles.memberIdText}>{memberId}</Text>
               <View style={styles.memberLevel}>
-                <Ionicons name="star" size={14} color="#F59E0B" />
-                <Text style={styles.memberLevelText}>Level {currentLevel}</Text>
+                <Ionicons name="trophy" size={14} color="#F59E0B" />
+                <Text style={styles.memberLevelText}>{player.score || 0} Punkte</Text>
               </View>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Shop Modal */}
-      <Modal visible={showShop} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.shopModalContainer}>
-          <View style={styles.shopModalHeader}>
-            <Text style={styles.shopModalTitle}>Card Shop</Text>
-            <TouchableOpacity onPress={() => setShowShop(false)} style={styles.shopCloseBtn}>
-              <Ionicons name="close" size={24} color={COLORS.text.primary} />
-            </TouchableOpacity>
+      {/* Bio Edit Modal */}
+      <Modal visible={editingBio} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.bioModal}>
+            <Text style={styles.modalTitle}>Profil bearbeiten</Text>
+            
+            <Text style={styles.inputLabel}>Über mich</Text>
+            <TextInput
+              style={styles.bioInput}
+              value={bioText}
+              onChangeText={setBioText}
+              placeholder="Erzähl etwas über dich..."
+              placeholderTextColor={COLORS.text.muted}
+              multiline
+              numberOfLines={4}
+            />
+            
+            <Text style={styles.inputLabel}>LinkedIn Profil URL</Text>
+            <TextInput
+              style={styles.linkedinInput}
+              value={linkedinUrl}
+              onChangeText={setLinkedinUrl}
+              placeholder="https://linkedin.com/in/..."
+              placeholderTextColor={COLORS.text.muted}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => {
+                  setBioText(player.bio || '');
+                  setLinkedinUrl(player.linkedinUrl || '');
+                  setEditingBio(false);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Abbrechen</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.saveButton}
+                onPress={handleSaveProfile}
+              >
+                <Text style={styles.saveButtonText}>Speichern</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <PackShopScreen />
         </View>
       </Modal>
 
@@ -536,7 +584,6 @@ const styles = StyleSheet.create({
   memberLevel: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   memberLevelText: { fontSize: 13, fontWeight: '600', color: '#F59E0B' },
 
-  // Shop Modal
   // Admin Section
   adminSection: {
     marginBottom: 24,
@@ -561,20 +608,128 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
   },
 
-  shopModalContainer: { flex: 1, backgroundColor: COLORS.background },
-  shopModalHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingBottom: 10,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+  // Bio & Social Styles
+  bioHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  shopModalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text.primary },
-  shopCloseBtn: { padding: 8 },
+  bioText: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.text.primary,
+    lineHeight: 22,
+  },
+  bioPlaceholder: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.text.muted,
+    fontStyle: 'italic',
+  },
+  linkedinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+  linkedinText: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.text.primary,
+    flex: 1,
+  },
+
+  // Score Card Styles
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  scoreItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  scoreValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.text.primary,
+  },
+  scoreLabel: {
+    ...TYPOGRAPHY.small,
+    color: COLORS.text.secondary,
+    marginTop: 4,
+  },
+  scoreDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: COLORS.borderLight,
+  },
+
+  // Bio Modal Styles
+  bioModal: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  inputLabel: {
+    ...TYPOGRAPHY.small,
+    color: COLORS.text.secondary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  bioInput: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: 14,
+    color: COLORS.text.primary,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  linkedinInput: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: 14,
+    color: COLORS.text.primary,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.text.secondary,
+  },
+  saveButton: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    ...TYPOGRAPHY.bodyBold,
+    color: '#FFF',
+  },
 
   // Camera
   cameraContainer: { flex: 1, backgroundColor: '#000' },

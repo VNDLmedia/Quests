@@ -7,7 +7,7 @@ export { default as VibeMapScreen } from './VibeMapScreen';
 export { default as TrendingScreen } from './TrendingScreen';
 export { default as VibePassScreen } from './VibePassScreen';
 export { default as SocialScreen } from './SocialScreen';
-export { default as PackShopScreen } from './PackShopScreen';
+// PackShopScreen removed - Shop system disabled
 
 // Auth Screens
 export { default as LandingScreen } from './LandingScreen';

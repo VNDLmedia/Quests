@@ -56,11 +56,11 @@ const LiveLeaderboard = ({
     }
   };
 
-  const formatXP = (xp) => {
-    if (xp >= 1000) {
-      return `${(xp / 1000).toFixed(1)}k`;
+  const formatScore = (score) => {
+    if (score >= 1000) {
+      return `${(score / 1000).toFixed(1)}k`;
     }
-    return xp?.toString() || '0';
+    return score?.toString() || '0';
   };
 
   return (
@@ -125,7 +125,7 @@ const LiveLeaderboard = ({
             <Text style={styles.podiumName} numberOfLines={1}>
               {topThree[1]?.displayName || topThree[1]?.username}
             </Text>
-            <Text style={styles.podiumXP}>{formatXP(topThree[1]?.weeklyXP)}</Text>
+            <Text style={styles.podiumXP}>{formatScore(topThree[1]?.score || topThree[1]?.weeklyXP)}</Text>
           </View>
 
           {/* 1st Place */}
@@ -144,7 +144,7 @@ const LiveLeaderboard = ({
             <Text style={[styles.podiumName, styles.podiumNameFirst]} numberOfLines={1}>
               {topThree[0]?.displayName || topThree[0]?.username}
             </Text>
-            <Text style={[styles.podiumXP, styles.podiumXPFirst]}>{formatXP(topThree[0]?.weeklyXP)}</Text>
+            <Text style={[styles.podiumXP, styles.podiumXPFirst]}>{formatScore(topThree[0]?.score || topThree[0]?.weeklyXP)}</Text>
           </View>
 
           {/* 3rd Place */}
@@ -160,7 +160,7 @@ const LiveLeaderboard = ({
             <Text style={styles.podiumName} numberOfLines={1}>
               {topThree[2]?.displayName || topThree[2]?.username}
             </Text>
-            <Text style={styles.podiumXP}>{formatXP(topThree[2]?.weeklyXP)}</Text>
+            <Text style={styles.podiumXP}>{formatScore(topThree[2]?.score || topThree[2]?.weeklyXP)}</Text>
           </View>
         </View>
       ))}
@@ -212,7 +212,7 @@ const LiveLeaderboard = ({
                 <Text style={styles.listLevel}>Level {player.level || 1}</Text>
               </View>
               <Text style={[styles.listXP, isMe && styles.listXPMe]}>
-                {formatXP(player.weeklyXP)}
+                {formatScore(player.score || player.weeklyXP)}
               </Text>
             </View>
           );

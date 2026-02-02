@@ -96,14 +96,14 @@ const ConfettiParticle = ({ delay, startX }) => {
 const QuestCompletionModal = ({ 
   visible, 
   quest, 
-  rewards, 
+  rewards, // { score, card } - card is the awarded card object
   infoContent, 
   onClose 
 }) => {
   const insets = useSafeAreaInsets();
   const scaleAnim = useRef(new Animated.Value(0)).current;
-  const rewardScaleXP = useRef(new Animated.Value(0)).current;
-  const rewardScaleGems = useRef(new Animated.Value(0)).current;
+  const rewardScaleScore = useRef(new Animated.Value(0)).current;
+  const rewardScaleCard = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const [confettiParticles, setConfettiParticles] = useState([]);
 
@@ -111,8 +111,8 @@ const QuestCompletionModal = ({
     if (visible) {
       // Reset animations
       scaleAnim.setValue(0);
-      rewardScaleXP.setValue(0);
-      rewardScaleGems.setValue(0);
+      rewardScaleScore.setValue(0);
+      rewardScaleCard.setValue(0);
       glowAnim.setValue(0);
 
       // Generate confetti particles
@@ -137,13 +137,13 @@ const QuestCompletionModal = ({
         }),
         // Rewards pop in sequence
         Animated.stagger(150, [
-          Animated.spring(rewardScaleXP, {
+          Animated.spring(rewardScaleScore, {
             toValue: 1,
             friction: 6,
             tension: 120,
             useNativeDriver: true,
           }),
-          Animated.spring(rewardScaleGems, {
+          Animated.spring(rewardScaleCard, {
             toValue: 1,
             friction: 6,
             tension: 120,
@@ -172,8 +172,8 @@ const QuestCompletionModal = ({
 
   if (!visible || !quest) return null;
 
-  const xpReward = rewards?.xp || quest?.xpReward || 0;
-  const gemReward = rewards?.gems || quest?.gemReward || 0;
+  const scoreReward = rewards?.score || 10;
+  const cardReward = rewards?.card || null;
 
   return (
     <Modal
@@ -247,36 +247,38 @@ const QuestCompletionModal = ({
             <Animated.View
               style={[
                 styles.rewardCard,
-                { transform: [{ scale: rewardScaleXP }] },
-              ]}
-            >
-              <LinearGradient
-                colors={['rgba(93,173,226,0.2)', 'rgba(93,173,226,0.05)']}
-                style={styles.rewardGradient}
-              >
-                <Ionicons name="star" size={28} color="#5DADE2" />
-                <Text style={styles.rewardValue}>+{xpReward}</Text>
-                <Text style={styles.rewardLabel}>XP</Text>
-              </LinearGradient>
-            </Animated.View>
-
-            <Animated.View
-              style={[
-                styles.rewardCard,
-                { transform: [{ scale: rewardScaleGems }] },
+                { transform: [{ scale: rewardScaleScore }] },
               ]}
             >
               <LinearGradient
                 colors={['rgba(232,184,74,0.2)', 'rgba(232,184,74,0.05)']}
                 style={styles.rewardGradient}
               >
-                <Ionicons name="diamond" size={28} color={COLORS.primary} />
-                <Text style={[styles.rewardValue, { color: COLORS.primary }]}>
-                  +{gemReward}
-                </Text>
-                <Text style={styles.rewardLabel}>Gems</Text>
+                <Ionicons name="trophy" size={28} color={COLORS.primary} />
+                <Text style={[styles.rewardValue, { color: COLORS.primary }]}>+{scoreReward}</Text>
+                <Text style={styles.rewardLabel}>Punkte</Text>
               </LinearGradient>
             </Animated.View>
+
+            {cardReward && (
+              <Animated.View
+                style={[
+                  styles.rewardCard,
+                  { transform: [{ scale: rewardScaleCard }] },
+                ]}
+              >
+                <LinearGradient
+                  colors={cardReward.rarity?.color || ['rgba(93,173,226,0.2)', 'rgba(93,173,226,0.05)']}
+                  style={styles.rewardGradient}
+                >
+                  <Ionicons name={cardReward.icon || 'albums'} size={28} color="#FFF" />
+                  <Text style={[styles.rewardValue, { color: '#FFF', fontSize: 14 }]}>
+                    {cardReward.name}
+                  </Text>
+                  <Text style={[styles.rewardLabel, { color: 'rgba(255,255,255,0.8)' }]}>Neue Karte!</Text>
+                </LinearGradient>
+              </Animated.View>
+            )}
           </View>
 
           {/* Info Content (if provided) */}

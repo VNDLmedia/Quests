@@ -84,5 +84,6 @@ export const formatTimeRemaining = (timeObj) => {
  * @returns {boolean} True if app should be locked to landing screen
  */
 export const shouldLockApp = () => {
-  return !isLocalhost() && !isLaunchTimeReached();
+  // App is now LIVE - no more time lock!
+  return false;
 };

@@ -2,7 +2,7 @@
 // ETHERNAL PATHS - Social Screen
 // ═══════════════════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
   StatusBar,
   Modal,
   TextInput,
-  FlatList,
   RefreshControl,
   KeyboardAvoidingView,
   Keyboard,
@@ -23,40 +22,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { COLORS, SHADOWS, PALETTE } from '../theme';
+import { COLORS, SHADOWS } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../game/GameProvider';
 import { useLeaderboard } from '../game/hooks';
 import LiveLeaderboard from '../components/LiveLeaderboard';
-import ChallengeCard from '../components/ChallengeCard';
-import ActivityFeed from '../components/ActivityFeed';
-import { Skeleton } from '../components';
 
 const SocialScreen = () => {
   const insets = useSafeAreaInsets();
   const { 
     player, 
     friends, 
-    activeChallenges, 
-    activityFeed,
-    incomingFriendRequests,
     addFriend,
-    createChallenge,
-    fetchChallenges,
+    updateProfile,
   } = useGame();
   
   const { 
     friendsLeaderboard, 
     myFriendsRank, 
     refresh: refreshLeaderboard,
-    isOnline 
   } = useLeaderboard();
 
-  const [activeTab, setActiveTab] = useState('leaderboard');
   const [showQRModal, setShowQRModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
-  const [showChallengeModal, setShowChallengeModal] = useState(false);
-  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [showConsentModal, setShowConsentModal] = useState(!player.leaderboardVisible);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [manualCode, setManualCode] = useState('');
   
@@ -64,11 +53,13 @@ const SocialScreen = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await Promise.all([
-      refreshLeaderboard(),
-      fetchChallenges(),
-    ]);
+    await refreshLeaderboard();
     setIsRefreshing(false);
+  };
+  
+  const handleAcceptConsent = async () => {
+    await updateProfile({ leaderboardVisible: true });
+    setShowConsentModal(false);
   };
 
   const handleBarCodeScanned = async ({ data }) => {
@@ -116,45 +107,16 @@ const SocialScreen = () => {
     setShowScanModal(true);
   };
 
-  const handleCreateChallenge = (friendId) => {
-    setSelectedFriend(friendId);
-    setShowChallengeModal(true);
-  };
-
-  const pendingChallenges = activeChallenges.filter(c => 
-    c.status === 'pending' && c.opponent_id === player.id
-  );
-
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
       
-      <View style={[styles.tabs, { marginTop: insets.top + 10 }]}>
-        {[
-          { key: 'leaderboard', label: 'Ranking', icon: 'podium' },
-          { key: 'challenges', label: 'Challenges', icon: 'flash', badge: pendingChallenges.length },
-          { key: 'activity', label: 'Activity', icon: 'pulse' },
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
-          >
-            <Ionicons 
-              name={tab.icon} 
-              size={18} 
-              color={activeTab === tab.key ? COLORS.primary : COLORS.text.muted} 
-            />
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-              {tab.label}
-            </Text>
-            {tab.badge > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{tab.badge}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <Text style={styles.headerTitle}>Rangliste</Text>
+        <TouchableOpacity onPress={startScan} style={styles.addFriendBtn}>
+          <Ionicons name="person-add" size={20} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView 
@@ -164,145 +126,139 @@ const SocialScreen = () => {
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Leaderboard Tab */}
-        {activeTab === 'leaderboard' && (
-          <View style={styles.section}>
-            {/* My Rank Card */}
-            <LinearGradient
-              colors={COLORS.gradients.primary}
-              style={styles.rankCard}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+        {/* Consent Notice if not accepted */}
+        {!player.leaderboardVisible && (
+          <TouchableOpacity 
+            style={styles.consentBanner}
+            onPress={() => setShowConsentModal(true)}
+          >
+            <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
+            <View style={styles.consentBannerText}>
+              <Text style={styles.consentBannerTitle}>Rangliste beitreten</Text>
+              <Text style={styles.consentBannerSub}>Tippe hier um teilzunehmen</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.text.muted} />
+          </TouchableOpacity>
+        )}
+
+        {/* My Score Card */}
+        <LinearGradient
+          colors={COLORS.gradients.primary}
+          style={styles.rankCard}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.rankLeft}>
+            <Text style={styles.rankLabel}>Dein Rang</Text>
+            <Text style={styles.rankNumber}>#{myFriendsRank || '-'}</Text>
+          </View>
+          <View style={styles.rankRight}>
+            <Text style={styles.rankXP}>{player.score || 0} Punkte</Text>
+            <Text style={styles.rankLevel}>{player.totalQuestsCompleted || 0} Quests</Text>
+          </View>
+        </LinearGradient>
+
+        {/* Leaderboard - only show if consent given */}
+        {player.leaderboardVisible ? (
+          <LiveLeaderboard
+            data={friendsLeaderboard}
+            myRank={myFriendsRank}
+            friendsOnly={true}
+            onRefresh={refreshLeaderboard}
+            isLoading={isRefreshing}
+            title="Rangliste"
+          />
+        ) : (
+          <View style={styles.lockedLeaderboard}>
+            <Ionicons name="lock-closed" size={48} color={COLORS.text.muted} />
+            <Text style={styles.lockedText}>Rangliste gesperrt</Text>
+            <Text style={styles.lockedSubtext}>Akzeptiere die Datenschutzrichtlinie um andere Spieler zu sehen</Text>
+            <TouchableOpacity 
+              style={styles.unlockBtn}
+              onPress={() => setShowConsentModal(true)}
             >
-              <View style={styles.rankLeft}>
-                <Text style={styles.rankLabel}>Your Rank</Text>
-                <Text style={styles.rankNumber}>#{myFriendsRank || '-'}</Text>
-              </View>
-              <View style={styles.rankRight}>
-                <Text style={styles.rankXP}>{player.xp} XP</Text>
-                <Text style={styles.rankLevel}>Level {player.level}</Text>
-              </View>
-            </LinearGradient>
+              <Text style={styles.unlockBtnText}>Freischalten</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-            {/* Friends Leaderboard */}
-            <LiveLeaderboard
-              data={friendsLeaderboard}
-              myRank={myFriendsRank}
-              friendsOnly={true}
-              onRefresh={refreshLeaderboard}
-              isLoading={isRefreshing}
-              title="Friends Ranking"
-            />
-
-            {/* Friends List */}
-            <View style={styles.friendsSection}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Friends ({friends.length})</Text>
-                <TouchableOpacity onPress={startScan}>
-                  <Text style={styles.sectionAction}>+ Add</Text>
-                </TouchableOpacity>
-              </View>
-              
-              {friends.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Ionicons name="people-outline" size={48} color={COLORS.text.muted} />
-                  <Text style={styles.emptyText}>No friends yet</Text>
-                  <Text style={styles.emptySubtext}>Scan a QR code to add friends</Text>
-                </View>
-              ) : (
-                friends.map((friend) => (
-                  <View key={friend.id} style={styles.friendItem}>
-                    <View style={styles.friendAvatar}>
-                      <Text style={styles.friendInitial}>
-                        {friend.display_name?.charAt(0) || friend.username?.charAt(0)}
-                      </Text>
-                    </View>
-                    <View style={styles.friendInfo}>
-                      <Text style={styles.friendName}>
-                        {friend.display_name || friend.username}
-                      </Text>
-                      <Text style={styles.friendLevel}>Level {friend.level || 1}</Text>
-                    </View>
-                    <TouchableOpacity 
-                      style={styles.challengeBtn}
-                      onPress={() => handleCreateChallenge(friend.id)}
-                    >
-                      <Ionicons name="flash" size={18} color={COLORS.primary} />
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
+        {/* Friends List */}
+        <View style={styles.friendsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Freunde ({friends.length})</Text>
+            <TouchableOpacity onPress={startScan}>
+              <Text style={styles.sectionAction}>+ Hinzufügen</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {friends.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={48} color={COLORS.text.muted} />
+              <Text style={styles.emptyText}>Noch keine Freunde</Text>
+              <Text style={styles.emptySubtext}>Scanne einen QR-Code um Freunde hinzuzufügen</Text>
             </View>
-          </View>
-        )}
-
-        {/* Challenges Tab */}
-        {activeTab === 'challenges' && (
-          <View style={styles.section}>
-            {/* Pending Challenges */}
-            {pendingChallenges.length > 0 && (
-              <View style={styles.challengeSection}>
-                <Text style={styles.sectionTitle}>New Challenges</Text>
-                {pendingChallenges.map((challenge) => (
-                  <ChallengeCard
-                    key={challenge.id}
-                    challenge={challenge}
-                    currentUserId={player.id}
-                    onAccept={() => {}}
-                    onDecline={() => {}}
-                  />
-                ))}
-              </View>
-            )}
-
-            {/* Active Challenges */}
-            <View style={styles.challengeSection}>
-              <Text style={styles.sectionTitle}>Active Challenges</Text>
-              {activeChallenges.filter(c => c.status === 'active').length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Ionicons name="flash-outline" size={48} color={COLORS.text.muted} />
-                  <Text style={styles.emptyText}>No active challenges</Text>
-                  <Text style={styles.emptySubtext}>Challenge a friend to compete!</Text>
+          ) : (
+            friends.map((friend) => (
+              <View key={friend.id} style={styles.friendItem}>
+                <View style={styles.friendAvatar}>
+                  <Text style={styles.friendInitial}>
+                    {friend.display_name?.charAt(0) || friend.username?.charAt(0)}
+                  </Text>
                 </View>
-              ) : (
-                activeChallenges
-                  .filter(c => c.status === 'active')
-                  .map((challenge) => (
-                    <ChallengeCard
-                      key={challenge.id}
-                      challenge={challenge}
-                      currentUserId={player.id}
-                    />
-                  ))
-              )}
-            </View>
-
-            {/* Challenge Button */}
-            {friends.length > 0 && (
-              <TouchableOpacity style={styles.newChallengeBtn}>
-                <LinearGradient
-                  colors={['#EF4444', '#DC2626']}
-                  style={styles.newChallengeBtnGrad}
-                >
-                  <Ionicons name="flash" size={20} color="#FFF" />
-                  <Text style={styles.newChallengeBtnText}>Create Challenge</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Activity Tab */}
-        {activeTab === 'activity' && (
-          <View style={styles.section}>
-            <ActivityFeed
-              activities={activityFeed}
-              maxItems={20}
-              showHeader={false}
-            />
-          </View>
-        )}
+                <View style={styles.friendInfo}>
+                  <Text style={styles.friendName}>
+                    {friend.display_name || friend.username}
+                  </Text>
+                  <Text style={styles.friendLevel}>{friend.score || 0} Punkte</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
       </ScrollView>
+
+      {/* Consent Modal */}
+      <Modal visible={showConsentModal} animationType="fade" transparent>
+        <View style={styles.consentModalOverlay}>
+          <View style={styles.consentModal}>
+            <View style={styles.consentIcon}>
+              <Ionicons name="shield-checkmark" size={48} color={COLORS.primary} />
+            </View>
+            <Text style={styles.consentTitle}>Rangliste beitreten</Text>
+            <Text style={styles.consentText}>
+              Um an der Rangliste teilzunehmen und andere Spieler zu sehen, müssen wir folgende Daten mit anderen teilen:
+            </Text>
+            <View style={styles.consentList}>
+              <View style={styles.consentListItem}>
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                <Text style={styles.consentListText}>Dein Anzeigename</Text>
+              </View>
+              <View style={styles.consentListItem}>
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                <Text style={styles.consentListText}>Dein Score</Text>
+              </View>
+              <View style={styles.consentListItem}>
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                <Text style={styles.consentListText}>Deine Bio (wenn vorhanden)</Text>
+              </View>
+            </View>
+            <View style={styles.consentButtons}>
+              <TouchableOpacity 
+                style={styles.consentCancelBtn}
+                onPress={() => setShowConsentModal(false)}
+              >
+                <Text style={styles.consentCancelText}>Später</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.consentAcceptBtn}
+                onPress={handleAcceptConsent}
+              >
+                <Text style={styles.consentAcceptText}>Akzeptieren</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* QR Code Modal */}
       <Modal visible={showQRModal} animationType="slide">
@@ -434,47 +390,88 @@ const styles = StyleSheet.create({
     ...SHADOWS.sm,
   },
 
-  // Tabs - unified pill-container style
-  tabs: {
+  // Header
+  header: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    padding: 4,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    ...SHADOWS.sm,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.text.primary,
+  },
+  addFriendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 10,
+    ...SHADOWS.sm,
   },
-  tabActive: {
-    backgroundColor: COLORS.primaryLight,
+
+  // Consent Banner
+  consentBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    gap: 12,
   },
-  tabText: {
+  consentBannerText: {
+    flex: 1,
+  },
+  consentBannerTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
+  consentBannerSub: {
+    fontSize: 12,
     color: COLORS.text.muted,
   },
-  tabTextActive: {
-    color: COLORS.primary,
+
+  // Locked Leaderboard
+  lockedLeaderboard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 40,
+    alignItems: 'center',
+    marginVertical: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
   },
-  tabBadge: {
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 4,
-  },
-  tabBadgeText: {
-    fontSize: 10,
+  lockedText: {
+    fontSize: 18,
     fontWeight: '700',
+    color: COLORS.text.primary,
+    marginTop: 16,
+  },
+  lockedSubtext: {
+    fontSize: 14,
+    color: COLORS.text.muted,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  unlockBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  unlockBtnText: {
     color: '#FFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
 
   content: {
@@ -577,36 +574,87 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.text.muted,
   },
-  challengeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: 'rgba(232, 184, 74, 0.1)',
+  // Consent Modal
+  consentModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  consentModal: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  consentIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(232, 184, 74, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(232, 184, 74, 0.2)',
+    marginBottom: 20,
   },
-
-  // Challenge Section
-  challengeSection: {
-    gap: 12,
+  consentTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: COLORS.text.primary,
+    marginBottom: 12,
   },
-
-  // New Challenge Button
-  newChallengeBtn: {
-    marginTop: 8,
+  consentText: {
+    fontSize: 14,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
   },
-  newChallengeBtnGrad: {
+  consentList: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  consentListItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: 16,
+    gap: 12,
+    paddingVertical: 8,
   },
-  newChallengeBtnText: {
-    fontSize: 16,
+  consentListText: {
+    fontSize: 14,
+    color: COLORS.text.primary,
+  },
+  consentButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  consentCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    alignItems: 'center',
+  },
+  consentCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text.secondary,
+  },
+  consentAcceptBtn: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  consentAcceptText: {
+    fontSize: 15,
     fontWeight: '700',
     color: '#FFF',
   },

@@ -161,7 +161,7 @@ export function useQuests() {
 
     // Auto-complete if target reached
     if (isComplete) {
-      completeQuest(questId, quest.xpReward);
+      completeQuest(questId);
     }
   }, [activeQuests, dispatch, completeQuest, user]);
 

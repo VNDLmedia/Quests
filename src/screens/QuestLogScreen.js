@@ -40,7 +40,7 @@ const QuestLogScreen = ({ navigation }) => {
     completedQuests
   } = useQuests();
   
-  const { xp, level, levelProgress, xpForNextLevel, playerStats } = usePlayer();
+  const { score, playerStats } = usePlayer();
   
   const [isLoading, setIsLoading] = useState(false);
   const [checkingLocation, setCheckingLocation] = useState(null);
@@ -76,8 +76,7 @@ const QuestLogScreen = ({ navigation }) => {
     
     setClaimedChallenges(prev => [...prev, challenge.id]);
     
-    // XP hinzufügen
-    // dispatch({ type: 'ADD_XP', payload: challenge.xpReward });
+    // Score wird automatisch beim Quest-Abschluss hinzugefügt
     
     // Karte aus cardId auflösen
     const card = challenge.reward?.cardId 
@@ -88,7 +87,7 @@ const QuestLogScreen = ({ navigation }) => {
     // Belohnungsanzeige mit Kartenname
     Alert.alert(
       '🎉 Challenge abgeschlossen!',
-      `Du hast +${challenge.xpReward} XP erhalten!\n\n🃏 Deine Belohnung:\n"${cardName}" Sammelkarte\n\n📍 Abholen bei:\n${challenge.reward?.claimLocation || 'Info-Stand'}`,
+      `Du hast +10 Punkte erhalten!\n\n🃏 Deine Belohnung:\n"${cardName}" Sammelkarte\n\n📍 Abholen bei:\n${challenge.reward?.claimLocation || 'Info-Stand'}`,
       [{ text: 'Verstanden!' }]
     );
   };
@@ -202,7 +201,7 @@ const QuestLogScreen = ({ navigation }) => {
               <Text style={styles.heroTitle}>Level {level}</Text>
             </View>
             <View style={styles.levelBadge}>
-              <Text style={styles.levelText}>{xpForNextLevel - xp} XP to go</Text>
+              <Text style={styles.levelText}>{score || 0} Punkte</Text>
             </View>
           </View>
           
