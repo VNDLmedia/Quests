@@ -171,7 +171,7 @@ const MapScreen = () => {
     })
   ).current;
   
-  const { updateLocation, quests: allQuests, locations: allLocations, player, completeQuest, addXP, addGems } = useGame();
+  const { updateLocation, quests: allQuests, locations: allLocations, player, completeQuest, addScore } = useGame();
   const { activeQuests, completedQuests, startQuest } = useQuests();
   const userId = player?.odooId || player?.odoo_id;
   
@@ -557,23 +557,19 @@ const MapScreen = () => {
         const rewards = result.rewards || { xp: scanningQuest.xpReward, gems: scanningQuest.gemReward };
         const infoContent = result.quest?.metadata?.info_content || scanningQuest.metadata?.info_content;
         
-        // Award rewards
-        if (rewards.xp && addXP) {
-          await addXP(rewards.xp);
-        }
-        if (rewards.gems && addGems) {
-          await addGems(rewards.gems);
-        }
-        
-        // Mark quest as completed
+        // Mark quest as completed - this awards score and card automatically
+        let questResult = null;
         if (completeQuest) {
-          await completeQuest(scanningQuest.id || scanningQuest.questId);
+          questResult = await completeQuest(scanningQuest.id || scanningQuest.questId);
         }
         
-        // Show completion modal
+        // Show completion modal with score and card rewards
         setCompletionModalData({
           quest: scanningQuest,
-          rewards,
+          rewards: {
+            score: questResult?.score || 10,
+            card: questResult?.card || null,
+          },
           infoContent,
         });
         
@@ -599,7 +595,7 @@ const MapScreen = () => {
     }
     
     setScanningQuest(null);
-  }, [scanningQuest, userId, addXP, addGems, completeQuest]);
+  }, [scanningQuest, userId, completeQuest]);
 
   // Close completion modal
   const closeCompletionModal = useCallback(() => {

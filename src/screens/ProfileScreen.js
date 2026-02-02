@@ -60,7 +60,7 @@ const TABS = [
 const ProfileScreen = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { player, collection, uniqueCards, user, addGems, addXP } = useGame();
+  const { player, collection, uniqueCards, user, addScore } = useGame();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
   const [scanMode, setScanMode] = useState('player'); // 'player' oder 'register'
@@ -327,23 +327,10 @@ const ProfileScreen = () => {
       const featureValue = qrCode.feature_value || {};
       let rewardGiven = {};
 
-      switch (qrCode.feature_type) {
-        case 'gems':
-          const gemAmount = featureValue.amount || 50;
-          addGems(gemAmount);
-          rewardGiven = { gems: gemAmount };
-          break;
-        case 'xp':
-          const xpAmount = featureValue.amount || 100;
-          addXP(xpAmount);
-          rewardGiven = { xp: xpAmount };
-          break;
-        case 'reward':
-          if (featureValue.gems) addGems(featureValue.gems);
-          if (featureValue.xp) addXP(featureValue.xp);
-          rewardGiven = featureValue;
-          break;
-      }
+      // All QR code rewards now give score
+      const scoreAmount = featureValue.amount || featureValue.score || 10;
+      addScore(scoreAmount, `QR Code: ${qrCode.name}`);
+      rewardGiven = { score: scoreAmount };
 
       await supabase.from('qr_code_scans').insert({
         qr_code_id: qrCode.id,
@@ -528,11 +515,12 @@ const ProfileScreen = () => {
 
         // Apply rewards based on type
         if (result.type === 'quest' && result.rewards) {
-          if (result.rewards.gems) addGems(result.rewards.gems);
-          if (result.rewards.xp) addXP(result.rewards.xp);
+          // Score rewards (replaces gems/xp)
+          const rewardScore = result.rewards.score || result.rewards.gems || result.rewards.xp || 10;
+          addScore(rewardScore, 'QR Code Scan');
         } else if (result.type === 'reward' && result.rewards) {
-          if (result.rewards.gems) addGems(result.rewards.gems);
-          if (result.rewards.xp) addXP(result.rewards.xp);
+          const rewardScore = result.rewards.score || result.rewards.gems || result.rewards.xp || 10;
+          addScore(rewardScore, 'QR Code Reward');
         }
 
         // Wait for animation then show result

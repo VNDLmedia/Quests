@@ -1012,10 +1012,8 @@ export function GameProvider({ children }) {
       if (currentValue >= value) {
         dispatch({ type: ACTIONS.UNLOCK_ACHIEVEMENT, payload: achievement.key });
         
-        // Award gems for achievement
-        if (achievement.gems) {
-          addGems(achievement.gems, `Achievement: ${achievement.name}`);
-        }
+        // Award score for achievement (replaces gems)
+        addScore(10, `Achievement: ${achievement.name}`);
         
         // Post to activity feed
         if (isSupabaseConfigured() && state.user) {
@@ -1028,7 +1026,7 @@ export function GameProvider({ children }) {
         }
       }
     }
-  }, [state.achievements, state.player, state.user, addGems]);
+  }, [state.achievements, state.player, state.user, addScore]);
 
   // Add friend
   const addFriend = useCallback(async (friendId) => {
