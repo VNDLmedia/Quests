@@ -22,6 +22,18 @@ import { calculateDistance } from '../game/config/quests';
 import { LocationService } from '../game/services/LocationService';
 import { processQRCode } from '../game/services/QRScannerService';
 import QuestCompletionModal from '../components/QuestCompletionModal';
+import StaticPresentationMap from '../components/StaticPresentationMap';
+import POIModal from '../components/POIModal';
+import POICompletionModal from '../components/POICompletionModal';
+import POICreationModal from '../components/POICreationModal';
+import {
+  isPresentationModeActive,
+  getPresentationSettings,
+  getPresentationPOIs,
+  getUserPOIProgress,
+  recordPOIScan,
+  createPOI,
+} from '../game/services/PresentationModeService';
 
 // Safe import for QR Scanner
 let UniversalQRScanner = null;
@@ -187,6 +199,19 @@ const MapScreen = () => {
   const mapReadyRef = useRef(false);
   const isInitialLoadRef = useRef(true);
 
+  // Presentation Mode State
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [presentationSettings, setPresentationSettings] = useState(null);
+  const [presentationPOIs, setPresentationPOIs] = useState([]);
+  const [scannedPOIIds, setScannedPOIIds] = useState([]);
+  const [currentPOI, setCurrentPOI] = useState(null);
+  const [showPOIModal, setShowPOIModal] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [completionData, setCompletionData] = useState(null);
+  const [isAddingPOI, setIsAddingPOI] = useState(false);
+  const [newPOIPosition, setNewPOIPosition] = useState(null);
+  const [showPOICreationModal, setShowPOICreationModal] = useState(false);
+
   // Generate nearby quests - defined first to avoid circular dependency
   const generateNearbyQuests = useCallback((coords) => {
     if (!allQuests || allQuests.length === 0) return;
@@ -337,6 +362,105 @@ const MapScreen = () => {
     };
     loadInitialLocation();
   }, []);
+
+  // Check Presentation Mode and load data
+  useEffect(() => {
+    const checkPresentationMode = async () => {
+      try {
+        const isActive = await isPresentationModeActive();
+        setIsPresentationMode(isActive);
+
+        if (isActive) {
+          // Load presentation settings
+          const { data: settings } = await getPresentationSettings();
+          setPresentationSettings(settings);
+
+          // Load POIs
+          const { data: pois } = await getPresentationPOIs();
+          setPresentationPOIs(pois);
+
+          // Load user's progress
+          if (userId) {
+            const progress = await getUserPOIProgress(userId);
+            setScannedPOIIds(progress.scannedIds);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking presentation mode:', error);
+      }
+    };
+
+    checkPresentationMode();
+    // Refresh every 30 seconds to catch auto-activation
+    const interval = setInterval(checkPresentationMode, 30000);
+    return () => clearInterval(interval);
+  }, [userId]);
+
+  // Handle POI tap on static map
+  const handlePOIPress = useCallback(async (poi) => {
+    // Open QR scanner to scan this POI
+    setScanningQuest(null);
+    setShowQRScanner(true);
+  }, []);
+
+  // Handle POI scan completion
+  const handlePOIScanComplete = useCallback(async (poi, progress, completionData) => {
+    setCurrentPOI(poi);
+    setShowPOIModal(true);
+
+    // Update local scanned IDs
+    setScannedPOIIds(prev => [...prev, poi.id]);
+
+    // If all POIs complete, prepare completion modal data
+    if (progress?.allComplete && completionData) {
+      setCompletionData(completionData);
+    }
+  }, []);
+
+  // Handle POI modal close
+  const handlePOIModalComplete = useCallback(() => {
+    setShowPOIModal(false);
+    setCurrentPOI(null);
+
+    // Show completion modal if all POIs are done
+    if (completionData) {
+      setTimeout(() => {
+        setShowCompletionModal(true);
+      }, 500);
+    }
+  }, [completionData]);
+
+  // Admin: Handle add POI button
+  const handleAddPOIPress = useCallback((position) => {
+    if (position === null) {
+      // Toggle adding mode
+      setIsAddingPOI(prev => !prev);
+      setNewPOIPosition(null);
+    } else {
+      // Position was tapped
+      setNewPOIPosition(position);
+      setIsAddingPOI(false);
+      setShowPOICreationModal(true);
+    }
+  }, []);
+
+  // Admin: Save new POI
+  const handleSavePOI = useCallback(async (poiData) => {
+    try {
+      const result = await createPOI(poiData, userId);
+      if (result.success) {
+        // Refresh POIs
+        const { data: pois } = await getPresentationPOIs();
+        setPresentationPOIs(pois);
+        Alert.alert('Erfolg', 'POI wurde erstellt!');
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error creating POI:', error);
+      Alert.alert('Fehler', 'POI konnte nicht erstellt werden');
+    }
+  }, [userId]);
 
   useEffect(() => {
     generateNearbyQuests(DEFAULT_LOCATION);
@@ -550,7 +674,7 @@ const MapScreen = () => {
 
   // Handle QR code scan result
   const handleQRScanned = useCallback(async ({ data }) => {
-    if (!data || !scanningQuest) return;
+    if (!data) return;
     
     // console.log('[VibeMapScreen] QR scanned:', data);
     setShowQRScanner(false);
@@ -559,7 +683,32 @@ const MapScreen = () => {
       const result = await processQRCode(data.trim(), userId);
       // console.log('[VibeMapScreen] QR result:', result);
       
-      if (result.success && result.type === 'quest') {
+      // Handle POI scan (presentation mode)
+      if (result.type === 'poi') {
+        if (result.success) {
+          // POI scanned successfully - show video/info modal
+          handlePOIScanComplete(result.poi, result.progress, result.completionData);
+        } else if (result.alreadyScanned) {
+          // Already scanned this POI
+          if (Platform.OS === 'web') {
+            window.alert(result.error || 'Diese Station wurde bereits besucht');
+          } else {
+            Alert.alert('Bereits besucht', result.error || 'Diese Station wurde bereits besucht');
+          }
+        } else {
+          const errorMsg = result.error || 'Fehler beim Scannen';
+          if (Platform.OS === 'web') {
+            window.alert(errorMsg);
+          } else {
+            Alert.alert('Fehler', errorMsg);
+          }
+        }
+        setScanningQuest(null);
+        return;
+      }
+      
+      // Handle Quest scan (only if we were scanning a quest)
+      if (result.success && result.type === 'quest' && scanningQuest) {
         // Quest completed successfully!
         const rewards = result.rewards || { xp: scanningQuest.xpReward, gems: scanningQuest.gemReward };
         const infoContent = result.quest?.metadata?.info_content || scanningQuest.metadata?.info_content;
@@ -582,7 +731,7 @@ const MapScreen = () => {
         
         // Close quest detail sheet
         closeQuestDetail();
-      } else {
+      } else if (!result.success) {
         // Wrong code or error
         const errorMsg = result.error || 'Wrong QR code. Please try again.';
         if (Platform.OS === 'web') {
@@ -602,7 +751,7 @@ const MapScreen = () => {
     }
     
     setScanningQuest(null);
-  }, [scanningQuest, userId, completeQuest]);
+  }, [scanningQuest, userId, completeQuest, handlePOIScanComplete]);
 
   // Close completion modal
   const closeCompletionModal = useCallback(() => {
@@ -627,6 +776,92 @@ const MapScreen = () => {
   const topOffset = Platform.OS === 'ios' ? insets.top + 10 : 16;
   const bottomBarBottom = Platform.OS === 'ios' ? insets.bottom + 60 : 12;
 
+  // Presentation Mode Rendering
+  if (isPresentationMode && presentationSettings) {
+    return (
+      <View style={styles.container}>
+        {/* Static Map with POIs */}
+        <StaticPresentationMap
+          imageUrl={presentationSettings.static_map_image_url}
+          pois={presentationPOIs}
+          scannedPoiIds={scannedPOIIds}
+          onPoiPress={handlePOIPress}
+          isAdmin={player?.admin}
+          onAdminPoiPress={handlePOIPress}
+          onAddPoiPress={player?.admin ? handleAddPOIPress : null}
+          isAddingPoi={isAddingPOI}
+        />
+
+        {/* Scan Button for Presentation Mode */}
+        <View style={[styles.scanButtonContainer, { bottom: insets.bottom + 80 }]}>
+          <TouchableOpacity
+            style={styles.scanButton}
+            onPress={() => setShowQRScanner(true)}
+          >
+            <LinearGradient
+              colors={COLORS.gradients.gold}
+              style={styles.scanButtonGradient}
+            >
+              <Ionicons name="qr-code" size={24} color={COLORS.text.primary} />
+              <Text style={styles.scanButtonText}>Station scannen</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* QR Scanner Modal */}
+        {showQRScanner && Platform.OS === 'web' && UniversalQRScanner && (
+          <View style={styles.scannerOverlay}>
+            <UniversalQRScanner 
+              onScan={handleQRScanned} 
+              onClose={() => {
+                setShowQRScanner(false);
+                setScanningQuest(null);
+              }} 
+            />
+          </View>
+        )}
+
+        {/* POI Video/Info Modal */}
+        <POIModal
+          visible={showPOIModal}
+          poi={currentPOI}
+          onComplete={handlePOIModalComplete}
+          onClose={() => {
+            setShowPOIModal(false);
+            setCurrentPOI(null);
+          }}
+        />
+
+        {/* All POIs Complete Modal */}
+        <POICompletionModal
+          visible={showCompletionModal}
+          title={completionData?.title || 'Alle Stationen gefunden!'}
+          text={completionData?.text || 'Herzlichen Glückwunsch!'}
+          hintText={completionData?.secretHint}
+          imageUrl={completionData?.imageUrl}
+          onClose={() => {
+            setShowCompletionModal(false);
+            setCompletionData(null);
+          }}
+        />
+
+        {/* Admin: POI Creation Modal */}
+        {player?.admin && (
+          <POICreationModal
+            visible={showPOICreationModal}
+            position={newPOIPosition}
+            onClose={() => {
+              setShowPOICreationModal(false);
+              setNewPOIPosition(null);
+            }}
+            onSave={handleSavePOI}
+          />
+        )}
+      </View>
+    );
+  }
+
+  // Normal Map Rendering
   return (
     <View style={styles.container}>
       {/* Map - Full Screen */}
@@ -844,6 +1079,30 @@ const MapScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.backgroundDark },
+
+  // Presentation Mode Scan Button
+  scanButtonContainer: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+  },
+  scanButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...SHADOWS.glow,
+  },
+  scanButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+  },
+  scanButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
   
   // Location Indicator
   locationIndicator: {

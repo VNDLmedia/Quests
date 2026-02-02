@@ -10,7 +10,8 @@ import {
   Dimensions,
   Alert,
   Linking,
-  TextInput
+  TextInput,
+  Switch
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +20,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassCard } from '../components';
 import QuestCreationModal from '../components/QuestCreationModal';
 import { useGame } from '../game/GameProvider';
+import {
+  isPresentationModeActive,
+  togglePresentationMode,
+  getPresentationSettings,
+} from '../game/services/PresentationModeService';
 
 // Safe imports - verhindert Crashes
 let UniversalQRScanner = null;
@@ -53,6 +59,50 @@ const UserScreen = () => {
   const [editingBio, setEditingBio] = useState(false);
   const [bioText, setBioText] = useState(player.bio || '');
   const [linkedinUrl, setLinkedinUrl] = useState(player.linkedinUrl || '');
+  
+  // Presentation Mode State
+  const [presentationModeActive, setPresentationModeActive] = useState(false);
+  const [presentationSettings, setPresentationSettings] = useState(null);
+  const [isTogglingPresentationMode, setIsTogglingPresentationMode] = useState(false);
+
+  // Load presentation mode status
+  useEffect(() => {
+    const loadPresentationStatus = async () => {
+      try {
+        const isActive = await isPresentationModeActive();
+        setPresentationModeActive(isActive);
+        const { data } = await getPresentationSettings();
+        setPresentationSettings(data);
+      } catch (error) {
+        console.error('Error loading presentation status:', error);
+      }
+    };
+    if (player.admin) {
+      loadPresentationStatus();
+    }
+  }, [player.admin]);
+
+  // Toggle Presentation Mode
+  const handleTogglePresentationMode = async (value) => {
+    setIsTogglingPresentationMode(true);
+    try {
+      const result = await togglePresentationMode(value);
+      if (result.success) {
+        setPresentationModeActive(value);
+        Alert.alert(
+          'Präsentationsmodus',
+          value ? 'Präsentationsmodus wurde aktiviert!' : 'Präsentationsmodus wurde deaktiviert!'
+        );
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error toggling presentation mode:', error);
+      Alert.alert('Fehler', 'Präsentationsmodus konnte nicht geändert werden');
+    } finally {
+      setIsTogglingPresentationMode(false);
+    }
+  };
   
   // Dynamischer Import für Native Camera
   const [CameraView, setCameraView] = useState(null);
@@ -202,6 +252,38 @@ const UserScreen = () => {
               </LinearGradient>
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* ADMIN: Presentation Mode Toggle */}
+        {player.admin && (
+          <GlassCard style={styles.card}>
+            <View style={styles.presentationHeader}>
+              <View style={styles.presentationTitleRow}>
+                <Ionicons name="easel" size={22} color={COLORS.primary} />
+                <Text style={styles.sectionTitle}>Präsentationsmodus</Text>
+              </View>
+              <Switch
+                value={presentationModeActive}
+                onValueChange={handleTogglePresentationMode}
+                disabled={isTogglingPresentationMode}
+                trackColor={{ false: COLORS.surface, true: COLORS.primary }}
+                thumbColor={presentationModeActive ? '#FFF' : COLORS.text.muted}
+              />
+            </View>
+            
+            <Text style={styles.presentationDesc}>
+              Aktiviert die statische Karte mit Points of Interest für Präsentationen.
+            </Text>
+            
+            {presentationSettings?.auto_activate_at && (
+              <View style={styles.autoActivateRow}>
+                <Ionicons name="time-outline" size={16} color={COLORS.text.secondary} />
+                <Text style={styles.autoActivateText}>
+                  Auto-Aktivierung: {new Date(presentationSettings.auto_activate_at).toLocaleString('de-DE')}
+                </Text>
+              </View>
+            )}
+          </GlassCard>
         )}
 
         {/* Quick Actions */}
@@ -661,6 +743,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.text.primary,
+  },
+  
+  // Presentation Mode
+  presentationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  presentationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  presentationDesc: {
+    fontSize: 13,
+    color: COLORS.text.secondary,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  autoActivateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+  autoActivateText: {
+    fontSize: 12,
+    color: COLORS.text.secondary,
   },
 
   // Bio & Social Styles

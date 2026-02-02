@@ -6,8 +6,8 @@
 import { supabase, isSupabaseConfigured } from '../../config/supabase';
 
 /**
- * Process a scanned QR code - checks both quests and reward codes
- * @param {string} scannedData - The raw QR code data (e.g., "ID001", "ID200")
+ * Process a scanned QR code - checks POIs, quests, and reward codes
+ * @param {string} scannedData - The raw QR code data (e.g., "ID001", "POI001")
  * @param {string} userId - Current user ID
  * @returns {Object} Result object with type, data, and status
  */
@@ -41,7 +41,13 @@ export const processQRCode = async (scannedData, userId) => {
     return playerResult;
   }
 
-  // Try to find in quests table first (for quest completion)
+  // Try to find in POIs first (for presentation mode)
+  const poiResult = await checkPOICode(trimmedData, userId);
+  if (poiResult.found) {
+    return poiResult;
+  }
+
+  // Try to find in quests table (for quest completion)
   const questResult = await checkQuestCode(trimmedData, userId);
   if (questResult.found) {
     return questResult;
@@ -60,6 +66,122 @@ export const processQRCode = async (scannedData, userId) => {
     error: `QR code "${trimmedData}" is not registered`,
     data: trimmedData
   };
+};
+
+/**
+ * Check if QR code matches a POI (presentation mode)
+ */
+const checkPOICode = async (qrCodeId, userId) => {
+  if (!isSupabaseConfigured() || !userId) {
+    return { found: false };
+  }
+
+  try {
+    // Search in presentation_pois table
+    const { data: poi, error } = await supabase
+      .from('presentation_pois')
+      .select('*')
+      .eq('qr_code_id', qrCodeId.toUpperCase())
+      .eq('is_active', true)
+      .single();
+
+    if (error || !poi) {
+      return { found: false };
+    }
+
+    console.log('[QRScannerService] POI found:', poi.name);
+
+    // Check if user already scanned this POI
+    const { data: existingScan } = await supabase
+      .from('poi_scans')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('poi_id', poi.id)
+      .single();
+
+    if (existingScan) {
+      return {
+        found: true,
+        success: false,
+        type: 'poi',
+        error: 'Du hast diese Station bereits besucht',
+        poi: {
+          id: poi.id,
+          name: poi.name,
+          videoUrl: poi.video_url,
+          infoTitle: poi.info_title,
+          infoText: poi.info_text,
+          infoImageUrl: poi.info_image_url,
+        },
+        alreadyScanned: true,
+      };
+    }
+
+    // Record the scan
+    await supabase.from('poi_scans').insert({
+      user_id: userId,
+      poi_id: poi.id,
+    });
+
+    // Check if all POIs are now complete
+    const { data: allPois } = await supabase
+      .from('presentation_pois')
+      .select('id')
+      .eq('is_active', true);
+
+    const { data: userScans } = await supabase
+      .from('poi_scans')
+      .select('poi_id')
+      .eq('user_id', userId);
+
+    const totalPois = allPois?.length || 0;
+    const scannedCount = (userScans?.length || 0) + 1; // +1 for current scan
+    const allComplete = scannedCount >= totalPois && totalPois > 0;
+
+    // Get completion hint if all complete
+    let completionData = null;
+    if (allComplete) {
+      const { data: settings } = await supabase
+        .from('presentation_settings')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (settings) {
+        completionData = {
+          title: settings.completion_hint_title,
+          text: settings.completion_hint_text,
+          imageUrl: settings.completion_hint_image_url,
+          secretHint: settings.secret_card_hint,
+        };
+      }
+    }
+
+    return {
+      found: true,
+      success: true,
+      type: 'poi',
+      poi: {
+        id: poi.id,
+        name: poi.name,
+        videoUrl: poi.video_url,
+        infoTitle: poi.info_title,
+        infoText: poi.info_text,
+        infoImageUrl: poi.info_image_url,
+      },
+      progress: {
+        total: totalPois,
+        scanned: scannedCount,
+        allComplete,
+      },
+      completionData,
+      message: `Station "${poi.name}" besucht!`,
+    };
+
+  } catch (error) {
+    console.error('[QRScannerService] Error checking POI:', error);
+    return { found: false };
+  }
 };
 
 /**
@@ -415,6 +537,7 @@ const formatRewardMessage = (rewards) => {
 
 export default {
   processQRCode,
+  checkPOICode,
   checkQuestCode,
   checkRewardCode
 };

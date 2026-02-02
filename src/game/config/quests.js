@@ -10,6 +10,7 @@ export const QUEST_TYPES = {
   social: { id: 'social', name: 'Social', icon: 'people', color: '#EC4899' },
   daily: { id: 'daily', name: 'Daily', icon: 'calendar', color: '#F59E0B' },
   challenge: { id: 'challenge', name: 'Challenge', icon: 'flag', color: '#3B82F6' },
+  poi: { id: 'poi', name: 'Point of Interest', icon: 'star', color: '#E8B84A' },
 };
 
 // Difficulty levels
