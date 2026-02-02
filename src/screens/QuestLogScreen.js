@@ -82,7 +82,7 @@ const QuestLogScreen = ({ navigation }) => {
     const card = challenge.reward?.cardId 
       ? COLLECTIBLE_CARDS[challenge.reward.cardId] 
       : null;
-    const cardName = card?.name || 'Sammelkarte';
+    const cardName = card?.name || 'Collectible Card';
     
     // Belohnungsanzeige mit Kartenname
     Alert.alert(
@@ -213,7 +213,7 @@ const QuestLogScreen = ({ navigation }) => {
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{activeQuests.length}</Text>
-              <Text style={styles.statLabel}>Aktiv</Text>
+              <Text style={styles.statLabel}>Active</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
@@ -333,7 +333,7 @@ const QuestLogScreen = ({ navigation }) => {
                 <View style={styles.challengeInfoDivider} />
                 <View style={styles.challengeInfoStat}>
                   <Text style={styles.challengeInfoStatValue}>{challengeStats.inProgress}</Text>
-                  <Text style={styles.challengeInfoStatLabel}>Aktiv</Text>
+                  <Text style={styles.challengeInfoStatLabel}>Active</Text>
                 </View>
               </View>
             </LinearGradient>
@@ -349,7 +349,7 @@ const QuestLogScreen = ({ navigation }) => {
                   <View style={styles.featuredSection}>
                     <View style={styles.featuredHeader}>
                       <Ionicons name="flame" size={18} color="#F59E0B" />
-                      <Text style={styles.featuredTitle}>Fast geschafft!</Text>
+                      <Text style={styles.featuredTitle}>Almost there!</Text>
                     </View>
                     <EventChallengeCard
                       challenge={nearComplete}
@@ -366,7 +366,7 @@ const QuestLogScreen = ({ navigation }) => {
 
             {/* Alle Challenges */}
             <View style={styles.allChallengesSection}>
-              <Text style={styles.allChallengesTitle}>Alle Challenges</Text>
+              <Text style={styles.allChallengesTitle}>All Challenges</Text>
               
               {/* Abholbare Challenges (completed, not claimed) */}
               {eventChallenges.filter(c => c.isCompleted && !claimedChallenges.includes(c.id)).length > 0 && (
@@ -397,7 +397,7 @@ const QuestLogScreen = ({ navigation }) => {
               <View style={styles.challengeGroup}>
                 <View style={styles.challengeGroupHeader}>
                   <Ionicons name="flash" size={16} color={COLORS.primary} />
-                  <Text style={styles.challengeGroupTitle}>In Bearbeitung</Text>
+                  <Text style={styles.challengeGroupTitle}>In Progress</Text>
                 </View>
                 {eventChallenges
                   .filter(c => !c.isCompleted)
