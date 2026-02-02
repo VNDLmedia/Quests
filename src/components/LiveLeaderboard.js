@@ -209,7 +209,7 @@ const LiveLeaderboard = ({
                   {player.displayName || player.username}
                   {isMe && ' (You)'}
                 </Text>
-                <Text style={styles.listLevel}>Level {player.level || 1}</Text>
+                <Text style={styles.listLevel}>{formatScore(player.score || player.weeklyXP)} Punkte</Text>
               </View>
               <Text style={[styles.listXP, isMe && styles.listXPMe]}>
                 {formatScore(player.score || player.weeklyXP)}

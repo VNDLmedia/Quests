@@ -96,10 +96,10 @@ function AppContent() {
 
   // Check achievements on player stats change
   useEffect(() => {
-    if (player.xp > 0) {
+    if (player.score > 0 || player.totalQuestsCompleted > 0) {
       checkAchievements(player);
     }
-  }, [player.xp, player.level, player.totalQuestsCompleted]);
+  }, [player.score, player.totalQuestsCompleted]);
 
   // Show loading screen while checking authentication or landing status
   if (isLoading || hasSeenLanding === null) {

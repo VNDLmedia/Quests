@@ -197,11 +197,11 @@ const QuestLogScreen = ({ navigation }) => {
         >
           <View style={styles.heroHeaderRow}>
             <View>
-              <Text style={styles.heroLabel}>Aktueller Status</Text>
-              <Text style={styles.heroTitle}>Level {level}</Text>
+              <Text style={styles.heroLabel}>Dein Fortschritt</Text>
+              <Text style={styles.heroTitle}>{score || 0} Punkte</Text>
             </View>
             <View style={styles.levelBadge}>
-              <Text style={styles.levelText}>{score || 0} Punkte</Text>
+              <Text style={styles.levelText}>{playerStats?.totalCompleted || 0} Quests</Text>
             </View>
           </View>
           

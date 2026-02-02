@@ -386,9 +386,6 @@ const ProfileScreen = () => {
     );
   };
 
-  // Calculate Progress
-  const xpProgress = (player.xpInCurrentLevel / player.xpNeededForNext) * 100;
-  
   // Collection Stats using new helper functions
   const collectionStats = getCollectionCompletion(uniqueCards || []);
   const rarityStats = getRarityDistribution(uniqueCards || []);
@@ -820,7 +817,7 @@ const ProfileScreen = () => {
                  <Ionicons name="person" size={36} color="white" />
               </LinearGradient>
               <View style={styles.levelBadge}>
-                <Text style={styles.levelText}>{player.level}</Text>
+                <Text style={styles.levelText}>{player.score || 0}</Text>
               </View>
             </View>
             
@@ -830,35 +827,12 @@ const ProfileScreen = () => {
             </View>
           </View>
           
-          {/* XP Bar */}
-          <View style={styles.xpSection}>
-            <View style={styles.xpBarContainer}>
-              <View style={[styles.xpBarFill, { width: `${xpProgress || 0}%` }]} />
-            </View>
-            <Text style={styles.xpText}>{Math.floor(player.xpInCurrentLevel || 0)} / {Math.floor(player.xpNeededForNext || 100)} XP</Text>
+          {/* Score Display */}
+          <View style={styles.scoreSection}>
+            <Text style={styles.scoreLabel}>Dein Score</Text>
+            <Text style={styles.scoreValue}>{player.score || 0} Punkte</Text>
           </View>
         </View>
-
-        {/* GEMS DISPLAY */}
-        <TouchableOpacity onPress={() => navigation.navigate('Shop')}>
-          <View style={styles.gemsCard}>
-            <View style={styles.gemsContent}>
-              <View style={styles.gemsLeft}>
-                <View style={styles.gemIconWrapper}>
-                  <Ionicons name="diamond" size={24} color={COLORS.primary} />
-                </View>
-                <View>
-                  <Text style={styles.gemsLabel}>Your Gems</Text>
-                  <Text style={styles.gemsCount}>{player.gems || 0}</Text>
-                </View>
-              </View>
-              <View style={styles.shopButton}>
-                <Text style={styles.shopButtonText}>Shop</Text>
-                <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
 
         {/* Quick Collection Preview */}
         <TouchableOpacity onPress={() => setActiveTab('collection')}>
@@ -1470,50 +1444,22 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     fontSize: 14,
   },
-  xpSection: {},
-  xpBarContainer: {
-    height: 8,
-    backgroundColor: COLORS.border,
-    borderRadius: 4,
-    marginBottom: 6,
-    overflow: 'hidden',
+  scoreSection: {
+    marginTop: 12,
+    alignItems: 'center',
   },
-  xpBarFill: {
-    height: '100%',
-    backgroundColor: COLORS.primary,
-    borderRadius: 4,
-  },
-  xpText: {
+  scoreLabel: {
     color: COLORS.text.secondary,
     fontSize: 12,
     fontWeight: '600',
   },
-  // Gems Card
-  gemsCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    ...SHADOWS.sm,
+  scoreValue: {
+    color: COLORS.primary,
+    fontSize: 24,
+    fontWeight: '800',
+    marginTop: 4,
   },
-  gemsContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  gemsLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  gemIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  // Legacy styles kept for compatibility
   gemsLabel: {
     color: COLORS.text.secondary,
     fontSize: 12,

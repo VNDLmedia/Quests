@@ -42,13 +42,13 @@ export function useLeaderboard() {
       username: player.username,
       displayName: player.displayName,
       avatarUrl: player.avatarUrl,
-      level: player.level,
-      weeklyXP: player.xp, // Simplified - would be weekly XP in production
+      score: player.score || 0,
+      weeklyXP: player.score || 0, // For backwards compatibility
       isMe: true,
     };
     
     const combined = [...friendsInLeaderboard, me]
-      .sort((a, b) => b.weeklyXP - a.weeklyXP)
+      .sort((a, b) => (b.score || b.weeklyXP || 0) - (a.score || a.weeklyXP || 0))
       .map((p, i) => ({ ...p, rank: i + 1 }));
     
     return combined;
@@ -75,11 +75,11 @@ export function useLeaderboard() {
     totalPlayers: leaderboard.length,
     myGlobalRank: myRank,
     myFriendsRank,
-    topPlayerXP: topThree[0]?.weeklyXP || 0,
-    xpToNextRank: myRank && myRank > 1 
-      ? (leaderboard[myRank - 2]?.weeklyXP || 0) - player.xp
+    topPlayerScore: topThree[0]?.score || topThree[0]?.weeklyXP || 0,
+    scoreToNextRank: myRank && myRank > 1 
+      ? (leaderboard[myRank - 2]?.score || leaderboard[myRank - 2]?.weeklyXP || 0) - (player.score || 0)
       : 0,
-  }), [leaderboard, myRank, myFriendsRank, topThree, player.xp]);
+  }), [leaderboard, myRank, myFriendsRank, topThree, player.score]);
 
   // Refresh leaderboard
   const refresh = useCallback(() => {

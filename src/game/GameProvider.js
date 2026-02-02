@@ -173,7 +173,7 @@ function gameReducer(state, action) {
         newAchievement: achievement,
         player: {
           ...state.player,
-          xp: state.player.xp + achievement.xp,
+          score: (state.player.score || 0) + 10, // Award score for achievements
         },
       };
     }
