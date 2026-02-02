@@ -28,7 +28,7 @@ const ClubPassScreen = () => {
   
   // Game Hooks
   const { 
-    xp, level, loginStreak, displayName, username,
+    id: playerId, xp, level, loginStreak, displayName, username,
     levelProgress, levelTitle, xpForNextLevel, xpInCurrentLevel,
     hasClaimedDailyReward, claimDailyReward
   } = usePlayer();
@@ -49,9 +49,15 @@ const ClubPassScreen = () => {
   const cardWidth = Math.min(width - 40, 400);
   const shadowWidth = cardWidth - 30;
 
+  // Full ID for QR scanning (must be complete UUID)
+  const scanableId = `EP-${playerId || 'GUEST'}`;
+  // Short display ID for visual purposes  
+  const displayMemberId = `EP-${username?.slice(0, 4)?.toUpperCase() || '8821'}`;
+  
   const member = {
     name: displayName || username || 'Ethernal Paths Member',
-    id: `EP-${username?.slice(0, 4)?.toUpperCase() || '8821'}`,
+    id: displayMemberId, // Short display version
+    scanId: scanableId,  // Full scannable version
     points: xp,
     level: levelTitle?.title || 'Newcomer',
     nextLevel: 'Next Level',
@@ -103,7 +109,7 @@ const ClubPassScreen = () => {
               <Ionicons name="wifi" size={20} color="rgba(255,255,255,0.6)" />
             </View>
             <View style={styles.cardCode}>
-              <QRCode value={member.id} size={50} color="#000" backgroundColor="#FFF" />
+              <QRCode value={member.scanId} size={50} color="#000" backgroundColor="#FFF" />
             </View>
             <View style={styles.cardBottom}>
               <View>
@@ -339,7 +345,7 @@ const ClubPassScreen = () => {
           </TouchableOpacity>
           <Text style={styles.modalTitle}>Member Card</Text>
           <View style={styles.qrBigBox}>
-            <QRCode value={member.id} size={200} />
+            <QRCode value={member.scanId} size={200} />
           </View>
           <Text style={styles.modalId}>{member.id}</Text>
         </View>

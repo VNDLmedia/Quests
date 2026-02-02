@@ -60,7 +60,7 @@ const TABS = [
 const ProfileScreen = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { player, collection, uniqueCards, user, addScore } = useGame();
+  const { player, collection, uniqueCards, user, addScore, fetchFriends } = useGame();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
   const [scanMode, setScanMode] = useState('player'); // 'player' oder 'register'
@@ -510,21 +510,53 @@ const ProfileScreen = () => {
         // Success!
         playSuccessAnimation();
 
-        // Apply rewards based on type
-        if (result.type === 'quest' && result.rewards) {
+        // Handle different result types
+        if (result.type === 'player' && result.friend) {
+          // Friend scan success - show friend info
+          setTimeout(() => {
+            setIsScanning(false);
+            if (result.alreadyFriends) {
+              Alert.alert(
+                '👋 Bereits Freunde!',
+                `${result.friend.display_name || result.friend.username} ist bereits in deiner Freundesliste.`,
+                [{ text: 'OK', style: 'default' }]
+              );
+            } else {
+              Alert.alert(
+                '🎉 Freund hinzugefügt!',
+                `${result.friend.display_name || result.friend.username} wurde zu deiner Freundesliste hinzugefügt!`,
+                [{ text: 'Super!', style: 'default' }]
+              );
+              // Refresh friends list in GameProvider
+              if (fetchFriends && user?.id) {
+                fetchFriends(user.id);
+              }
+            }
+          }, 1200);
+        } else if (result.type === 'quest' && result.rewards) {
           // Score rewards (replaces gems/xp)
           const rewardScore = result.rewards.score || result.rewards.gems || result.rewards.xp || 10;
           addScore(rewardScore, 'QR Code Scan');
+          
+          setTimeout(() => {
+            setIsScanning(false);
+            Alert.alert('Success! 🎉', result.message || 'Quest completed!');
+          }, 1200);
         } else if (result.type === 'reward' && result.rewards) {
           const rewardScore = result.rewards.score || result.rewards.gems || result.rewards.xp || 10;
           addScore(rewardScore, 'QR Code Reward');
+          
+          setTimeout(() => {
+            setIsScanning(false);
+            Alert.alert('Success! 🎉', result.message || 'Reward received!');
+          }, 1200);
+        } else {
+          // Generic success
+          setTimeout(() => {
+            setIsScanning(false);
+            Alert.alert('Success! 🎉', result.message || 'Code processed!');
+          }, 1200);
         }
-
-        // Wait for animation then show result
-        setTimeout(() => {
-          setIsScanning(false);
-          Alert.alert('Success! 🎉', result.message || 'Reward received!');
-        }, 1200);
       } else {
         // Error haptic
         if (Platform.OS !== 'web') {
@@ -535,11 +567,12 @@ const ProfileScreen = () => {
           setIsScanning(false);
 
           if (result.type === 'player') {
-            Alert.alert('Player found', `Player Code: ${result.data}`);
+            // Player scan failed
+            Alert.alert('Fehler', result.error || 'User konnte nicht gefunden werden');
           } else if (result.type === 'unknown') {
-            Alert.alert('Unknown', result.error || 'QR code not recognized');
+            Alert.alert('Unbekannt', result.error || 'QR code nicht erkannt');
           } else {
-            Alert.alert('Info', result.error || result.message || 'QR code could not be processed');
+            Alert.alert('Info', result.error || result.message || 'QR code konnte nicht verarbeitet werden');
           }
         }, 500);
       }

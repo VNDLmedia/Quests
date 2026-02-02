@@ -26,12 +26,19 @@ export const processQRCode = async (scannedData, userId) => {
 
   // Check if this is a player/user code (format: USER:xxx or EP-xxx)
   if (trimmedData.startsWith('USER:') || trimmedData.startsWith('EP-')) {
-    return {
-      success: true,
-      type: 'player',
-      data: trimmedData,
-      message: 'Player code recognized'
-    };
+    // Extract user ID from the code
+    let friendId;
+    if (trimmedData.startsWith('USER:')) {
+      friendId = trimmedData.substring(5); // Remove 'USER:' prefix
+    } else {
+      friendId = trimmedData.substring(3); // Remove 'EP-' prefix
+    }
+    
+    console.log('[QRScannerService] Player code detected, friendId:', friendId);
+    
+    // Process as friend request
+    const playerResult = await checkPlayerCode(friendId, userId);
+    return playerResult;
   }
 
   // Try to find in quests table first (for quest completion)
@@ -53,6 +60,124 @@ export const processQRCode = async (scannedData, userId) => {
     error: `QR code "${trimmedData}" is not registered`,
     data: trimmedData
   };
+};
+
+/**
+ * Check if QR code is a player code and add as friend
+ */
+const checkPlayerCode = async (friendId, userId) => {
+  console.log('[QRScannerService] Checking player code:', friendId, 'for user:', userId);
+
+  if (!isSupabaseConfigured()) {
+    return {
+      success: false,
+      type: 'player',
+      error: 'Database not configured'
+    };
+  }
+
+  // Can't add yourself
+  if (friendId === userId) {
+    return {
+      success: false,
+      type: 'player',
+      error: 'Das bist du selbst!'
+    };
+  }
+
+  try {
+    // Get friend's profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', friendId)
+      .single();
+
+    if (profileError || !profile) {
+      console.log('[QRScannerService] User not found:', friendId, profileError);
+      return {
+        success: false,
+        type: 'player',
+        error: 'User nicht gefunden'
+      };
+    }
+
+    console.log('[QRScannerService] Found profile:', profile.display_name);
+
+    // Check if already friends (either direction)
+    const { data: existingFriendship } = await supabase
+      .from('friendships')
+      .select('*')
+      .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`)
+      .single();
+
+    const friendData = {
+      id: profile.id,
+      username: profile.username,
+      display_name: profile.display_name,
+      avatar_url: profile.avatar_url,
+      score: profile.score || 0,
+      team: profile.team,
+      bio: profile.bio || '',
+      linkedin_url: profile.linkedin_url || '',
+    };
+
+    if (existingFriendship) {
+      console.log('[QRScannerService] Already friends');
+      return {
+        success: true,
+        type: 'player',
+        alreadyFriends: true,
+        friend: friendData,
+        message: `${profile.display_name || profile.username} ist bereits dein Freund!`
+      };
+    }
+
+    // Create new friendship with status 'accepted'
+    const { error: friendshipError } = await supabase
+      .from('friendships')
+      .insert({
+        user_id: userId,
+        friend_id: friendId,
+        status: 'accepted'
+      });
+
+    if (friendshipError) {
+      console.log('[QRScannerService] Error creating friendship:', friendshipError);
+      // Might be a duplicate (race condition)
+      if (friendshipError.code === '23505') {
+        return {
+          success: true,
+          type: 'player',
+          alreadyFriends: true,
+          friend: friendData,
+          message: `${profile.display_name || profile.username} ist bereits dein Freund!`
+        };
+      }
+      return {
+        success: false,
+        type: 'player',
+        error: 'Fehler beim Hinzufügen: ' + friendshipError.message
+      };
+    }
+
+    console.log('[QRScannerService] Friend added successfully!');
+    return {
+      success: true,
+      type: 'player',
+      alreadyFriends: false,
+      friend: friendData,
+      message: `${profile.display_name || profile.username} wurde als Freund hinzugefügt!`
+    };
+
+  } catch (error) {
+    console.error('[QRScannerService] Error in checkPlayerCode:', error);
+    return {
+      success: false,
+      type: 'player',
+      error: 'Fehler: ' + error.message
+    };
+  }
 };
 
 /**

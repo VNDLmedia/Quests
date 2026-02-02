@@ -87,7 +87,10 @@ const UserScreen = () => {
     Alert.alert('Gescannt!', `Daten: ${data}`);
   };
 
-  const memberId = `EP-${player.username?.slice(0, 4)?.toUpperCase() || 'USER'}-${player.id?.slice(0, 4) || '0000'}`;
+  // Full user ID for QR scanning (must contain complete UUID)
+  const scanableId = `EP-${player.id || 'GUEST'}`;
+  // Short display ID for visual purposes
+  const displayId = `EP-${player.username?.slice(0, 4)?.toUpperCase() || 'USER'}-${player.id?.slice(0, 4) || '0000'}`;
   const cardWidth = Math.min(width - 40, 380);
   
   // Card collection stats
@@ -147,7 +150,7 @@ const UserScreen = () => {
             
             {/* Mini QR */}
             <View style={styles.miniQR}>
-              <QRCode value={memberId} size={44} color="#000" backgroundColor="#FFF" />
+              <QRCode value={scanableId} size={44} color="#000" backgroundColor="#FFF" />
             </View>
             
             {/* Card Bottom */}
@@ -325,12 +328,12 @@ const UserScreen = () => {
               styles.qrBox, 
               player.team && TEAMS[player.team] && { borderColor: TEAMS[player.team].color, borderWidth: 3 }
             ]}>
-              <QRCode value={memberId} size={200} />
+              <QRCode value={scanableId} size={200} />
             </View>
             
             <View style={styles.memberInfo}>
               <Text style={styles.memberName}>{player.displayName || player.username || 'User'}</Text>
-              <Text style={styles.memberIdText}>{memberId}</Text>
+              <Text style={styles.memberIdText}>{displayId}</Text>
               <View style={styles.memberLevel}>
                 <Ionicons name="trophy" size={14} color="#F59E0B" />
                 <Text style={styles.memberLevelText}>{player.score || 0} Points</Text>
