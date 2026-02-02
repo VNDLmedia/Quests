@@ -1222,16 +1222,18 @@ export function GameProvider({ children }) {
   useEffect(() => {
     if (!isSupabaseConfigured() || !state.user) return;
 
-    // Subscribe to leaderboard changes
+    // Subscribe to profile changes (for leaderboard updates when scores change)
     const leaderboardChannel = supabase
-      .channel('leaderboard_changes')
+      .channel('profiles_score_changes')
       .on('postgres_changes', { 
-        event: '*', 
+        event: 'UPDATE', 
         schema: 'public', 
-        table: 'leaderboard' 
+        table: 'profiles' 
       }, (payload) => {
-        // Refresh leaderboard on changes
-        fetchLeaderboard();
+        // Only refresh if score changed
+        if (payload.old?.score !== payload.new?.score) {
+          fetchLeaderboard();
+        }
       })
       .subscribe();
 
@@ -1738,34 +1740,47 @@ export function GameProvider({ children }) {
     return { data, error };
   }, [state.user]);
 
-  // Fetch leaderboard
+  // Fetch leaderboard - uses profiles table directly since leaderboard table may not exist
   const fetchLeaderboard = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
     
-    const { data, error } = await supabase
-      .from('leaderboard')
-      .select(`
-        weekly_xp,
-        profiles:user_id (id, username, display_name, avatar_url, level)
-      `)
-      .order('weekly_xp', { ascending: false })
-      .limit(50);
-    
-    if (!error && data) {
-      const leaderboardData = data.map((item, index) => ({
-        rank: index + 1,
-        ...item.profiles,
-        weeklyXP: item.weekly_xp,
-      }));
+    try {
+      // Use profiles table with score instead of separate leaderboard table
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url, score, team')
+        .gt('score', 0)
+        .order('score', { ascending: false })
+        .limit(50);
       
-      const myRank = state.user 
-        ? leaderboardData.findIndex(p => p.id === state.user.id) + 1 
-        : null;
+      if (error) {
+        // Silently handle - table might not exist or have issues
+        return;
+      }
       
-      dispatch({ 
-        type: ACTIONS.SET_LEADERBOARD, 
-        payload: { data: leaderboardData, myRank: myRank || null }
-      });
+      if (data) {
+        const leaderboardData = data.map((item, index) => ({
+          rank: index + 1,
+          id: item.id,
+          username: item.username,
+          display_name: item.display_name,
+          avatar_url: item.avatar_url,
+          score: item.score || 0,
+          weeklyXP: item.score || 0, // Backwards compatibility
+          team: item.team,
+        }));
+        
+        const myRank = state.user 
+          ? leaderboardData.findIndex(p => p.id === state.user.id) + 1 
+          : null;
+        
+        dispatch({ 
+          type: ACTIONS.SET_LEADERBOARD, 
+          payload: { data: leaderboardData, myRank: myRank || null }
+        });
+      }
+    } catch (err) {
+      // Silently fail - leaderboard is optional feature
     }
   }, [state.user]);
 
