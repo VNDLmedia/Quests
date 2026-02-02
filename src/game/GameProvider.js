@@ -484,6 +484,84 @@ export function GameProvider({ children }) {
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // FETCH FRIENDS FROM SUPABASE
+  // ─────────────────────────────────────────────────────────────────────────
+  const fetchFriends = useCallback(async (userId) => {
+    if (!isSupabaseConfigured() || !userId) return;
+
+    try {
+      console.log('[GameProvider] Fetching friends for user:', userId);
+
+      // Get all friendships where user is either user_id or friend_id
+      const { data: friendships, error } = await supabase
+        .from('friendships')
+        .select(`
+          id,
+          user_id,
+          friend_id,
+          status,
+          created_at
+        `)
+        .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+        .eq('status', 'accepted');
+
+      if (error) {
+        console.error('[GameProvider] Error fetching friendships:', error);
+        return;
+      }
+
+      // Also get pending requests where current user initiated (auto-accept for now)
+      const { data: pendingFriendships } = await supabase
+        .from('friendships')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'pending');
+
+      // Combine all friendships
+      const allFriendships = [...(friendships || []), ...(pendingFriendships || [])];
+
+      if (!allFriendships || allFriendships.length === 0) {
+        console.log('[GameProvider] No friends found');
+        dispatch({ type: ACTIONS.SET_FRIENDS, payload: { friends: [], requests: [] } });
+        return;
+      }
+
+      // Get friend IDs (the other person in each friendship)
+      const friendIds = allFriendships.map(f => 
+        f.user_id === userId ? f.friend_id : f.user_id
+      );
+
+      // Fetch friend profiles
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', friendIds);
+
+      if (profileError) {
+        console.error('[GameProvider] Error fetching friend profiles:', profileError);
+        return;
+      }
+
+      // Map profiles to friend objects with all social info
+      const friends = (profiles || []).map(profile => ({
+        id: profile.id,
+        username: profile.username,
+        display_name: profile.display_name,
+        avatar_url: profile.avatar_url,
+        score: profile.score || 0,
+        team: profile.team,
+        bio: profile.bio || '',
+        linkedin_url: profile.linkedin_url || '',
+      }));
+
+      console.log('[GameProvider] Friends loaded:', friends.length);
+      dispatch({ type: ACTIONS.SET_FRIENDS, payload: { friends, requests: [] } });
+    } catch (error) {
+      console.error('[GameProvider] Failed to fetch friends:', error);
+    }
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
   // FETCH USER QUESTS FROM SUPABASE
   // ─────────────────────────────────────────────────────────────────────────
   const fetchUserQuests = useCallback(async (userId) => {
@@ -578,8 +656,9 @@ export function GameProvider({ children }) {
             dispatch({ type: ACTIONS.SET_USER, payload: null });
           } else {
             dispatch({ type: ACTIONS.SET_USER, payload: session.user });
-            // Fetch user's quests from Supabase
+            // Fetch user's quests and friends from Supabase
             await fetchUserQuests(session.user.id);
+            await fetchFriends(session.user.id);
           }
         } else {
           dispatch({ type: ACTIONS.SET_USER, payload: null });
@@ -606,8 +685,9 @@ export function GameProvider({ children }) {
           dispatch({ type: ACTIONS.SET_USER, payload: null });
         } else {
           dispatch({ type: ACTIONS.SET_USER, payload: session.user });
-          // Fetch user's quests from Supabase
+          // Fetch user's quests and friends from Supabase
           await fetchUserQuests(session.user.id);
+          await fetchFriends(session.user.id);
         }
       } else if (event === 'SIGNED_OUT') {
         dispatch({ type: ACTIONS.SET_USER, payload: null });
@@ -641,7 +721,7 @@ export function GameProvider({ children }) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [loadUserProfile, fetchUserQuests, fetchGameData]);
+  }, [loadUserProfile, fetchUserQuests, fetchFriends, fetchGameData]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // SUPABASE REALTIME SUBSCRIPTIONS
@@ -1050,10 +1130,18 @@ export function GameProvider({ children }) {
       return { error: 'Not connected', friend: null };
     }
 
-    // Check if already friends
+    console.log('[GameProvider] Adding friend with ID:', friendId);
+
+    // Check if already friends (in local state)
     const existingFriend = state.friends.find(f => f.id === friendId);
     if (existingFriend) {
+      console.log('[GameProvider] Already friends (local state)');
       return { error: 'already_friends', friend: existingFriend };
+    }
+
+    // Can't add yourself
+    if (friendId === state.user.id) {
+      return { error: 'Cannot add yourself', friend: null };
     }
 
     // Get friend profile first
@@ -1064,18 +1152,62 @@ export function GameProvider({ children }) {
       .single();
     
     if (profileError || !profile) {
+      console.log('[GameProvider] User not found:', friendId, profileError);
       return { error: 'User not found', friend: null };
     }
 
-    // Create friendship
+    console.log('[GameProvider] Found profile:', profile.display_name);
+
+    // Check if friendship already exists in database (either direction)
+    const { data: existingFriendship } = await supabase
+      .from('friendships')
+      .select('*')
+      .or(`and(user_id.eq.${state.user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${state.user.id})`)
+      .single();
+
+    if (existingFriendship) {
+      console.log('[GameProvider] Friendship already exists in DB');
+      // Map profile to friend object
+      const friendData = {
+        id: profile.id,
+        username: profile.username,
+        display_name: profile.display_name,
+        avatar_url: profile.avatar_url,
+        score: profile.score || 0,
+        team: profile.team,
+        bio: profile.bio || '',
+        linkedin_url: profile.linkedin_url || '',
+      };
+      // Add to local state if not already there
+      dispatch({ type: ACTIONS.ADD_FRIEND, payload: friendData });
+      return { error: 'already_friends', friend: friendData };
+    }
+
+    // Create friendship with status 'accepted' (direct add via QR scan)
     const { error } = await supabase
       .from('friendships')
-      .insert({ user_id: state.user.id, friend_id: friendId });
+      .insert({ 
+        user_id: state.user.id, 
+        friend_id: friendId,
+        status: 'accepted'  // Direct add, no pending state
+      });
     
     if (error) {
+      console.log('[GameProvider] Error creating friendship:', error);
       // Might be duplicate - check if already friends in DB
       if (error.code === '23505') {
-        return { error: 'already_friends', friend: profile };
+        const friendData = {
+          id: profile.id,
+          username: profile.username,
+          display_name: profile.display_name,
+          avatar_url: profile.avatar_url,
+          score: profile.score || 0,
+          team: profile.team,
+          bio: profile.bio || '',
+          linkedin_url: profile.linkedin_url || '',
+        };
+        dispatch({ type: ACTIONS.ADD_FRIEND, payload: friendData });
+        return { error: 'already_friends', friend: friendData };
       }
       return { error: error.message, friend: null };
     }
@@ -1092,6 +1224,7 @@ export function GameProvider({ children }) {
       linkedin_url: profile.linkedin_url || '',
     };
 
+    console.log('[GameProvider] Friend added successfully:', friendData.display_name);
     dispatch({ type: ACTIONS.ADD_FRIEND, payload: friendData });
     checkAchievements({ friendsCount: state.player.friendsCount + 1 });
     
@@ -1229,6 +1362,7 @@ export function GameProvider({ children }) {
     fetchLeaderboard,
     fetchChallenges,
     fetchUserQuests,
+    fetchFriends,
     fetchGameData,
     updateLocation,
     updateProfile,
@@ -1253,6 +1387,7 @@ export function GameProvider({ children }) {
     fetchLeaderboard,
     fetchChallenges,
     fetchUserQuests,
+    fetchFriends,
     fetchGameData,
     updateLocation,
     updateProfile,

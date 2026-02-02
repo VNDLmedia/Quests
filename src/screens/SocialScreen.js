@@ -16,7 +16,8 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Keyboard,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  Linking
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,7 +29,16 @@ import { useGame } from '../game/GameProvider';
 import { useLeaderboard } from '../game/hooks';
 import LiveLeaderboard from '../components/LiveLeaderboard';
 import { TEAMS } from '../config/teams';
-import { Linking } from 'react-native';
+
+// Safe import for UniversalQRScanner (Web only)
+let UniversalQRScanner = null;
+try {
+  if (Platform.OS === 'web') {
+    UniversalQRScanner = require('../components/UniversalQRScanner').default;
+  }
+} catch (error) {
+  console.warn('UniversalQRScanner not available:', error);
+}
 
 const SocialScreen = () => {
   const insets = useSafeAreaInsets();
@@ -37,6 +47,8 @@ const SocialScreen = () => {
     friends, 
     addFriend,
     updateProfile,
+    fetchFriends,
+    user,
   } = useGame();
   
   const { 
@@ -57,7 +69,10 @@ const SocialScreen = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await refreshLeaderboard();
+    await Promise.all([
+      refreshLeaderboard(),
+      user?.id ? fetchFriends(user.id) : Promise.resolve(),
+    ]);
     setIsRefreshing(false);
   };
   
@@ -335,71 +350,83 @@ const SocialScreen = () => {
 
       {/* Scan Modal */}
       <Modal visible={showScanModal} animationType="slide" presentationStyle="fullScreen">
-        <KeyboardAvoidingView 
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.scanModal}
-        >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={{flex: 1}}>
-          {Platform.OS !== 'web' && permission?.granted ? (
-          <CameraView
-            style={styles.camera}
-            onBarcodeScanned={handleBarCodeScanned}
-            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        {Platform.OS === 'web' && UniversalQRScanner ? (
+          // Web: Use UniversalQRScanner with built-in fallback
+          <UniversalQRScanner
+            onScan={handleBarCodeScanned}
+            onClose={() => setShowScanModal(false)}
+          />
+        ) : (
+          // Native: Use CameraView
+          <KeyboardAvoidingView 
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.scanModal}
           >
-            <View style={styles.scanOverlay}>
-              <TouchableOpacity 
-                style={styles.scanClose}
-                onPress={() => setShowScanModal(false)}
-              >
-                <Ionicons name="close" size={28} color="#FFF" />
-              </TouchableOpacity>
-              
-              <View style={styles.scanFrame}>
-                <View style={[styles.corner, styles.cornerTL]} />
-                <View style={[styles.corner, styles.cornerTR]} />
-                <View style={[styles.corner, styles.cornerBL]} />
-                <View style={[styles.corner, styles.cornerBR]} />
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={{flex: 1}}>
+            {permission?.granted ? (
+            <CameraView
+              style={styles.camera}
+              onBarcodeScanned={handleBarCodeScanned}
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            >
+              <View style={styles.scanOverlay}>
+                <TouchableOpacity 
+                  style={styles.scanClose}
+                  onPress={() => setShowScanModal(false)}
+                >
+                  <Ionicons name="close" size={28} color="#FFF" />
+                </TouchableOpacity>
+                
+                <View style={styles.scanFrame}>
+                  <View style={[styles.corner, styles.cornerTL]} />
+                  <View style={[styles.corner, styles.cornerTR]} />
+                  <View style={[styles.corner, styles.cornerBL]} />
+                  <View style={[styles.corner, styles.cornerBR]} />
+                </View>
+                
+                <Text style={styles.scanText}>Scan friend's QR code</Text>
               </View>
-              
-              <Text style={styles.scanText}>Scan friend's QR code</Text>
-            </View>
-          </CameraView>
-          ) : (
-            <View style={[styles.camera, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
-                 <TouchableOpacity 
-                style={styles.scanClose}
-                onPress={() => setShowScanModal(false)}
-              >
-                <Ionicons name="close" size={28} color="#FFF" />
-              </TouchableOpacity>
-              <Text style={{color: '#FFF', marginBottom: 20}}>Camera not available on Web or Permission Denied</Text>
-            </View>
-          )}
+            </CameraView>
+            ) : (
+              <View style={[styles.camera, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+                   <TouchableOpacity 
+                  style={styles.scanClose}
+                  onPress={() => setShowScanModal(false)}
+                >
+                  <Ionicons name="close" size={28} color="#FFF" />
+                </TouchableOpacity>
+                <Ionicons name="camera-off" size={48} color={COLORS.text.muted} style={{ marginBottom: 16 }} />
+                <Text style={{color: '#FFF', marginBottom: 20, textAlign: 'center', paddingHorizontal: 40}}>
+                  Camera permission denied. Please enable camera access in your settings.
+                </Text>
+              </View>
+            )}
 
-          {/* Manual Entry Section */}
-          <View style={styles.manualEntryContainer}>
-            <Text style={styles.manualEntryTitle}>Or enter code manually</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.manualInput}
-                placeholder="EP-XXXX"
-                placeholderTextColor="#666"
-                value={manualCode}
-                onChangeText={setManualCode}
-                autoCapitalize="characters"
-              />
-              <TouchableOpacity 
-                style={styles.manualSubmitBtn}
-                onPress={handleManualSubmit}
-              >
-                <Text style={styles.manualSubmitText}>Add</Text>
-              </TouchableOpacity>
+            {/* Manual Entry Section (Native only) */}
+            <View style={styles.manualEntryContainer}>
+              <Text style={styles.manualEntryTitle}>Or enter code manually</Text>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.manualInput}
+                  placeholder="EP-XXXX..."
+                  placeholderTextColor="#666"
+                  value={manualCode}
+                  onChangeText={setManualCode}
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity 
+                  style={styles.manualSubmitBtn}
+                  onPress={handleManualSubmit}
+                >
+                  <Text style={styles.manualSubmitText}>Add</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-        </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+          </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        )}
       </Modal>
 
       {/* Friend Added Success Modal */}
