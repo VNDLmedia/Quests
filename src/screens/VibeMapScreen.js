@@ -30,7 +30,7 @@ try {
     UniversalQRScanner = require('../components/UniversalQRScanner').default;
   }
 } catch (error) {
-  console.warn('UniversalQRScanner not available:', error);
+  // console.warn('UniversalQRScanner not available:', error);
 }
 
 const { width, height } = Dimensions.get('window');
@@ -57,11 +57,11 @@ body{font-family:-apple-system,system-ui,sans-serif}
 #map::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(8,15,26,0.6);pointer-events:none;z-index:400;mix-blend-mode:multiply}
 
 /* Player marker with golden glow */
-.player-wrapper{position:relative;display:flex;align-items:center;justify-content:center}
+.player-wrapper{position:relative;width:60px;height:60px;display:flex;align-items:center;justify-content:center}
 .user-core{width:18px;height:18px;background:#E8B84A;border:3px solid #0D1B2A;border-radius:50%;box-shadow:0 0 16px rgba(232,184,74,0.6),0 2px 8px rgba(0,0,0,0.4);position:relative;z-index:3}
-.user-pulse{position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(232,184,74,0.25);animation:pulse 2s ease-out infinite;z-index:1}
-.user-pulse2{position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(232,184,74,0.15);animation:pulse 2s ease-out infinite;animation-delay:0.5s;z-index:1}
-@keyframes pulse{0%{transform:scale(0.5);opacity:1}100%{transform:scale(2.5);opacity:0}}
+.user-pulse{position:absolute;top:50%;left:50%;width:60px;height:60px;border-radius:50%;background:rgba(232,184,74,0.25);animation:pulse 2s ease-out infinite;z-index:1;transform:translate(-50%,-50%) scale(0.5)}
+.user-pulse2{position:absolute;top:50%;left:50%;width:60px;height:60px;border-radius:50%;background:rgba(232,184,74,0.15);animation:pulse 2s ease-out infinite;animation-delay:0.5s;z-index:1;transform:translate(-50%,-50%) scale(0.5)}
+@keyframes pulse{0%{transform:translate(-50%,-50%) scale(0.5);opacity:1}100%{transform:translate(-50%,-50%) scale(2.5);opacity:0}}
 
 /* Quest markers */
 .quest-container{display:flex;flex-direction:column;align-items:center;transform:translateY(-30px);cursor:pointer}
@@ -206,7 +206,7 @@ const MapScreen = () => {
         questLng = loc.lng;
       } else {
         // Skip quests without valid coordinates
-        console.log('[VibeMapScreen] Quest has no coordinates:', template.title);
+        // console.log('[VibeMapScreen] Quest has no coordinates:', template.title);
         return null;
       }
       
@@ -246,7 +246,7 @@ const MapScreen = () => {
         generateNearbyQuests(coords);
       },
       (err) => {
-        console.log('Geolocation retry error:', err.code, err.message);
+        // console.log('Geolocation retry error:', err.code, err.message);
         setLocationStatus(err.code === 1 ? 'denied' : 'error');
       },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
@@ -262,9 +262,15 @@ const MapScreen = () => {
   const mapQuests = useMemo(() => {
     const quests = [];
     
-    // Available quests (not started yet)
+    // Get IDs of active and completed quests to filter them out from available
+    const activeQuestIds = new Set(activeQuests.map(q => q.questId || q.id));
+    const completedQuestIds = new Set((completedQuests || []).map(q => q.questId || q.id));
+    
+    // Available quests (not started yet) - exclude active and completed
     availableQuests.forEach(q => {
       if (!q.lat || !q.lng) return; // Skip quests without coordinates
+      if (activeQuestIds.has(q.id) || completedQuestIds.has(q.id)) return; // Skip if already active or completed
+      
       const dist = calculateDistance(userLoc.latitude, userLoc.longitude, q.lat, q.lng);
       quests.push({
         ...q,
@@ -326,7 +332,7 @@ const MapScreen = () => {
           longitude: lastLocation.longitude,
         });
         generateNearbyQuests(lastLocation);
-        console.log('[VibeMapScreen] Loaded last known location:', lastLocation.latitude, lastLocation.longitude);
+        // console.log('[VibeMapScreen] Loaded last known location:', lastLocation.latitude, lastLocation.longitude);
       }
     };
     loadInitialLocation();
@@ -356,7 +362,7 @@ const MapScreen = () => {
             generateNearbyQuests(coords);
           },
           (err) => {
-            console.log('Geolocation error:', err.code, err.message);
+            // console.log('Geolocation error:', err.code, err.message);
             setLocationStatus(err.code === 1 ? 'denied' : 'error');
           },
           { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 }
@@ -404,7 +410,7 @@ const MapScreen = () => {
             setLocationStatus('denied');
           }
         } catch (e) {
-          console.log('Location error:', e);
+          // console.log('Location error:', e);
           setLocationStatus('error');
         }
       })();
@@ -512,7 +518,8 @@ const MapScreen = () => {
       }
     };
     
-    setAvailableQuests(prev => prev.filter(q => q.id !== selectedQuest.id));
+    // Don't manually remove from availableQuests - let mapQuests useMemo filter it out
+    // once it appears in activeQuests to avoid marker disappearing
     await startQuest(questWithCoords);
     Alert.alert('Quest gestartet!', selectedQuest.title);
     closeQuestDetail();
@@ -545,12 +552,12 @@ const MapScreen = () => {
   const handleQRScanned = useCallback(async ({ data }) => {
     if (!data || !scanningQuest) return;
     
-    console.log('[VibeMapScreen] QR scanned:', data);
+    // console.log('[VibeMapScreen] QR scanned:', data);
     setShowQRScanner(false);
     
     try {
       const result = await processQRCode(data.trim(), userId);
-      console.log('[VibeMapScreen] QR result:', result);
+      // console.log('[VibeMapScreen] QR result:', result);
       
       if (result.success && result.type === 'quest') {
         // Quest completed successfully!

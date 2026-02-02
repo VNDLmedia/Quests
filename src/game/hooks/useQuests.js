@@ -79,7 +79,7 @@ export function useQuests() {
 
     try {
       // Insert into Supabase FIRST
-      console.log('Inserting user_quest:', { user_id: user.id, quest_id: dbQuestId });
+      // console.log('Inserting user_quest:', { user_id: user.id, quest_id: dbQuestId });
       const { data, error } = await supabase.from('user_quests').insert({
         user_id: user.id,
         quest_id: dbQuestId,
@@ -98,7 +98,7 @@ export function useQuests() {
         return null;
       }
 
-      console.log('Quest saved to DB:', data);
+      // console.log('Quest saved to DB:', data);
 
       // Build local quest object from DB response
       const newQuest = {

@@ -62,7 +62,7 @@ class LocationServiceClass {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        console.warn('Location permission denied, using mock location');
+        // console.warn('Location permission denied, using mock location');
         return Platform.OS === 'web' ? this.getMockLocation() : null;
       }
 
@@ -79,7 +79,7 @@ class LocationServiceClass {
 
       return this.currentLocation;
     } catch (error) {
-      console.warn('Error getting location, falling back to mock if web:', error);
+      // console.warn('Error getting location, falling back to mock if web:', error);
       if (Platform.OS === 'web') {
         return this.getMockLocation();
       }
@@ -114,9 +114,9 @@ class LocationServiceClass {
         timestamp: coords.timestamp || Date.now(),
       };
       await AsyncStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(locationData));
-      console.log('[LocationService] Saved last location:', locationData.latitude, locationData.longitude);
+      // console.log('[LocationService] Saved last location:', locationData.latitude, locationData.longitude);
     } catch (error) {
-      console.warn('[LocationService] Failed to save last location:', error);
+      // console.warn('[LocationService] Failed to save last location:', error);
     }
   }
 
@@ -129,7 +129,7 @@ class LocationServiceClass {
       const stored = await AsyncStorage.getItem(LAST_LOCATION_KEY);
       if (stored) {
         const locationData = JSON.parse(stored);
-        console.log('[LocationService] Loaded last location:', locationData.latitude, locationData.longitude);
+        // console.log('[LocationService] Loaded last location:', locationData.latitude, locationData.longitude);
         
         // Update current location if we don't have one yet
         if (!this.currentLocation) {
@@ -142,7 +142,7 @@ class LocationServiceClass {
         return locationData;
       }
     } catch (error) {
-      console.warn('[LocationService] Failed to load last location:', error);
+      // console.warn('[LocationService] Failed to load last location:', error);
     }
     return null;
   }
@@ -197,7 +197,7 @@ class LocationServiceClass {
         (location) => this.handleLocationUpdate(location)
       );
     } catch (error) {
-      console.warn('Failed to start tracking:', error);
+      // console.warn('Failed to start tracking:', error);
       this.isTracking = false;
     }
   }
@@ -463,7 +463,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, ({ data, error }) => {
     // eventType: Location.GeofencingEventType.Enter or Exit
     // region: { identifier, latitude, longitude, radius }
     
-    console.log(`Geofence ${eventType}: ${region.identifier}`);
+    // console.log(`Geofence ${eventType}: ${region.identifier}`);
     
     // In a real app, you'd communicate with the app via AsyncStorage or other means
   }

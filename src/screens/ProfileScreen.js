@@ -472,7 +472,7 @@ const ProfileScreen = () => {
       clearTimeout(scanTimeoutRef.current);
     }
 
-    console.log('Scanned QR Code:', data, 'Type:', type);
+    // console.log('Scanned QR Code:', data, 'Type:', type);
 
     // Immediate haptic feedback on scan
     if (Platform.OS !== 'web') {

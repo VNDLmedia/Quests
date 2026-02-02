@@ -15,7 +15,9 @@ const HomeScreen = () => {
       </Card>
       <Button
         title="Let's go"
-        onPress={() => console.log('Button pressed')}
+        onPress={() => {
+          // console.log('Button pressed')
+        }}
       />
     </View>
   );

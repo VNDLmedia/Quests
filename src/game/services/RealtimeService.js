@@ -22,7 +22,7 @@ class RealtimeServiceClass {
    */
   async initialize(userId) {
     if (!isSupabaseConfigured()) {
-      console.log('Supabase not configured - realtime disabled');
+      // console.log('Supabase not configured - realtime disabled');
       return false;
     }
 
@@ -72,9 +72,9 @@ class RealtimeServiceClass {
         this.emit('leaderboard:change', payload);
       })
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to leaderboard updates');
-        }
+        // if (status === 'SUBSCRIBED') {
+        //   console.log('Subscribed to leaderboard updates');
+        // }
       });
 
     this.channels.set(channelName, channel);

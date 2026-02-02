@@ -5,9 +5,11 @@
   "scripts": {
     "start": "expo start --offline",
     "start:online": "expo start",
+    "start:lan": "expo start --lan",
     "android": "expo start --offline --android",
     "ios": "expo start --offline --ios",
     "web": "expo start --offline --web",
+    "web:lan": "expo start --lan --web",
     "build": "expo export -p web"
   },
   "dependencies": {

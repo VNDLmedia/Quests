@@ -192,6 +192,8 @@ const SocialScreen = () => {
           </View>
         </LinearGradient>
 
+        <div style={{height: 15}}></div>
+
         {/* Leaderboard - only show if consent given */}
         {player.leaderboardVisible ? (
           <LiveLeaderboard
@@ -661,9 +663,9 @@ const styles = StyleSheet.create({
   lockedLeaderboard: {
     backgroundColor: COLORS.surface,
     borderRadius: 20,
-    padding: 40,
+    padding: 32,
     alignItems: 'center',
-    marginVertical: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
   },
@@ -695,7 +697,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingBottom: 40,
   },
   section: {
     gap: 20,
@@ -740,6 +742,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: 20,
     padding: 16,
+    marginTop: 16,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
     ...SHADOWS.sm,
@@ -885,7 +888,7 @@ const styles = StyleSheet.create({
   // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 24,
   },
   emptyText: {
     fontSize: 16,

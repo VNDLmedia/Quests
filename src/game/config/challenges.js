@@ -2,9 +2,17 @@
 // ETERNAL PATH - Event Challenges Configuration
 // Cross-game challenges with collectible cards as rewards
 // NO external dependencies except TEAMS to avoid circular imports
+// Supports both progress-based and questline-based challenges
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { TEAMS } from '../../config/teams';
+import { supabase } from '../../config/supabase';
+
+// Challenge modes
+export const CHALLENGE_MODES = {
+  progress: { id: 'progress', name: 'Progress-basiert', description: 'Fortschritt wird automatisch berechnet' },
+  questline: { id: 'questline', name: 'Quest-Reihe', description: 'Besteht aus mehreren Quests in Reihenfolge' },
+};
 
 // Country data inline for challenges (avoids circular imports)
 const COUNTRY_DATA = {
@@ -317,19 +325,281 @@ export const getChallengeProgress = (challenge, playerStats) => {
 };
 
 // Helper: All challenges with current progress
-export const getChallengesWithProgress = (playerStats) => {
-  return EVENT_CHALLENGES.map(challenge => ({
-    ...challenge,
-    currentProgress: getChallengeProgress(challenge, playerStats),
-    isCompleted: getChallengeProgress(challenge, playerStats) >= challenge.target,
-  }));
+export const getChallengesWithProgress = (challenges, playerStats, questlineProgress = {}) => {
+  // If called with old signature (single argument), treat it as playerStats for backwards compatibility
+  if (!Array.isArray(challenges) && typeof challenges === 'object') {
+    playerStats = challenges;
+    challenges = EVENT_CHALLENGES;
+  }
+  
+  // Fallback to hardcoded challenges if no challenges provided
+  if (!challenges || challenges.length === 0) {
+    challenges = EVENT_CHALLENGES;
+  }
+  
+  return challenges.map(challenge => {
+    // Handle questline challenges differently
+    if (challenge.challenge_mode === 'questline') {
+      const qlProgress = questlineProgress[challenge.id] || { completed: 0, total: 0 };
+      return {
+        ...challenge,
+        currentProgress: qlProgress.completed,
+        target: qlProgress.total || challenge.target || 1,
+        isCompleted: qlProgress.completed >= (qlProgress.total || challenge.target || 1),
+        questlineQuests: qlProgress.quests || [],
+      };
+    }
+    
+    // Progress-based challenges use the original logic
+    return {
+      ...challenge,
+      currentProgress: getChallengeProgress(challenge, playerStats),
+      isCompleted: getChallengeProgress(challenge, playerStats) >= challenge.target,
+    };
+  });
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUESTLINE CHALLENGE HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Fetch questline quests for a challenge
+export const fetchChallengeQuests = async (challengeId) => {
+  try {
+    const { data, error } = await supabase
+      .from('challenge_quests_with_details')
+      .select('*')
+      .eq('challenge_id', challengeId)
+      .order('sequence_order', { ascending: true });
+    
+    if (error) throw error;
+    return { success: true, quests: data || [] };
+  } catch (error) {
+    console.error('Error fetching challenge quests:', error);
+    return { success: false, error: error.message, quests: [] };
+  }
+};
+
+// Fetch user's questline progress for a specific challenge
+export const fetchUserQuestlineProgress = async (userId, challengeId) => {
+  try {
+    const { data, error } = await supabase
+      .from('questline_progress_details')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('challenge_id', challengeId)
+      .order('sequence_order', { ascending: true });
+    
+    if (error) throw error;
+    
+    const completed = data?.filter(q => q.status === 'completed').length || 0;
+    const total = data?.length || 0;
+    
+    return {
+      success: true,
+      progress: {
+        completed,
+        total,
+        quests: data || [],
+        isComplete: completed >= total && total > 0,
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching questline progress:', error);
+    return { success: false, error: error.message, progress: null };
+  }
+};
+
+// Fetch questline progress for all questline challenges for a user
+export const fetchAllQuestlineProgress = async (userId) => {
+  try {
+    // First, get all questline challenges
+    const { data: questlineChallenges, error: challengeError } = await supabase
+      .from('event_challenges')
+      .select('id')
+      .eq('challenge_mode', 'questline')
+      .eq('is_active', true);
+    
+    if (challengeError) throw challengeError;
+    
+    if (!questlineChallenges || questlineChallenges.length === 0) {
+      return { success: true, progress: {} };
+    }
+    
+    // Fetch progress for each questline challenge
+    const { data: progressData, error: progressError } = await supabase
+      .from('questline_progress_details')
+      .select('*')
+      .eq('user_id', userId)
+      .in('challenge_id', questlineChallenges.map(c => c.id))
+      .order('sequence_order', { ascending: true });
+    
+    if (progressError) throw progressError;
+    
+    // Group by challenge_id
+    const progressByChallenge = {};
+    
+    questlineChallenges.forEach(challenge => {
+      const challengeQuests = progressData?.filter(q => q.challenge_id === challenge.id) || [];
+      const completed = challengeQuests.filter(q => q.status === 'completed').length;
+      const total = challengeQuests.length;
+      
+      progressByChallenge[challenge.id] = {
+        completed,
+        total,
+        quests: challengeQuests,
+        isComplete: completed >= total && total > 0,
+      };
+    });
+    
+    return { success: true, progress: progressByChallenge };
+  } catch (error) {
+    console.error('Error fetching all questline progress:', error);
+    return { success: false, error: error.message, progress: {} };
+  }
+};
+
+// Initialize questline progress for a user (when they start a questline challenge)
+export const initializeQuestlineProgress = async (userId, challengeId) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('initialize_questline_progress', {
+        p_user_id: userId,
+        p_challenge_id: challengeId
+      });
+    
+    if (error) throw error;
+    return { success: true, progress: data };
+  } catch (error) {
+    console.error('Error initializing questline progress:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Complete a quest in a questline
+export const completeQuestlineQuest = async (userId, challengeId, questId) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('complete_questline_quest', {
+        p_user_id: userId,
+        p_challenge_id: challengeId,
+        p_quest_id: questId
+      });
+    
+    if (error) throw error;
+    
+    const result = data?.[0] || {};
+    return {
+      success: true,
+      nextQuestId: result.next_quest_id,
+      isChallengeComplete: result.is_challenge_complete,
+      totalQuests: result.total_quests,
+      completedQuests: result.completed_quests,
+    };
+  } catch (error) {
+    console.error('Error completing questline quest:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Get current quest status for a specific quest in a questline
+export const getQuestlineQuestStatus = async (userId, challengeId, questId) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_challenge_quest_progress')
+      .select('status, completed_at')
+      .eq('user_id', userId)
+      .eq('challenge_id', challengeId)
+      .eq('quest_id', questId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
+    
+    return {
+      success: true,
+      status: data?.status || 'not_started',
+      completedAt: data?.completed_at,
+    };
+  } catch (error) {
+    console.error('Error getting questline quest status:', error);
+    return { success: false, error: error.message, status: 'error' };
+  }
+};
+
+// Check if a quest belongs to a questline challenge
+export const getQuestChallengeInfo = async (questId) => {
+  try {
+    const { data, error } = await supabase
+      .from('challenge_quests')
+      .select(`
+        challenge_id,
+        sequence_order,
+        is_required,
+        bonus_xp,
+        event_challenges (
+          id,
+          title,
+          challenge_mode
+        )
+      `)
+      .eq('quest_id', questId);
+    
+    if (error) throw error;
+    
+    return {
+      success: true,
+      challenges: data || [],
+      isInQuestline: data?.some(c => c.event_challenges?.challenge_mode === 'questline') || false,
+    };
+  } catch (error) {
+    console.error('Error checking quest challenge info:', error);
+    return { success: false, error: error.message, challenges: [], isInQuestline: false };
+  }
+};
+
+// Get questline summary (for display)
+export const getQuestlineSummary = async (userId, challengeId) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_questline_summary', {
+        p_user_id: userId,
+        p_challenge_id: challengeId
+      });
+    
+    if (error) throw error;
+    
+    const result = data?.[0] || {};
+    return {
+      success: true,
+      summary: {
+        totalQuests: result.total_quests || 0,
+        completedQuests: result.completed_quests || 0,
+        currentQuestId: result.current_quest_id,
+        currentQuestOrder: result.current_quest_order,
+        isComplete: result.is_complete || false,
+      }
+    };
+  } catch (error) {
+    console.error('Error getting questline summary:', error);
+    return { success: false, error: error.message, summary: null };
+  }
 };
 
 export default {
   CHALLENGE_TYPES,
+  CHALLENGE_MODES,
   REWARD_TYPES,
   EVENT_CHALLENGES,
   CHALLENGE_TIERS,
   getChallengeProgress,
   getChallengesWithProgress,
+  // Questline helpers
+  fetchChallengeQuests,
+  fetchUserQuestlineProgress,
+  fetchAllQuestlineProgress,
+  initializeQuestlineProgress,
+  completeQuestlineQuest,
+  getQuestlineQuestStatus,
+  getQuestChallengeInfo,
+  getQuestlineSummary,
 };

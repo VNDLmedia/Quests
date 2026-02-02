@@ -11,7 +11,7 @@ if (Platform.OS !== 'web') {
     MapView = Maps.default;
     Marker = Maps.Marker;
   } catch (e) {
-    console.warn('Maps could not be loaded', e);
+    // console.warn('Maps could not be loaded', e);
   }
 }
 

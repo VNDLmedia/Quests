@@ -36,6 +36,7 @@ export { default as MatchOverlay } from './MatchOverlay';
 export { CardUnlockOverlay } from './CardUnlockOverlay';
 export { default as PackOpeningOverlay } from './PackOpeningOverlay';
 export { default as QuestCreationModal } from './QuestCreationModal';
+export { default as ChallengeCreationModal } from './ChallengeCreationModal';
 export { default as UniversalQRScanner } from './UniversalQRScanner';
 
 // Game UI Components

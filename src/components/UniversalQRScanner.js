@@ -28,7 +28,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
   useEffect(() => {
     // Check if BarcodeDetector is supported
     if (Platform.OS === 'web' && !('BarcodeDetector' in window)) {
-      console.warn('[UniversalQRScanner] BarcodeDetector not supported - showing manual input');
+      // console.warn('[UniversalQRScanner] BarcodeDetector not supported - showing manual input');
       setDetectorSupported(false);
       setShowManualInput(true);
       return;
@@ -82,7 +82,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
             .then((barcodes) => {
               if (barcodes.length > 0 && !hasScannedRef.current) {
                 const code = barcodes[0].rawValue;
-                console.log('[UniversalQRScanner] QR code detected:', code);
+                // console.log('[UniversalQRScanner] QR code detected:', code);
                 hasScannedRef.current = true;
                 setScanning(false);
 
@@ -100,7 +100,9 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
                 }, 50);
               }
             })
-            .catch((err) => console.log('[UniversalQRScanner] Detection error:', err));
+            .catch((err) => {
+              // console.log('[UniversalQRScanner] Detection error:', err)
+            });
         }
       }
 
@@ -129,7 +131,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
 
   const handleManualSubmit = () => {
     if (manualCode.trim()) {
-      console.log('[UniversalQRScanner] Manual code entered:', manualCode);
+      // console.log('[UniversalQRScanner] Manual code entered:', manualCode);
       onScan({ data: manualCode.trim() });
     }
   };

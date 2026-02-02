@@ -80,9 +80,9 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   const [hasError, setHasError] = useState(false);
 
   // Debug: Log step changes
-  useEffect(() => {
-    console.log('===> Current step:', step);
-  }, [step]);
+  // useEffect(() => {
+  //   console.log('===> Current step:', step);
+  // }, [step]);
 
   // Step 1: Location
   const [location, setLocation] = useState(null);
@@ -99,9 +99,9 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   // Auto-advance from step 2 to step 3 ONLY after scanning (not manual entry or back navigation)
   useEffect(() => {
     if (step === 2 && qrCodeId && !qrScanning && justScanned) {
-      console.log('🔄 Auto-advancing after QR scan');
+      // console.log('🔄 Auto-advancing after QR scan');
       const timer = setTimeout(() => {
-        console.log('🚀 AUTO-ADVANCE: setStep(3)');
+        // console.log('🚀 AUTO-ADVANCE: setStep(3)');
         setStep(3);
         setJustScanned(false); // Reset flag
       }, 150);
@@ -130,7 +130,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
           const camera = await import('expo-camera');
           setCameraView(() => camera.CameraView);
         } catch (e) {
-          console.log('Camera not available');
+          // console.log('Camera not available');
         }
       };
       loadCamera();
@@ -138,13 +138,13 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   }, []);
 
   const handleCaptureLocation = async () => {
-    console.log('Capturing location...');
+    // console.log('Capturing location...');
     setLoading(true);
     setLocationError(null);
 
     try {
       const loc = await getCurrentLocation();
-      console.log('Location captured:', loc);
+      // console.log('Location captured:', loc);
       setLocation(loc);
       setStep(2);
     } catch (error) {
@@ -158,39 +158,39 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   };
 
   const handleQRScanned = async ({ data }) => {
-    console.log('╔══════════════════════════════════════════════════════════╗');
-    console.log('║  QR SCAN EVENT TRIGGERED                                 ║');
-    console.log('╚══════════════════════════════════════════════════════════╝');
-    console.log('RAW DATA:', data);
-    console.log('DATA TYPE:', typeof data);
-    console.log('DATA LENGTH:', data?.length);
-    console.log('CURRENT STEP:', step);
-    console.log('CURRENT qrCodeId:', qrCodeId);
-    console.log('CURRENT qrScanning:', qrScanning);
+    // console.log('╔══════════════════════════════════════════════════════════╗');
+    // console.log('║  QR SCAN EVENT TRIGGERED                                 ║');
+    // console.log('╚══════════════════════════════════════════════════════════╝');
+    // console.log('RAW DATA:', data);
+    // console.log('DATA TYPE:', typeof data);
+    // console.log('DATA LENGTH:', data?.length);
+    // console.log('CURRENT STEP:', step);
+    // console.log('CURRENT qrCodeId:', qrCodeId);
+    // console.log('CURRENT qrScanning:', qrScanning);
     
     // Immediate validation
     if (!data || data.trim() === '') {
-      console.log('❌ Empty QR code, ignoring');
+      // console.log('❌ Empty QR code, ignoring');
       return;
     }
 
     const trimmedData = data.trim();
-    console.log('TRIMMED DATA:', trimmedData);
+    // console.log('TRIMMED DATA:', trimmedData);
     
     // Close scanner immediately to prevent multiple scans
-    console.log('🔒 Closing scanner (setQrScanning(false))');
+    // console.log('🔒 Closing scanner (setQrScanning(false))');
     setQrScanning(false);
     
-    console.log('⏳ Setting loading to true');
+    // console.log('⏳ Setting loading to true');
     setLoading(true);
 
     try {
-      console.log('📞 Calling validateQRCode with:', trimmedData);
+      // console.log('📞 Calling validateQRCode with:', trimmedData);
       const validation = await validateQRCode(trimmedData);
-      console.log('✅ Validation returned:', JSON.stringify(validation, null, 2));
+      // console.log('✅ Validation returned:', JSON.stringify(validation, null, 2));
       
       if (!validation.valid && validation.error) {
-        console.log('⚠️ QR code already in use');
+        // console.log('⚠️ QR code already in use');
         setLoading(false);
         
         if (Platform.OS === 'web') {
@@ -200,12 +200,12 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
           );
           
           if (useAnyway) {
-            console.log('✓ User wants to use anyway');
-            console.log('📝 Setting qrCodeId to:', trimmedData);
+            // console.log('✓ User wants to use anyway');
+            // console.log('📝 Setting qrCodeId to:', trimmedData);
             setQrCodeId(trimmedData);
             setJustScanned(true); // Mark as just scanned for auto-advance
           } else {
-            console.log('❌ User cancelled');
+            // console.log('❌ User cancelled');
             setQrScanning(true);
           }
         } else {
@@ -216,15 +216,15 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
               { 
                 text: 'Scan Again', 
                 onPress: () => {
-                  console.log('🔄 User chose to scan again');
+                  // console.log('🔄 User chose to scan again');
                   setQrScanning(true);
                 }
               },
               { 
                 text: 'Use Anyway', 
                 onPress: () => {
-                  console.log('✓ User chose to use anyway');
-                  console.log('📝 Setting qrCodeId to:', trimmedData);
+                  // console.log('✓ User chose to use anyway');
+                  // console.log('📝 Setting qrCodeId to:', trimmedData);
                   setQrCodeId(trimmedData);
                   setJustScanned(true); // Mark as just scanned for auto-advance
                 }
@@ -232,7 +232,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
               { 
                 text: 'Cancel', 
                 style: 'cancel',
-                onPress: () => console.log('❌ User cancelled')
+                // onPress: () => console.log('❌ User cancelled')
               },
             ]
           );
@@ -241,12 +241,12 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
       }
       
       // QR code is valid - accept it
-      console.log('✅ QR code is valid and available');
-      console.log('📝 Setting qrCodeId to:', trimmedData);
+      // console.log('✅ QR code is valid and available');
+      // console.log('📝 Setting qrCodeId to:', trimmedData);
       setQrCodeId(trimmedData);
       setJustScanned(true); // Mark as just scanned for auto-advance
       
-      console.log('⏳ Setting loading to false');
+      // console.log('⏳ Setting loading to false');
       setLoading(false);
       
     } catch (error) {

@@ -10,11 +10,11 @@ import { supabase } from '../../config/supabase';
  * @returns {Promise<{latitude: number, longitude: number}>}
  */
 export const getCurrentLocation = async () => {
-  console.log('getCurrentLocation called, Platform:', Platform.OS);
+  // console.log('getCurrentLocation called, Platform:', Platform.OS);
   
   try {
     if (Platform.OS === 'web') {
-      console.log('Using web geolocation');
+      // console.log('Using web geolocation');
       // Web geolocation
       return new Promise((resolve, reject) => {
         if (!navigator?.geolocation) {
@@ -23,10 +23,10 @@ export const getCurrentLocation = async () => {
           return;
         }
 
-        console.log('Requesting location from browser...');
+        // console.log('Requesting location from browser...');
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            console.log('Location success:', position.coords);
+            // console.log('Location success:', position.coords);
             resolve({
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
@@ -51,23 +51,23 @@ export const getCurrentLocation = async () => {
         );
       });
     } else {
-      console.log('Using native expo-location');
+      // console.log('Using native expo-location');
       // Native location using expo-location
       const LocationModule = await import('expo-location');
       const Location = LocationModule.default || LocationModule;
       
-      console.log('Requesting location permissions...');
+      // console.log('Requesting location permissions...');
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         throw new Error('Location permission denied');
       }
 
-      console.log('Getting current position...');
+      // console.log('Getting current position...');
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
 
-      console.log('Native location success:', location.coords);
+      // console.log('Native location success:', location.coords);
       return {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -86,15 +86,15 @@ export const getCurrentLocation = async () => {
  * @returns {Promise<{valid: boolean, existingQuest: object|null}>}
  */
 export const validateQRCode = async (qrCodeId) => {
-  console.log('[QuestCreationService] validateQRCode called with:', qrCodeId);
+  // console.log('[QuestCreationService] validateQRCode called with:', qrCodeId);
   
   try {
     if (!qrCodeId || qrCodeId.trim() === '') {
-      console.log('[QuestCreationService] Empty QR code');
+      // console.log('[QuestCreationService] Empty QR code');
       return { valid: false, error: 'QR code cannot be empty' };
     }
 
-    console.log('[QuestCreationService] Querying database for existing quests with this QR code...');
+    // console.log('[QuestCreationService] Querying database for existing quests with this QR code...');
     
     // Try to check if this QR code is already used
     // First, try the metadata column approach
@@ -103,13 +103,13 @@ export const validateQRCode = async (qrCodeId) => {
       .select('id, title, metadata')
       .eq('is_active', true);
 
-    console.log('[QuestCreationService] Query result:', { existingQuests, error });
+    // console.log('[QuestCreationService] Query result:', { existingQuests, error });
 
     if (error) {
       console.error('[QuestCreationService] Database error:', error);
       // If metadata column doesn't exist, we can still proceed
       if (error.code === '42703') {
-        console.log('[QuestCreationService] Metadata column missing - assuming QR code is available');
+        // console.log('[QuestCreationService] Metadata column missing - assuming QR code is available');
         return { valid: true };
       }
       return { valid: false, error: error.message };
@@ -122,7 +122,7 @@ export const validateQRCode = async (qrCodeId) => {
       );
       
       if (duplicate) {
-        console.log('[QuestCreationService] QR code already in use');
+        // console.log('[QuestCreationService] QR code already in use');
         return {
           valid: false,
           existingQuest: duplicate,
@@ -131,7 +131,7 @@ export const validateQRCode = async (qrCodeId) => {
       }
     }
 
-    console.log('[QuestCreationService] QR code is available');
+    // console.log('[QuestCreationService] QR code is available');
     return { valid: true };
   } catch (error) {
     console.error('[QuestCreationService] Exception:', error);
@@ -191,8 +191,8 @@ export const createQuest = async (questData) => {
       };
     }
 
-    console.log('[QuestCreationService] Attempting to insert quest...');
-    console.log('[QuestCreationService] Quest data:', { title, description, questMetadata });
+    // console.log('[QuestCreationService] Attempting to insert quest...');
+    // console.log('[QuestCreationService] Quest data:', { title, description, questMetadata });
 
     // Try FULL insert first (all columns)
     const fullQuest = {
@@ -217,8 +217,8 @@ export const createQuest = async (questData) => {
 
     // If that fails, try with MINIMAL columns (just title + metadata)
     if (error && error.code === 'PGRST204') {
-      console.log('[QuestCreationService] Full insert failed, trying minimal insert...');
-      console.log('[QuestCreationService] Error was:', error.message);
+      // console.log('[QuestCreationService] Full insert failed, trying minimal insert...');
+      // console.log('[QuestCreationService] Error was:', error.message);
       
       // Try with just title and description (most basic)
       const minimalQuest = {
@@ -235,8 +235,8 @@ export const createQuest = async (questData) => {
       if (!descError) {
         data = descData;
         error = null;
-        console.log('[QuestCreationService] Minimal insert succeeded!');
-        console.log('[QuestCreationService] NOTE: Run the migration SQL to add missing columns!');
+        // console.log('[QuestCreationService] Minimal insert succeeded!');
+        // console.log('[QuestCreationService] NOTE: Run the migration SQL to add missing columns!');
       } else {
         // Even more minimal - just title
         const { data: titleData, error: titleError } = await supabase
@@ -248,7 +248,7 @@ export const createQuest = async (questData) => {
         if (!titleError) {
           data = titleData;
           error = null;
-          console.log('[QuestCreationService] Title-only insert succeeded!');
+          // console.log('[QuestCreationService] Title-only insert succeeded!');
         } else {
           error = titleError;
         }

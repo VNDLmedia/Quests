@@ -38,7 +38,15 @@ const { width } = Dimensions.get('window');
 
 const UserScreen = () => {
   const insets = useSafeAreaInsets();
-  const { user, player, signOut, updateProfile, uniqueCards } = useGame();
+  const { 
+    user, 
+    player, 
+    signOut, 
+    updateProfile, 
+    uniqueCards,
+    eventChallenges,
+    collectedCardIds 
+  } = useGame();
   const [showQR, setShowQR] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [showQuestCreation, setShowQuestCreation] = useState(false);
@@ -59,7 +67,7 @@ const UserScreen = () => {
           const { status } = await camera.Camera.requestCameraPermissionsAsync();
           setCameraPermission(status === 'granted');
         } catch (e) {
-          console.log('Camera not available');
+          // console.log('Camera not available');
         }
       };
       loadCamera();
@@ -205,12 +213,12 @@ const UserScreen = () => {
             <Text style={styles.actionLabel}>My Code</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionCard} onPress={startScan}>
+         {/*  <TouchableOpacity style={styles.actionCard} onPress={startScan}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
               <Ionicons name="scan" size={24} color="#10B981" />
             </View>
             <Text style={styles.actionLabel}>Scan</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           
           <TouchableOpacity style={styles.actionCard} onPress={() => setEditingBio(true)}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
@@ -280,7 +288,11 @@ const UserScreen = () => {
         {/* Card Collection Preview */}
         <GlassCard style={styles.card}>
           <Text style={styles.sectionTitle}>My Collection</Text>
-          <CardCollection compact={true} />
+          <CardCollection 
+            compact={true}
+            challenges={eventChallenges}
+            collectedCardIds={collectedCardIds}
+          />
         </GlassCard>
 
         {/* Account Settings */}

@@ -29,19 +29,18 @@ import {
 } from '../game/config/cardCollection';
 import { COUNTRIES } from '../game/config/countries';
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 60) / 2;
-const CARD_HEIGHT = CARD_WIDTH * 1.4;
+// Card dimensions are calculated dynamically in component
+const MAX_CARD_WIDTH = 120;
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EINZELNE SAMMELKARTE
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CollectibleCard = ({ card, isCollected, onPress, size = 'normal' }) => {
+const CollectibleCard = ({ card, isCollected, onPress, cardWidth }) => {
   const country = COUNTRIES[card.country];
   const rarity = RARITY_COLORS[card.rarity] || RARITY_COLORS.common;
   
-  const cardWidth = size === 'small' ? 70 : size === 'large' ? CARD_WIDTH : 90;
   const cardHeight = cardWidth * 1.4;
 
   return (
@@ -74,7 +73,6 @@ const CollectibleCard = ({ card, isCollected, onPress, size = 'normal' }) => {
         ) : (
           <View style={styles.cardPlaceholder}>
             <Ionicons name="help" size={24} color={COLORS.text.muted} />
-            <Text style={styles.placeholderText}>?</Text>
           </View>
         )}
         
@@ -95,9 +93,7 @@ const CollectibleCard = ({ card, isCollected, onPress, size = 'normal' }) => {
                 </Text>
               </View>
             </>
-          ) : (
-            <Text style={styles.lockedText}>Not unlocked yet</Text>
-          )}
+          ) : null}
         </LinearGradient>
         
         {/* Land-Flag */}
@@ -349,11 +345,60 @@ const CardDetailModal = ({ card, visible, onClose, isCollected }) => {
 // HAUPTKOMPONENTE
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CardCollection = ({ collectedCardIds = [], compact = false }) => {
+const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [] }) => {
   const [selectedCard, setSelectedCard] = useState(null);
   const [activeTab, setActiveTab] = useState('cards'); // 'cards', 'sets', 'countries'
+  const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
   
-  const allCards = Object.values(COLLECTIBLE_CARDS);
+  // Calculate card width for exactly 3 columns (padding: 12*2=24, gaps: 8*2=16, total=40)
+  const cardWidth = Math.min((containerWidth - 40) / 3, MAX_CARD_WIDTH);
+  
+  // Handle container layout to get actual width
+  const onContainerLayout = (event) => {
+    const { width } = event.nativeEvent.layout;
+    setContainerWidth(width);
+  };
+  
+  // Use challenges to create card objects if provided, otherwise use COLLECTIBLE_CARDS
+  const allCards = useMemo(() => {
+    // If challenges is provided, use them to create cards
+    if (challenges && challenges.length > 0) {
+      // console.log('CardCollection: Creating cards from', challenges.length, 'challenges');
+      
+      // Create card objects from challenges
+      return challenges.map(challenge => {
+        const cardId = challenge.reward?.cardId || challenge.id;
+        const imagePath = challenge.reward?.imagePath;
+        const existingCard = COLLECTIBLE_CARDS[cardId];
+        
+        // Construct proper image URL
+        let imageUrl = '/cards/placeholder.png';
+        if (imagePath) {
+          imageUrl = `/cards/${imagePath}`;
+        } else if (existingCard?.image) {
+          imageUrl = existingCard.image;
+        }
+        
+        // console.log(`Card ${challenge.id}: cardId=${cardId}, imagePath=${imagePath}, url=${imageUrl}`);
+        
+        return {
+          id: challenge.id,
+          cardId: cardId,
+          name: challenge.title,
+          image: imageUrl,
+          category: challenge.type,
+          country: challenge.country?.name,
+          rarity: challenge.tier || 'common',
+          description: challenge.description,
+          individualBonus: existingCard?.individualBonus,
+        };
+      });
+    }
+    
+    // Fallback to hardcoded COLLECTIBLE_CARDS
+    // console.log('CardCollection: No challenges provided, using COLLECTIBLE_CARDS');
+    return Object.values(COLLECTIBLE_CARDS);
+  }, [challenges]);
   
   // Berechnete Werte
   const bonuses = useMemo(() => 
@@ -384,14 +429,16 @@ const CardCollection = ({ collectedCardIds = [], compact = false }) => {
   }, [collectedCardIds]);
 
   if (compact) {
+    // console.log('CardCollection compact mode: allCards =', allCards.length, 'challenges =', challenges?.length);
+    
     return (
-      <View style={styles.compactContainer}>
+      <View onLayout={onContainerLayout}>
         {/* Sammlung Header */}
         <View style={styles.compactHeader}>
           <View style={styles.compactStats}>
             <Ionicons name="albums" size={18} color={COLORS.primary} />
             <Text style={styles.compactStatsText}>
-              {collectionStats.collected}/{collectionStats.total} Karten
+              {collectionStats.collected}/{collectionStats.total} Cards
             </Text>
           </View>
           {bonuses.discountPercent > 0 && (
@@ -404,40 +451,45 @@ const CardCollection = ({ collectedCardIds = [], compact = false }) => {
           )}
         </View>
         
-        {/* Mini-Kartenvorschau */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.compactCards}
-        >
-          {allCards.slice(0, 6).map(card => (
-            <CollectibleCard
-              key={card.id}
-              card={card}
-              isCollected={collectedCardIds.includes(card.id)}
-              onPress={setSelectedCard}
-              size="small"
-            />
-          ))}
-          {allCards.length > 6 && (
-            <View style={styles.moreCardsIndicator}>
-              <Text style={styles.moreCardsText}>+{allCards.length - 6}</Text>
-            </View>
-          )}
-        </ScrollView>
+        {/* 3-Column Grid (minimum) */}
+        {allCards.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="albums-outline" size={48} color={COLORS.text.muted} />
+            <Text style={styles.emptyStateText}>Loading challenges...</Text>
+          </View>
+        ) : (
+          <View style={styles.compactCardsGrid}>
+            {allCards.map(card => {
+              // Check if this card is collected using the cardId from the reward
+              const isCollected = collectedCardIds.includes(card.cardId);
+              
+              // console.log(`Rendering card ${card.id}: cardId=${card.cardId}, isCollected=${isCollected}`);
+              
+              return (
+                <CollectibleCard
+                  key={card.id}
+                  card={card}
+                  isCollected={isCollected}
+                  onPress={setSelectedCard}
+                  cardWidth={cardWidth}
+                />
+              );
+            })}
+          </View>
+        )}
         
         <CardDetailModal
           card={selectedCard}
           visible={!!selectedCard}
           onClose={() => setSelectedCard(null)}
-          isCollected={selectedCard ? collectedCardIds.includes(selectedCard.id) : false}
+          isCollected={selectedCard ? collectedCardIds.includes(selectedCard.cardId || selectedCard.id) : false}
         />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onContainerLayout}>
       {/* Header mit Gesamtfortschritt */}
       <LinearGradient
         colors={['#8B5CF6', '#EC4899']}
@@ -533,7 +585,7 @@ const CardCollection = ({ collectedCardIds = [], compact = false }) => {
               card={card}
               isCollected={collectedCardIds.includes(card.id)}
               onPress={setSelectedCard}
-              size="normal"
+              cardWidth={cardWidth}
             />
           ))}
         </View>
@@ -759,13 +811,13 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   
-  // Cards Grid
+  // Cards Grid (3 columns)
   cardsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     padding: 12,
-    gap: 10,
-    justifyContent: 'center',
+    gap: 8,
+    justifyContent: 'flex-start',
   },
   
   // Collectible Card
@@ -958,18 +1010,11 @@ const styles = StyleSheet.create({
   },
   
   // Compact Version
-  compactContainer: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-  },
   compactHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   compactStats: {
     flexDirection: 'row',
@@ -995,6 +1040,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  compactCardsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'flex-start',
+  },
   compactCards: {
     gap: 8,
     paddingRight: 12,
@@ -1014,6 +1065,16 @@ const styles = StyleSheet.create({
     color: COLORS.text.muted,
     fontSize: 14,
     fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    gap: 12,
+  },
+  emptyStateText: {
+    color: COLORS.text.muted,
+    fontSize: 14,
   },
   
   // Modal
@@ -1035,7 +1096,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     alignItems: 'center',
-    width: width - 60,
+    width: SCREEN_WIDTH - 60,
     maxWidth: 340,
     ...SHADOWS.lg,
   },

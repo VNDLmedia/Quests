@@ -8,6 +8,12 @@ import { DAILY_REWARDS } from './config/rewards';
 import { ACHIEVEMENTS, getAllAchievements } from './config/achievements';
 import { QUEST_TEMPLATES } from './config/quests';
 import { CARDS, getCardById } from './config/cards';
+import {
+  initializeQuestlineProgress,
+  completeQuestlineQuest as completeQuestlineQuestDB,
+  fetchAllQuestlineProgress,
+  getQuestChallengeInfo,
+} from './config/challenges';
 // Pack system removed - cards are now earned through quest completion
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -32,6 +38,7 @@ const initialState = {
     totalQuestsCompleted: 0,
     totalDistanceWalked: 0,
     friendsCount: 0,
+    admin: false, // Admin flag from profiles table
     // Social Features
     bio: '',
     linkedinUrl: '',
@@ -40,9 +47,10 @@ const initialState = {
     team: null, // blue, yellow, green, or purple
   },
   
-  // Collection (cards earned through quests)
+  // Collection (cards earned through quests and challenges)
   collection: [], // Array of owned card IDs (can have duplicates for count)
   uniqueCards: [], // Array of unique card IDs owned
+  collectedCardIds: [], // Array of card IDs from claimed challenges
   justUnlockedCard: null,
 
   // Achievements
@@ -76,6 +84,9 @@ const initialState = {
   // Game Data
   quests: [], // Available quest templates
   locations: [], // POI locations
+  eventChallenges: [], // Event challenges from database
+  userEventChallenges: [], // User's progress on event challenges
+  questlineProgress: {}, // User's progress on questline challenges { challengeId: { completed, total, quests } }
   
   // UI State
   toasts: [],
@@ -116,6 +127,16 @@ const ACTIONS = {
   SET_LOCATION: 'SET_LOCATION',
   SET_NEARBY_QUESTS: 'SET_NEARBY_QUESTS',
   SET_GAME_DATA: 'SET_GAME_DATA',
+  SET_EVENT_CHALLENGES: 'SET_EVENT_CHALLENGES',
+  SET_USER_EVENT_CHALLENGES: 'SET_USER_EVENT_CHALLENGES',
+  UPDATE_USER_EVENT_CHALLENGE: 'UPDATE_USER_EVENT_CHALLENGE',
+  SET_COLLECTED_CARDS: 'SET_COLLECTED_CARDS',
+  ADD_COLLECTED_CARD: 'ADD_COLLECTED_CARD',
+  
+  // Questline challenges
+  SET_QUESTLINE_PROGRESS: 'SET_QUESTLINE_PROGRESS',
+  UPDATE_QUESTLINE_QUEST: 'UPDATE_QUESTLINE_QUEST',
+  SET_SINGLE_QUESTLINE_PROGRESS: 'SET_SINGLE_QUESTLINE_PROGRESS',
   
   ADD_TOAST: 'ADD_TOAST',
   REMOVE_TOAST: 'REMOVE_TOAST',
@@ -311,6 +332,82 @@ function gameReducer(state, action) {
         quests: action.payload.quests || state.quests,
         locations: action.payload.locations || state.locations 
       };
+    
+    case ACTIONS.SET_EVENT_CHALLENGES:
+      return {
+        ...state,
+        eventChallenges: action.payload || state.eventChallenges,
+      };
+    
+    case ACTIONS.SET_USER_EVENT_CHALLENGES:
+      return {
+        ...state,
+        userEventChallenges: action.payload || state.userEventChallenges,
+      };
+    
+    case ACTIONS.UPDATE_USER_EVENT_CHALLENGE:
+      return {
+        ...state,
+        userEventChallenges: state.userEventChallenges.map(uc =>
+          uc.challenge_id === action.payload.challenge_id 
+            ? { ...uc, ...action.payload } 
+            : uc
+        ),
+      };
+    
+    case ACTIONS.SET_COLLECTED_CARDS:
+      return {
+        ...state,
+        collectedCardIds: action.payload || [],
+      };
+    
+    case ACTIONS.ADD_COLLECTED_CARD:
+      return {
+        ...state,
+        collectedCardIds: [...new Set([...state.collectedCardIds, action.payload])],
+      };
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // QUESTLINE CHALLENGES
+    // ─────────────────────────────────────────────────────────────────────────
+    case ACTIONS.SET_QUESTLINE_PROGRESS:
+      return {
+        ...state,
+        questlineProgress: action.payload || {},
+      };
+    
+    case ACTIONS.SET_SINGLE_QUESTLINE_PROGRESS:
+      return {
+        ...state,
+        questlineProgress: {
+          ...state.questlineProgress,
+          [action.payload.challengeId]: action.payload.progress,
+        },
+      };
+    
+    case ACTIONS.UPDATE_QUESTLINE_QUEST: {
+      const { challengeId, questId, status, completedAt } = action.payload;
+      const currentProgress = state.questlineProgress[challengeId] || { completed: 0, total: 0, quests: [] };
+      
+      const updatedQuests = currentProgress.quests.map(q => 
+        q.quest_id === questId ? { ...q, status, completed_at: completedAt } : q
+      );
+      
+      const completedCount = updatedQuests.filter(q => q.status === 'completed').length;
+      
+      return {
+        ...state,
+        questlineProgress: {
+          ...state.questlineProgress,
+          [challengeId]: {
+            ...currentProgress,
+            quests: updatedQuests,
+            completed: completedCount,
+            isComplete: completedCount >= currentProgress.total,
+          },
+        },
+      };
+    }
       
     case ACTIONS.ADD_TOAST:
       return {
@@ -475,7 +572,7 @@ export function GameProvider({ children }) {
         payload: { quests: normalizedQuests, locations: locationsMap } 
       });
       
-      console.log('Game data loaded:', normalizedQuests.length, 'quests', Object.keys(locationsMap).length, 'locations');
+      // console.log('Game data loaded:', normalizedQuests.length, 'quests', Object.keys(locationsMap).length, 'locations');
       return { quests: normalizedQuests, locations: locationsMap };
     } catch (error) {
       console.error('Failed to fetch game data:', error);
@@ -490,7 +587,7 @@ export function GameProvider({ children }) {
     if (!isSupabaseConfigured() || !userId) return;
 
     try {
-      console.log('[GameProvider] Fetching friends for user:', userId);
+      // console.log('[GameProvider] Fetching friends for user:', userId);
 
       // Get all friendships where user is either user_id or friend_id
       const { data: friendships, error } = await supabase
@@ -521,7 +618,7 @@ export function GameProvider({ children }) {
       const allFriendships = [...(friendships || []), ...(pendingFriendships || [])];
 
       if (!allFriendships || allFriendships.length === 0) {
-        console.log('[GameProvider] No friends found');
+        // console.log('[GameProvider] No friends found');
         dispatch({ type: ACTIONS.SET_FRIENDS, payload: { friends: [], requests: [] } });
         return;
       }
@@ -554,12 +651,349 @@ export function GameProvider({ children }) {
         linkedin_url: profile.linkedin_url || '',
       }));
 
-      console.log('[GameProvider] Friends loaded:', friends.length);
+      // console.log('[GameProvider] Friends loaded:', friends.length);
       dispatch({ type: ACTIONS.SET_FRIENDS, payload: { friends, requests: [] } });
     } catch (error) {
       console.error('[GameProvider] Failed to fetch friends:', error);
     }
   }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // FETCH EVENT CHALLENGES FROM DATABASE
+  // ─────────────────────────────────────────────────────────────────────────
+  const fetchEventChallenges = useCallback(async () => {
+    if (!isSupabaseConfigured()) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('event_challenges')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching event challenges:', error);
+        return;
+      }
+      
+      dispatch({ 
+        type: ACTIONS.SET_EVENT_CHALLENGES, 
+        payload: data || [] 
+      });
+    } catch (error) {
+      console.error('Failed to fetch event challenges:', error);
+    }
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // FETCH USER EVENT CHALLENGE PROGRESS
+  // ─────────────────────────────────────────────────────────────────────────
+  const fetchUserEventChallenges = useCallback(async () => {
+    if (!isSupabaseConfigured() || !state.user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_event_challenges')
+        .select('*')
+        .eq('user_id', state.user.id);
+      
+      if (error) {
+        console.error('Error fetching user event challenges:', error);
+        return;
+      }
+      
+      dispatch({ 
+        type: ACTIONS.SET_USER_EVENT_CHALLENGES, 
+        payload: data || [] 
+      });
+      
+      // Derive collected card IDs from claimed challenges
+      if (data && state.eventChallenges.length > 0) {
+        const claimedCardIds = data
+          .filter(uc => uc.status === 'claimed')
+          .map(uc => {
+            const challenge = state.eventChallenges.find(ec => ec.id === uc.challenge_id);
+            return challenge?.reward?.cardId;
+          })
+          .filter(Boolean);
+        
+        dispatch({ 
+          type: ACTIONS.SET_COLLECTED_CARDS, 
+          payload: claimedCardIds 
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch user event challenges:', error);
+    }
+  }, [state.user, state.eventChallenges]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SCORE SYSTEM (ersetzt XP und Gems)
+  // ─────────────────────────────────────────────────────────────────────────
+  
+  // Add score points
+  const addScore = useCallback((amount, reason = '') => {
+    const newScore = state.player.score + amount;
+    dispatch({ type: ACTIONS.UPDATE_PLAYER, payload: { score: newScore } });
+    
+    // Sync to Supabase if online
+    if (isSupabaseConfigured() && state.user) {
+      supabase
+        .from('profiles')
+        .update({ score: newScore })
+        .eq('id', state.user.id);
+    }
+    
+    return amount;
+  }, [state.player.score, state.user]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CLAIM EVENT CHALLENGE
+  // ─────────────────────────────────────────────────────────────────────────
+  const claimEventChallenge = useCallback(async (challengeId, xpReward = 0, challenge = null) => {
+    if (!isSupabaseConfigured() || !state.user) {
+      return { error: 'Not connected' };
+    }
+    
+    try {
+      // Find the challenge if not provided
+      if (!challenge) {
+        challenge = state.eventChallenges.find(c => c.id === challengeId);
+      }
+      
+      // Check if challenge progress exists
+      const { data: existing } = await supabase
+        .from('user_event_challenges')
+        .select('*')
+        .eq('user_id', state.user.id)
+        .eq('challenge_id', challengeId)
+        .single();
+      
+      const now = new Date().toISOString();
+      
+      if (existing) {
+        // Update existing record to claimed
+        const { data, error } = await supabase
+          .from('user_event_challenges')
+          .update({
+            status: 'claimed',
+            claimed_at: now,
+            completed_at: existing.completed_at || now,
+          })
+          .eq('id', existing.id)
+          .select()
+          .single();
+        
+        if (error) {
+          console.error('Error claiming challenge:', error);
+          return { error };
+        }
+        
+        dispatch({ 
+          type: ACTIONS.UPDATE_USER_EVENT_CHALLENGE, 
+          payload: data 
+        });
+      } else {
+        // Insert new record as claimed
+        const { data, error } = await supabase
+          .from('user_event_challenges')
+          .insert({
+            user_id: state.user.id,
+            challenge_id: challengeId,
+            status: 'claimed',
+            completed_at: now,
+            claimed_at: now,
+          })
+          .select()
+          .single();
+        
+        if (error) {
+          console.error('Error claiming challenge:', error);
+          return { error };
+        }
+        
+        dispatch({ 
+          type: ACTIONS.SET_USER_EVENT_CHALLENGES, 
+          payload: [...state.userEventChallenges, data] 
+        });
+      }
+      
+      // Award XP if provided
+      if (xpReward > 0) {
+        await addScore(xpReward);
+      }
+      
+      // Add card to collection if challenge has a card reward
+      if (challenge?.reward?.cardId) {
+        dispatch({ 
+          type: ACTIONS.ADD_COLLECTED_CARD, 
+          payload: challenge.reward.cardId 
+        });
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to claim challenge:', error);
+      return { error };
+    }
+  }, [state.user, state.userEventChallenges, state.eventChallenges, addScore]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // QUESTLINE CHALLENGE FUNCTIONS
+  // ─────────────────────────────────────────────────────────────────────────
+  
+  // Fetch all questline progress for the current user
+  const fetchQuestlineProgress = useCallback(async () => {
+    if (!isSupabaseConfigured() || !state.user) return;
+    
+    try {
+      const result = await fetchAllQuestlineProgress(state.user.id);
+      
+      if (result.success) {
+        dispatch({
+          type: ACTIONS.SET_QUESTLINE_PROGRESS,
+          payload: result.progress,
+        });
+      } else {
+        console.error('Error fetching questline progress:', result.error);
+      }
+    } catch (error) {
+      console.error('Failed to fetch questline progress:', error);
+    }
+  }, [state.user]);
+  
+  // Start a questline challenge (initialize progress)
+  const startQuestlineChallenge = useCallback(async (challengeId) => {
+    if (!isSupabaseConfigured() || !state.user) {
+      return { error: 'Not connected' };
+    }
+    
+    try {
+      const result = await initializeQuestlineProgress(state.user.id, challengeId);
+      
+      if (result.success) {
+        // Refresh questline progress
+        await fetchQuestlineProgress();
+        
+        // Also update user event challenge status
+        const { data: existing } = await supabase
+          .from('user_event_challenges')
+          .select('*')
+          .eq('user_id', state.user.id)
+          .eq('challenge_id', challengeId)
+          .single();
+        
+        if (!existing) {
+          // Create user event challenge record
+          await supabase
+            .from('user_event_challenges')
+            .insert({
+              user_id: state.user.id,
+              challenge_id: challengeId,
+              status: 'in_progress',
+            });
+        }
+        
+        return { success: true, progress: result.progress };
+      } else {
+        return { error: result.error };
+      }
+    } catch (error) {
+      console.error('Failed to start questline challenge:', error);
+      return { error: error.message };
+    }
+  }, [state.user, fetchQuestlineProgress]);
+  
+  // Complete a quest within a questline challenge
+  const completeQuestlineQuestAction = useCallback(async (challengeId, questId) => {
+    if (!isSupabaseConfigured() || !state.user) {
+      return { error: 'Not connected' };
+    }
+    
+    try {
+      const result = await completeQuestlineQuestDB(state.user.id, challengeId, questId);
+      
+      if (result.success) {
+        // Update local state
+        dispatch({
+          type: ACTIONS.UPDATE_QUESTLINE_QUEST,
+          payload: {
+            challengeId,
+            questId,
+            status: 'completed',
+            completedAt: new Date().toISOString(),
+          },
+        });
+        
+        // If challenge is complete, update the event challenge status
+        if (result.isChallengeComplete) {
+          const now = new Date().toISOString();
+          
+          // Update user event challenge to completed
+          await supabase
+            .from('user_event_challenges')
+            .upsert({
+              user_id: state.user.id,
+              challenge_id: challengeId,
+              status: 'completed',
+              progress: result.completedQuests,
+              completed_at: now,
+            }, {
+              onConflict: 'user_id,challenge_id',
+            });
+          
+          // Refresh user event challenges
+          await fetchUserEventChallenges();
+        }
+        
+        // Refresh questline progress
+        await fetchQuestlineProgress();
+        
+        return {
+          success: true,
+          nextQuestId: result.nextQuestId,
+          isChallengeComplete: result.isChallengeComplete,
+          totalQuests: result.totalQuests,
+          completedQuests: result.completedQuests,
+        };
+      } else {
+        return { error: result.error };
+      }
+    } catch (error) {
+      console.error('Failed to complete questline quest:', error);
+      return { error: error.message };
+    }
+  }, [state.user, fetchQuestlineProgress, fetchUserEventChallenges]);
+  
+  // Check if a quest belongs to a questline and handle completion
+  const handleQuestCompletionForQuestline = useCallback(async (questId) => {
+    if (!isSupabaseConfigured() || !state.user) return null;
+    
+    try {
+      const info = await getQuestChallengeInfo(questId);
+      
+      if (info.success && info.isInQuestline) {
+        // Find questline challenges this quest belongs to
+        const questlineChallenges = info.challenges.filter(
+          c => c.event_challenges?.challenge_mode === 'questline'
+        );
+        
+        // Complete the quest in each questline it belongs to
+        const results = [];
+        for (const challenge of questlineChallenges) {
+          const result = await completeQuestlineQuestAction(challenge.challenge_id, questId);
+          results.push({ challengeId: challenge.challenge_id, ...result });
+        }
+        
+        return results;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error checking quest for questline:', error);
+      return null;
+    }
+  }, [state.user, completeQuestlineQuestAction]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // FETCH USER QUESTS FROM SUPABASE
@@ -568,39 +1002,65 @@ export function GameProvider({ children }) {
     if (!isSupabaseConfigured() || !userId) return;
     
     try {
-      // Fetch user's active quests with quest details
-      const { data: userQuests, error } = await supabase
+      // Fetch user's active quests (without join to avoid schema cache issues)
+      const { data: userQuests, error: userQuestsError } = await supabase
         .from('user_quests')
-        .select(`
-          *,
-          quest:quest_id (*)
-        `)
+        .select('*')
         .eq('user_id', userId);
       
-      if (error) {
-        console.error('Error fetching user quests:', error);
+      if (userQuestsError) {
+        console.error('Error fetching user quests:', userQuestsError);
         return;
       }
+
+      if (!userQuests || userQuests.length === 0) {
+        dispatch({
+          type: ACTIONS.SET_QUESTS,
+          payload: { active: [], completed: [] }
+        });
+        return;
+      }
+
+      // Fetch all quest details separately
+      const questIds = [...new Set(userQuests.map(uq => uq.quest_id))];
+      const { data: quests, error: questsError } = await supabase
+        .from('quests')
+        .select('*')
+        .in('id', questIds);
+
+      if (questsError) {
+        console.error('Error fetching quests:', questsError);
+        return;
+      }
+
+      // Create a map of quest details
+      const questMap = {};
+      (quests || []).forEach(quest => {
+        questMap[quest.id] = quest;
+      });
       
       // Transform to internal format
       const activeQuests = [];
       const completedQuests = [];
       
-      for (const uq of userQuests || []) {
+      for (const uq of userQuests) {
+        const quest = questMap[uq.quest_id];
+        if (!quest) continue; // Skip if quest not found
+        
         // Extract coordinates from quest metadata if available
-        const metadata = uq.quest?.metadata || {};
+        const metadata = quest?.metadata || {};
         
         const questData = {
           id: uq.id,
           questId: uq.quest_id,
-          ...uq.quest,
-          xpReward: uq.quest?.xp_reward,
-          gemReward: uq.quest?.gem_reward || Math.floor((uq.quest?.xp_reward || 0) / 2),
-          timeLimit: uq.quest?.time_limit,
-          expiresIn: uq.quest?.expires_in,
-          requiresScan: uq.quest?.requires_scan,
-          target: uq.quest?.target_value || 1,
-          location: uq.quest?.location_id,
+          ...quest,
+          xpReward: quest?.xp_reward,
+          gemReward: quest?.gem_reward || Math.floor((quest?.xp_reward || 0) / 2),
+          timeLimit: quest?.time_limit,
+          expiresIn: quest?.expires_in,
+          requiresScan: quest?.requires_scan,
+          target: quest?.target_value || 1,
+          location: quest?.location_id,
           progress: uq.progress || 0,
           status: uq.status,
           startedAt: uq.started_at,
@@ -624,7 +1084,7 @@ export function GameProvider({ children }) {
         payload: { active: activeQuests, completed: completedQuests }
       });
       
-      console.log('User quests loaded:', activeQuests.length, 'active,', completedQuests.length, 'completed');
+      // console.log('User quests loaded:', activeQuests.length, 'active,', completedQuests.length, 'completed');
     } catch (error) {
       console.error('Failed to fetch user quests:', error);
     }
@@ -639,8 +1099,9 @@ export function GameProvider({ children }) {
       return;
     }
 
-    // Load static game data (quests, locations)
+    // Load static game data (quests, locations, event challenges)
     fetchGameData();
+    fetchEventChallenges();
 
     // Check for existing session on mount
     const initializeAuth = async () => {
@@ -651,14 +1112,16 @@ export function GameProvider({ children }) {
           
           // If profile doesn't exist (user was deleted), sign out
           if (error || !profile) {
-            console.log('User profile not found, signing out stale session');
+            // console.log('User profile not found, signing out stale session');
             await supabase.auth.signOut();
             dispatch({ type: ACTIONS.SET_USER, payload: null });
           } else {
             dispatch({ type: ACTIONS.SET_USER, payload: session.user });
-            // Fetch user's quests and friends from Supabase
+            // Fetch user's quests, friends, and challenge progress from Supabase
             await fetchUserQuests(session.user.id);
             await fetchFriends(session.user.id);
+            await fetchUserEventChallenges();
+            await fetchQuestlineProgress();
           }
         } else {
           dispatch({ type: ACTIONS.SET_USER, payload: null });
@@ -680,14 +1143,16 @@ export function GameProvider({ children }) {
         
         // If profile doesn't exist, sign out
         if (error || !profile) {
-          console.log('User profile not found after sign in');
+          // console.log('User profile not found after sign in');
           await supabase.auth.signOut();
           dispatch({ type: ACTIONS.SET_USER, payload: null });
         } else {
           dispatch({ type: ACTIONS.SET_USER, payload: session.user });
-          // Fetch user's quests and friends from Supabase
+          // Fetch user's quests, friends, and challenge progress from Supabase
           await fetchUserQuests(session.user.id);
           await fetchFriends(session.user.id);
+          await fetchUserEventChallenges();
+          await fetchQuestlineProgress();
         }
       } else if (event === 'SIGNED_OUT') {
         dispatch({ type: ACTIONS.SET_USER, payload: null });
@@ -713,6 +1178,8 @@ export function GameProvider({ children }) {
         });
         // Clear quests
         dispatch({ type: ACTIONS.SET_QUESTS, payload: { active: [], completed: [] } });
+        // Clear questline progress
+        dispatch({ type: ACTIONS.SET_QUESTLINE_PROGRESS, payload: {} });
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         dispatch({ type: ACTIONS.SET_USER, payload: session.user });
       }
@@ -721,7 +1188,33 @@ export function GameProvider({ children }) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [loadUserProfile, fetchUserQuests, fetchFriends, fetchGameData]);
+  }, [loadUserProfile, fetchUserQuests, fetchFriends, fetchGameData, fetchEventChallenges, fetchQuestlineProgress]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SYNC COLLECTED CARDS FROM CLAIMED CHALLENGES
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (state.eventChallenges.length === 0 || state.userEventChallenges.length === 0) return;
+    
+    // Derive collected card IDs from claimed challenges
+    const claimedCardIds = state.userEventChallenges
+      .filter(uc => uc.status === 'claimed')
+      .map(uc => {
+        const challenge = state.eventChallenges.find(ec => ec.id === uc.challenge_id);
+        return challenge?.reward?.cardId;
+      })
+      .filter(Boolean);
+    
+    // Only update if different
+    const currentIds = state.collectedCardIds.join(',');
+    const newIds = claimedCardIds.join(',');
+    if (currentIds !== newIds) {
+      dispatch({ 
+        type: ACTIONS.SET_COLLECTED_CARDS, 
+        payload: claimedCardIds 
+      });
+    }
+  }, [state.eventChallenges, state.userEventChallenges, state.collectedCardIds]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // SUPABASE REALTIME SUBSCRIPTIONS
@@ -858,8 +1351,9 @@ export function GameProvider({ children }) {
           return { error: { message: 'Account not found. Please sign up again.' } };
         }
         dispatch({ type: ACTIONS.SET_USER, payload: data.user });
-        // Fetch user's quests from Supabase
+        // Fetch user's quests and challenge progress from Supabase
         await fetchUserQuests(data.user.id);
+        await fetchUserEventChallenges();
       }
 
       return { data, error: null };
@@ -887,26 +1381,6 @@ export function GameProvider({ children }) {
       return { error: { message: error.message || 'Failed to sign out' } };
     }
   }, []);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // SCORE SYSTEM (ersetzt XP und Gems)
-  // ─────────────────────────────────────────────────────────────────────────
-  
-  // Add score points
-  const addScore = useCallback((amount, reason = '') => {
-    const newScore = state.player.score + amount;
-    dispatch({ type: ACTIONS.UPDATE_PLAYER, payload: { score: newScore } });
-    
-    // Sync to Supabase if online
-    if (isSupabaseConfigured() && state.user) {
-      supabase
-        .from('profiles')
-        .update({ score: newScore })
-        .eq('id', state.user.id);
-    }
-    
-    return amount;
-  }, [state.player.score, state.user]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // CARD REWARD SYSTEM (Karten als Quest-Belohnung)
@@ -998,7 +1472,7 @@ export function GameProvider({ children }) {
   }, [state.hasClaimedDailyReward, state.player, state.user]);
 
   // Complete a quest - awards score and a random card
-  const completeQuest = useCallback(async (questId) => {
+  const completeQuest = useCallback(async (questId, questUuid = null) => {
     const quest = state.activeQuests.find(q => q.id === questId);
     
     // Update local state first (optimistic)
@@ -1030,6 +1504,16 @@ export function GameProvider({ children }) {
             score: state.player.score + scoreEarned,
           })
           .eq('id', state.user.id);
+        
+        // Check if this quest belongs to a questline challenge
+        // Use the actual quest UUID if provided, otherwise try to get it from the quest object
+        const actualQuestId = questUuid || quest?.questId || questId;
+        if (actualQuestId) {
+          const questlineResults = await handleQuestCompletionForQuestline(actualQuestId);
+          // if (questlineResults && questlineResults.length > 0) {
+          //   console.log('Quest completion updated questline challenges:', questlineResults);
+          // }
+        }
       } catch (error) {
         console.error('Failed to update quest completion in DB:', error);
       }
@@ -1052,7 +1536,7 @@ export function GameProvider({ children }) {
     }
     
     return { score: scoreEarned, card: awardedCard };
-  }, [addScore, awardRandomCard, state.player.totalQuestsCompleted, state.player.score, state.activeQuests, state.user]);
+  }, [addScore, awardRandomCard, state.player.totalQuestsCompleted, state.player.score, state.activeQuests, state.user, handleQuestCompletionForQuestline]);
 
   // Check and unlock achievements
   const checkAchievements = useCallback((stats) => {
@@ -1364,11 +1848,20 @@ export function GameProvider({ children }) {
     fetchUserQuests,
     fetchFriends,
     fetchGameData,
+    fetchEventChallenges,
+    fetchUserEventChallenges,
+    claimEventChallenge,
     updateLocation,
     updateProfile,
     clearNewAchievement,
     removeToast,
     acknowledgeCard,
+    
+    // Questline Challenge Actions
+    fetchQuestlineProgress,
+    startQuestlineChallenge,
+    completeQuestlineQuest: completeQuestlineQuestAction,
+    handleQuestCompletionForQuestline,
     
     // Utilities
     dispatch,
@@ -1389,11 +1882,18 @@ export function GameProvider({ children }) {
     fetchUserQuests,
     fetchFriends,
     fetchGameData,
+    fetchEventChallenges,
+    fetchUserEventChallenges,
+    claimEventChallenge,
     updateLocation,
     updateProfile,
     clearNewAchievement,
     removeToast,
-    acknowledgeCard
+    acknowledgeCard,
+    fetchQuestlineProgress,
+    startQuestlineChallenge,
+    completeQuestlineQuestAction,
+    handleQuestCompletionForQuestline,
   ]);
 
   return (

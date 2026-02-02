@@ -12,7 +12,7 @@ import { supabase, isSupabaseConfigured } from '../../config/supabase';
  * @returns {Object} Result object with type, data, and status
  */
 export const processQRCode = async (scannedData, userId) => {
-  console.log('[QRScannerService] Processing QR code:', scannedData);
+  // console.log('[QRScannerService] Processing QR code:', scannedData);
 
   if (!scannedData || scannedData.trim() === '') {
     return {
@@ -189,7 +189,7 @@ const checkQuestCode = async (qrCodeId, userId) => {
   }
 
   try {
-    console.log('[QRScannerService] Checking quests table for:', qrCodeId);
+    // console.log('[QRScannerService] Checking quests table for:', qrCodeId);
 
     // Search in quests table where metadata contains this qr_code_id
     const { data: quests, error } = await supabase
@@ -199,11 +199,11 @@ const checkQuestCode = async (qrCodeId, userId) => {
       .single();
 
     if (error || !quests) {
-      console.log('[QRScannerService] Quest not found:', error?.message);
+      // console.log('[QRScannerService] Quest not found:', error?.message);
       return { found: false };
     }
 
-    console.log('[QRScannerService] Quest found:', quests.id);
+    // console.log('[QRScannerService] Quest found:', quests.id);
 
     // Check if user has already completed this quest
     const { data: progress } = await supabase
@@ -276,7 +276,7 @@ const checkRewardCode = async (qrCodeId, userId) => {
   }
 
   try {
-    console.log('[QRScannerService] Checking qr_codes table for:', qrCodeId);
+    // console.log('[QRScannerService] Checking qr_codes table for:', qrCodeId);
 
     // Search in qr_codes table
     const { data: qrCode, error: findError } = await supabase
@@ -286,11 +286,11 @@ const checkRewardCode = async (qrCodeId, userId) => {
       .single();
 
     if (findError || !qrCode) {
-      console.log('[QRScannerService] Reward code not found');
+      // console.log('[QRScannerService] Reward code not found');
       return { found: false };
     }
 
-    console.log('[QRScannerService] Reward code found:', qrCode.id);
+    // console.log('[QRScannerService] Reward code found:', qrCode.id);
 
     // Check if active
     if (!qrCode.is_active) {
