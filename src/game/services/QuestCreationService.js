@@ -319,9 +319,249 @@ export const getAvailableIcons = () => {
   ];
 };
 
+/**
+ * Create a new presentation quest (for static 2D map)
+ * Position is stored as percentage coordinates (positionX, positionY)
+ * @param {Object} questData - Quest data including position
+ * @returns {Promise<{success: boolean, quest: object|null, error: string|null}>}
+ */
+export const createPresentationQuest = async (questData) => {
+  try {
+    const {
+      title,
+      description,
+      icon,
+      xpReward,
+      gemReward,
+      category,
+      qrCodeId,
+      adminId,
+      positionX,
+      positionY,
+      infoContent,
+      isPresentationQuest,
+    } = questData;
+
+    // Validate required fields
+    if (!title || !icon || !category || !qrCodeId || !adminId) {
+      return {
+        success: false,
+        error: 'Missing required fields (title, icon, category, qrCodeId, adminId)',
+      };
+    }
+
+    // Validate position data
+    if (positionX === undefined || positionY === undefined) {
+      return {
+        success: false,
+        error: 'Missing position data (positionX, positionY)',
+      };
+    }
+
+    console.log('[QuestCreationService] Creating presentation quest:', {
+      title,
+      positionX,
+      positionY,
+      qrCodeId,
+    });
+
+    // Store all quest data in metadata, including position
+    const questMetadata = {
+      // Position for 2D static map (percentage 0-100)
+      position_x: positionX,
+      position_y: positionY,
+      // QR Code
+      qr_code_id: qrCodeId,
+      // Flags
+      is_presentation_quest: true,
+      created_by_admin: true,
+      admin_id: adminId,
+      requires_scan: true,
+      // Rewards (also stored at top level, but backup here)
+      xp_reward: xpReward,
+      gem_reward: gemReward,
+      // Styling
+      icon: icon,
+      category: category,
+      // Timestamp
+      created_at: new Date().toISOString(),
+    };
+
+    // Add info_content to metadata if provided
+    if (infoContent && (infoContent.title || infoContent.text)) {
+      questMetadata.info_content = {
+        title: infoContent.title || 'Info',
+        text: infoContent.text || '',
+        image_url: infoContent.imageUrl || null,
+      };
+    }
+
+    // Create quest object
+    // Note: Using 'explore' type since 'presentation' is not in the allowed types
+    // The is_presentation_quest flag in metadata marks it as a presentation quest
+    const questToInsert = {
+      title: title.trim(),
+      description: description?.trim() || null,
+      type: 'explore',
+      category: category,
+      icon: icon,
+      xp_reward: xpReward || 100,
+      gem_reward: gemReward || 50,
+      target_value: 1,
+      requires_scan: true,
+      is_active: true,
+      metadata: questMetadata,
+    };
+
+    const { data, error } = await supabase
+      .from('quests')
+      .insert([questToInsert])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[QuestCreationService] Error creating presentation quest:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    console.log('[QuestCreationService] Presentation quest created successfully:', data.id);
+
+    return {
+      success: true,
+      quest: data,
+    };
+  } catch (error) {
+    console.error('Error creating presentation quest:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Fetch all presentation quests (for display on static map)
+ * Presentation quests have is_presentation_quest: true in their metadata
+ * @returns {Promise<{success: boolean, quests: array, error: string|null}>}
+ */
+export const fetchPresentationQuests = async () => {
+  try {
+    // Filter by metadata->is_presentation_quest = true
+    const { data, error } = await supabase
+      .from('quests')
+      .select('*')
+      .eq('metadata->>is_presentation_quest', 'true')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[QuestCreationService] Error fetching presentation quests:', error);
+      return {
+        success: false,
+        quests: [],
+        error: error.message,
+      };
+    }
+
+    // Transform quests for map display
+    const transformedQuests = (data || []).map(quest => ({
+      ...quest,
+      // Extract position from metadata
+      positionX: quest.metadata?.position_x ?? 50,
+      positionY: quest.metadata?.position_y ?? 50,
+      // Extract other useful fields
+      qrCodeId: quest.metadata?.qr_code_id,
+      infoContent: quest.metadata?.info_content,
+    }));
+
+    return {
+      success: true,
+      quests: transformedQuests,
+    };
+  } catch (error) {
+    console.error('Error fetching presentation quests:', error);
+    return {
+      success: false,
+      quests: [],
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Fetch user's progress on presentation quests only
+ * @param {string} userId - User ID
+ * @param {Array} presentationQuestIds - Array of presentation quest IDs to filter by
+ * @returns {Promise<{success: boolean, completed: Set, active: Set, error: string|null}>}
+ */
+export const fetchUserPresentationQuestProgress = async (userId, presentationQuestIds = []) => {
+  if (!userId) {
+    return { success: false, completed: new Set(), active: new Set(), error: 'No user ID' };
+  }
+
+  try {
+    // If no presentation quest IDs provided, return empty sets
+    if (!presentationQuestIds || presentationQuestIds.length === 0) {
+      return {
+        success: true,
+        completed: new Set(),
+        active: new Set(),
+      };
+    }
+
+    // Get user quests only for presentation quests
+    const { data, error } = await supabase
+      .from('user_quests')
+      .select('quest_id, status')
+      .eq('user_id', userId)
+      .in('quest_id', presentationQuestIds);
+
+    if (error) {
+      console.error('[QuestCreationService] Error fetching user quest progress:', error);
+      return {
+        success: false,
+        completed: new Set(),
+        active: new Set(),
+        error: error.message,
+      };
+    }
+
+    const completed = new Set();
+    const active = new Set();
+
+    (data || []).forEach(uq => {
+      if (uq.status === 'completed') {
+        completed.add(uq.quest_id);
+      } else if (uq.status === 'active') {
+        active.add(uq.quest_id);
+      }
+    });
+
+    return {
+      success: true,
+      completed,
+      active,
+    };
+  } catch (error) {
+    console.error('Error fetching user presentation quest progress:', error);
+    return {
+      success: false,
+      completed: new Set(),
+      active: new Set(),
+      error: error.message,
+    };
+  }
+};
+
 export default {
   getCurrentLocation,
   validateQRCode,
   createQuest,
+  createPresentationQuest,
+  fetchPresentationQuests,
+  fetchUserPresentationQuestProgress,
   getAvailableIcons,
 };

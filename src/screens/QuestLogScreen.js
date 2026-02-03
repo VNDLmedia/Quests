@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LocationService } from '../game/services/LocationService';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getChallengesWithProgress, CHALLENGE_TIERS, fetchChallengeQuests } from '../game/config/challenges';
+import { fetchPresentationQuests, fetchUserPresentationQuestProgress } from '../game/services/QuestCreationService';
 import { COLLECTIBLE_CARDS } from '../game/config/cardsData';
 import GlassCard from '../components/GlassCard';
 import LiveLeaderboard from '../components/LiveLeaderboard';
@@ -85,11 +86,16 @@ const QuestLogScreen = ({ navigation }) => {
   const [checkingLocation, setCheckingLocation] = useState(null);
   const [scanningQuest, setScanningQuest] = useState(null);
   const [permission, requestPermission] = useCameraPermissions();
-  const [activeTab, setActiveTab] = useState('quests'); // 'quests', 'challenges' oder 'leaderboard'
+  const [activeTab, setActiveTab] = useState('quests'); // 'quests', 'challenges', 'pois', or 'leaderboard'
   const [expandedChallenge, setExpandedChallenge] = useState(null);
   const [questlineDetails, setQuestlineDetails] = useState(null);
   const [loadingQuestline, setLoadingQuestline] = useState(false);
   const [showChallengeCreation, setShowChallengeCreation] = useState(false);
+  
+  // POIs (Points of Interest) state
+  const [pois, setPois] = useState([]);
+  const [completedPoiIds, setCompletedPoiIds] = useState([]);
+  const [loadingPois, setLoadingPois] = useState(false);
 
   // Event Challenges mit Fortschritt berechnen und mit DB-Status mergen
   const eventChallenges = useMemo(() => {
@@ -170,6 +176,48 @@ const QuestLogScreen = ({ navigation }) => {
       loadQuestlineDetails(expandedChallenge);
     }
   }, [questlineProgress]); // Note: intentionally NOT including expandedChallenge or loadQuestlineDetails to avoid infinite loops
+
+  // Load POIs once on mount
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadPoisData = async () => {
+      const userId = user?.id || player?.id;
+      if (!userId) return;
+      
+      setLoadingPois(true);
+      try {
+        const result = await fetchPresentationQuests();
+        if (!isMounted) return;
+        
+        if (result.success && result.quests) {
+          setPois(result.quests);
+          
+          if (result.quests.length > 0) {
+            const poiIds = result.quests.map(p => p.id);
+            const progressResult = await fetchUserPresentationQuestProgress(userId, poiIds);
+            if (!isMounted) return;
+            
+            if (progressResult.success && progressResult.completed) {
+              setCompletedPoiIds(Array.from(progressResult.completed));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading POIs:', error);
+      } finally {
+        if (isMounted) {
+          setLoadingPois(false);
+        }
+      }
+    };
+    
+    loadPoisData();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, player?.id]); // Only reload when user ID changes
 
   // Handle expanding a challenge (load questline details if needed)
   const handleExpandChallenge = useCallback(async (challenge) => {
@@ -680,70 +728,64 @@ const QuestLogScreen = ({ navigation }) => {
           />
         ) : activeTab === 'quests' ? (
           // === QUESTS TAB ===
-          activeQuests.length === 0 ? (
-            <View>
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconContainer}>
-                  <Ionicons name="map" size={48} color={COLORS.primary} />
+          <View>
+            {/* Points of Interest Section (always at top) */}
+            {pois.length > 0 && (
+              <View style={styles.poiSection}>
+                <View style={styles.sectionHeaderRow}>
+                  <View style={styles.poiSectionTitleRow}>
+                    <Ionicons name="location" size={18} color="#5DADE2" />
+                    <Text style={[styles.sectionTitle, { color: '#5DADE2' }]}>Points of Interest</Text>
+                  </View>
+                  <View style={[styles.countBadge, { backgroundColor: '#5DADE2' + '20' }]}>
+                    <Text style={[styles.countText, { color: '#5DADE2' }]}>
+                      {completedPoiIds.length}/{pois.length}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.emptyText}>No active quests</Text>
-                <Text style={styles.emptySub}>Start a quest below or explore the map to find adventures!</Text>
+                
+                {loadingPois ? (
+                  <ActivityIndicator size="small" color="#5DADE2" style={{ marginVertical: 12 }} />
+                ) : (
+                  <View style={styles.poiGrid}>
+                    {pois.map(poi => {
+                      const isCompleted = completedPoiIds.includes(poi.id);
+                      return (
+                        <View key={poi.id} style={[styles.poiCard, isCompleted && styles.poiCardCompleted]}>
+                          <LinearGradient
+                            colors={isCompleted ? ['#10B981', '#059669'] : ['#5DADE2', '#3498DB']}
+                            style={styles.poiIconContainer}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          >
+                            <Ionicons name={poi.icon || 'location'} size={18} color="#FFF" />
+                          </LinearGradient>
+                          <View style={styles.poiContent}>
+                            <Text style={styles.poiTitle} numberOfLines={1}>{poi.title}</Text>
+                            <View style={styles.poiMeta}>
+                              {isCompleted ? (
+                                <>
+                                  <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                                  <Text style={[styles.poiMetaText, { color: '#10B981' }]}>Entdeckt</Text>
+                                </>
+                              ) : (
+                                <>
+                                  <Ionicons name="qr-code" size={12} color={COLORS.text.muted} />
+                                  <Text style={styles.poiMetaText}>QR scannen</Text>
+                                </>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
+            )}
 
-              {/* Available Quests to Start (excludes already started/completed) */}
-              {filteredAvailableQuests.length > 0 && (
-                <View style={styles.section}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={[styles.sectionTitle, { color: COLORS.text.secondary }]}>Available Quests</Text>
-                    <View style={[styles.countBadge, { backgroundColor: COLORS.primaryLight }]}>
-                      <Text style={[styles.countText, { color: COLORS.primary }]}>{filteredAvailableQuests.length}</Text>
-                    </View>
-                  </View>
-                  {filteredAvailableQuests.slice(0, 5).map(quest => (
-                    <QuestCard
-                      key={quest.id}
-                      quest={quest}
-                      onAction={() => handleStartAvailableQuest(quest)}
-                      actionLabel="Start Quest"
-                      isActionLoading={false}
-                    />
-                  ))}
-                  {filteredAvailableQuests.length > 5 && (
-                    <TouchableOpacity 
-                      style={styles.viewMoreButton} 
-                      onPress={handleRefresh}
-                    >
-                      <Text style={styles.viewMoreText}>View all on map</Text>
-                      <Ionicons name="arrow-forward" size={16} color={COLORS.primary} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              {/* Completed Quests Section (show even when no active quests) */}
-              {completedQuests.length > 0 && (
-                <View style={styles.section}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={[styles.sectionTitle, { color: COLORS.text.muted }]}>Completed</Text>
-                    <View style={[styles.countBadge, { backgroundColor: '#10B981' + '20' }]}>
-                      <Text style={[styles.countText, { color: '#10B981' }]}>{completedQuests.length}</Text>
-                    </View>
-                  </View>
-                  {completedQuests.map(quest => (
-                    <QuestCard
-                      key={quest.id}
-                      quest={quest}
-                      isAdmin={player?.admin}
-                      onAdminUncomplete={() => handleAdminUncompleteQuest(quest)}
-                      onAdminReset={() => handleAdminResetQuest(quest, 'completed')}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
-          ) : (
-            <>
-              {/* Show all active quests */}
+            {/* Active Quests Section */}
+            {activeQuests.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
                   <Text style={[styles.sectionTitle, { color: COLORS.primary }]}>Active Quests</Text>
@@ -767,29 +809,70 @@ const QuestLogScreen = ({ navigation }) => {
                   />
                 ))}
               </View>
+            )}
 
-              {/* Completed Quests Section */}
-              {completedQuests.length > 0 && (
-                <View style={styles.section}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={[styles.sectionTitle, { color: COLORS.text.muted }]}>Completed</Text>
-                    <View style={[styles.countBadge, { backgroundColor: '#10B981' + '20' }]}>
-                      <Text style={[styles.countText, { color: '#10B981' }]}>{completedQuests.length}</Text>
-                    </View>
-                  </View>
-                  {completedQuests.map(quest => (
-                    <QuestCard
-                      key={quest.id}
-                      quest={quest}
-                      isAdmin={player?.admin}
-                      onAdminUncomplete={() => handleAdminUncompleteQuest(quest)}
-                      onAdminReset={() => handleAdminResetQuest(quest, 'completed')}
-                    />
-                  ))}
+            {/* Empty State (only when no active quests AND no POIs) */}
+            {activeQuests.length === 0 && pois.length === 0 && (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconContainer}>
+                  <Ionicons name="map" size={48} color={COLORS.primary} />
                 </View>
-              )}
-            </>
-          )
+                <Text style={styles.emptyText}>No active quests</Text>
+                <Text style={styles.emptySub}>Start a quest below or explore the map to find adventures!</Text>
+              </View>
+            )}
+
+            {/* Available Quests to Start (excludes already started/completed) */}
+            {filteredAvailableQuests.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={[styles.sectionTitle, { color: COLORS.text.secondary }]}>Available Quests</Text>
+                  <View style={[styles.countBadge, { backgroundColor: COLORS.primaryLight }]}>
+                    <Text style={[styles.countText, { color: COLORS.primary }]}>{filteredAvailableQuests.length}</Text>
+                  </View>
+                </View>
+                {filteredAvailableQuests.slice(0, 5).map(quest => (
+                  <QuestCard
+                    key={quest.id}
+                    quest={quest}
+                    onAction={() => handleStartAvailableQuest(quest)}
+                    actionLabel="Start Quest"
+                    isActionLoading={false}
+                  />
+                ))}
+                {filteredAvailableQuests.length > 5 && (
+                  <TouchableOpacity 
+                    style={styles.viewMoreButton} 
+                    onPress={handleRefresh}
+                  >
+                    <Text style={styles.viewMoreText}>View all on map</Text>
+                    <Ionicons name="arrow-forward" size={16} color={COLORS.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Completed Quests Section */}
+            {completedQuests.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={[styles.sectionTitle, { color: COLORS.text.muted }]}>Completed</Text>
+                  <View style={[styles.countBadge, { backgroundColor: '#10B981' + '20' }]}>
+                    <Text style={[styles.countText, { color: '#10B981' }]}>{completedQuests.length}</Text>
+                  </View>
+                </View>
+                {completedQuests.map(quest => (
+                  <QuestCard
+                    key={quest.id}
+                    quest={quest}
+                    isAdmin={player?.admin}
+                    onAdminUncomplete={() => handleAdminUncompleteQuest(quest)}
+                    onAdminReset={() => handleAdminResetQuest(quest, 'completed')}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
         ) : (
           // === CHALLENGES TAB ===
           <View style={styles.challengesContainer}>
@@ -1973,6 +2056,64 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#10B981',
+  },
+
+  // POI Styles
+  poiSection: {
+    marginBottom: 24,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#5DADE2' + '30',
+  },
+  poiSectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  poiGrid: {
+    gap: 10,
+  },
+  poiCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  poiCardCompleted: {
+    backgroundColor: '#10B981' + '10',
+    borderColor: '#10B981' + '30',
+  },
+  poiIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  poiContent: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  poiTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginBottom: 2,
+  },
+  poiMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  poiMetaText: {
+    fontSize: 11,
+    color: COLORS.text.muted,
+    fontWeight: '500',
   },
 });
 

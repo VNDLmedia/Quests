@@ -26,6 +26,7 @@ import StaticPresentationMap from '../components/StaticPresentationMap';
 import POIModal from '../components/POIModal';
 import POICompletionModal from '../components/POICompletionModal';
 import POICreationModal from '../components/POICreationModal';
+import PresentationQuestCreationModal from '../components/PresentationQuestCreationModal';
 import {
   isPresentationModeActive,
   getPresentationSettings,
@@ -34,6 +35,11 @@ import {
   recordPOIScan,
   createPOI,
 } from '../game/services/PresentationModeService';
+import {
+  createPresentationQuest,
+  fetchPresentationQuests,
+  fetchUserPresentationQuestProgress,
+} from '../game/services/QuestCreationService';
 
 // Safe import for QR Scanner
 let UniversalQRScanner = null;
@@ -183,9 +189,9 @@ const MapScreen = () => {
     })
   ).current;
   
-  const { updateLocation, quests: allQuests, locations: allLocations, player, completeQuest, addScore } = useGame();
+  const { updateLocation, quests: allQuests, locations: allLocations, player, completeQuest, addScore, user } = useGame();
   const { activeQuests, completedQuests, startQuest } = useQuests();
-  const userId = player?.odooId || player?.odoo_id;
+  const userId = user?.id || player?.id || player?.odooId || player?.odoo_id;
   
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [mapReady, setMapReady] = useState(false);
@@ -211,6 +217,13 @@ const MapScreen = () => {
   const [isAddingPOI, setIsAddingPOI] = useState(false);
   const [newPOIPosition, setNewPOIPosition] = useState(null);
   const [showPOICreationModal, setShowPOICreationModal] = useState(false);
+  
+  // Presentation Quest State
+  const [presentationQuests, setPresentationQuests] = useState([]);
+  const [completedQuestIds, setCompletedQuestIds] = useState([]);
+  const [activeQuestIds, setActiveQuestIds] = useState([]);
+  const [isAddingQuest, setIsAddingQuest] = useState(false);
+  const [showQuestCreationModal, setShowQuestCreationModal] = useState(false);
 
   // Generate nearby quests - defined first to avoid circular dependency
   const generateNearbyQuests = useCallback((coords) => {
@@ -379,10 +392,27 @@ const MapScreen = () => {
           const { data: pois } = await getPresentationPOIs();
           setPresentationPOIs(pois);
 
+          // Load Presentation Quests
+          const questsResult = await fetchPresentationQuests();
+          let loadedQuests = [];
+          if (questsResult.success) {
+            loadedQuests = questsResult.quests;
+            setPresentationQuests(loadedQuests);
+          }
+
           // Load user's progress
           if (userId) {
+            // POI progress
             const progress = await getUserPOIProgress(userId);
             setScannedPOIIds(progress.scannedIds);
+            
+            // Quest progress - only for presentation quests
+            const presentationQuestIds = loadedQuests.map(q => q.id);
+            const questProgress = await fetchUserPresentationQuestProgress(userId, presentationQuestIds);
+            if (questProgress.success) {
+              setCompletedQuestIds(Array.from(questProgress.completed));
+              setActiveQuestIds(Array.from(questProgress.active));
+            }
           }
         }
       } catch (error) {
@@ -461,6 +491,50 @@ const MapScreen = () => {
       Alert.alert('Fehler', 'POI konnte nicht erstellt werden');
     }
   }, [userId]);
+
+  // Admin: Handle add Quest button on presentation map
+  const handleAddQuestPress = useCallback((position) => {
+    if (position === null) {
+      // Toggle adding mode
+      setIsAddingQuest(prev => !prev);
+      setIsAddingPOI(false); // Cancel POI adding mode if active
+    } else {
+      // Position was tapped - open quest creation modal
+      setIsAddingQuest(false);
+      setShowQuestCreationModal(true);
+    }
+  }, []);
+
+  // Admin: Save new Presentation Quest
+  const handleSavePresentationQuest = useCallback(async (questData) => {
+    try {
+      console.log('[VibeMapScreen] Creating presentation quest:', questData);
+      const result = await createPresentationQuest(questData);
+      
+      if (result.success) {
+        // Refresh quests
+        const questsResult = await fetchPresentationQuests();
+        if (questsResult.success) {
+          setPresentationQuests(questsResult.quests);
+        }
+        Alert.alert('Erfolg', 'Quest wurde erstellt!');
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error creating presentation quest:', error);
+      Alert.alert('Fehler', error.message || 'Quest konnte nicht erstellt werden');
+      throw error; // Re-throw so modal knows it failed
+    }
+  }, []);
+
+  // Handle quest tap on presentation map
+  const handlePresentationQuestPress = useCallback(async (quest) => {
+    // Open QR scanner to scan this quest's QR code
+    console.log('[VibeMapScreen] Quest tapped:', quest.title);
+    setScanningQuest(quest);
+    setShowQRScanner(true);
+  }, []);
 
   useEffect(() => {
     generateNearbyQuests(DEFAULT_LOCATION);
@@ -786,16 +860,25 @@ const MapScreen = () => {
   if (isPresentationMode && presentationSettings) {
     return (
       <View style={styles.container}>
-        {/* Static Map with POIs */}
+        {/* Static Map with POIs and Quests */}
         <StaticPresentationMap
           imageUrl={presentationSettings.static_map_image_url}
+          // POI props
           pois={presentationPOIs}
           scannedPoiIds={scannedPOIIds}
           onPoiPress={handlePOIPress}
+          // Quest props
+          quests={presentationQuests}
+          completedQuestIds={completedQuestIds}
+          activeQuestIds={activeQuestIds}
+          onQuestPress={handlePresentationQuestPress}
+          // Admin props
           isAdmin={player?.admin}
           onAdminPoiPress={handlePOIPress}
           onAddPoiPress={player?.admin ? handleAddPOIPress : null}
           isAddingPoi={isAddingPOI}
+          onAddQuestPress={player?.admin ? handleAddQuestPress : null}
+          isAddingQuest={isAddingQuest}
         />
 
         {/* Scan Button for Presentation Mode */}
@@ -809,7 +892,7 @@ const MapScreen = () => {
               style={styles.scanButtonGradient}
             >
               <Ionicons name="qr-code" size={24} color={COLORS.text.primary} />
-              <Text style={styles.scanButtonText}>Station scannen</Text>
+              <Text style={styles.scanButtonText}>Scannen</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -863,6 +946,29 @@ const MapScreen = () => {
             onSave={handleSavePOI}
           />
         )}
+
+        {/* Admin: Presentation Quest Creation Modal */}
+        {player?.admin && (
+          <PresentationQuestCreationModal
+            visible={showQuestCreationModal}
+            mapImageUrl={presentationSettings.static_map_image_url}
+            onClose={() => {
+              setShowQuestCreationModal(false);
+              setIsAddingQuest(false);
+            }}
+            onSave={handleSavePresentationQuest}
+            userId={userId}
+          />
+        )}
+
+        {/* Quest Completion Modal */}
+        <QuestCompletionModal
+          visible={!!completionModalData}
+          quest={completionModalData?.quest}
+          rewards={completionModalData?.rewards}
+          infoContent={completionModalData?.infoContent}
+          onClose={() => setCompletionModalData(null)}
+        />
       </View>
     );
   }

@@ -23,6 +23,68 @@ import { COLORS, SHADOWS, RADII } from '../theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// Quest Marker Component (for presentation quests)
+const QuestMarker = ({ quest, status }) => {
+  const isCompleted = status === 'completed';
+
+  // Get team color based on category
+  const getTeamColor = (category) => {
+    const colors = {
+      blue: '#5DADE2',
+      gold: '#E8B84A',
+      red: '#E74C3C',
+      green: '#2ECC71',
+      purple: '#9B59B6',
+    };
+    return colors[category] || COLORS.primary;
+  };
+
+  const iconColor = getTeamColor(quest.category);
+
+  return (
+    <View
+      style={[
+        styles.questMarker,
+        {
+          left: `${quest.positionX}%`,
+          top: `${quest.positionY}%`,
+        },
+      ]}
+      pointerEvents="none"
+    >
+      {/* Marker Icon */}
+      <View
+        style={[
+          styles.questIcon,
+          isCompleted ? styles.questCompleted : styles.questIncomplete,
+          { borderColor: isCompleted ? COLORS.success : iconColor },
+        ]}
+      >
+        <Ionicons
+          name={isCompleted ? 'checkmark' : (quest.icon || 'compass')}
+          size={18}
+          color={isCompleted ? COLORS.success : iconColor}
+        />
+      </View>
+
+      {/* Label */}
+      <View style={[styles.questLabel, isCompleted && styles.questLabelCompleted]}>
+        <Text
+          style={[styles.questLabelText, isCompleted && styles.questLabelTextCompleted]}
+          numberOfLines={1}
+        >
+          {quest.title}
+        </Text>
+        {!isCompleted && (
+          <Text style={[styles.questXpText, { color: iconColor }]}>
+            +{quest.xp_reward || 100} XP
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+};
+
 // POI Marker Component
 const POIMarker = ({ poi, isScanned, onPress, isAdmin, onAdminPress }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -129,10 +191,18 @@ const StaticPresentationMap = ({
   pois = [],
   scannedPoiIds = [],
   onPoiPress,
+  // Quest props
+  quests = [],
+  completedQuestIds = [],
+  activeQuestIds = [],
+  onQuestPress,
+  // Admin props
   isAdmin = false,
   onAdminPoiPress,
   onAddPoiPress, // Admin: callback when tapping to add POI
   isAddingPoi = false, // Admin: mode for adding new POI
+  onAddQuestPress, // Admin: callback to add quest
+  isAddingQuest = false, // Admin: mode for adding new quest
 }) => {
   const insets = useSafeAreaInsets();
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -146,38 +216,88 @@ const StaticPresentationMap = ({
   };
 
   const handleImagePress = (event) => {
-    if (!isAddingPoi || !onAddPoiPress) return;
-
-    // Calculate position relative to image (0-100%)
-    const { locationX, locationY } = event.nativeEvent;
-    const positionX = (locationX / containerLayout.width) * 100;
-    const positionY = (locationY / containerLayout.height) * 100;
-
-    onAddPoiPress({ positionX, positionY });
+    // Handle adding quest
+    if (isAddingQuest && onAddQuestPress) {
+      const { locationX, locationY } = event.nativeEvent;
+      const positionX = (locationX / containerLayout.width) * 100;
+      const positionY = (locationY / containerLayout.height) * 100;
+      onAddQuestPress({ positionX, positionY });
+      return;
+    }
+    
+    // Handle adding POI
+    if (isAddingPoi && onAddPoiPress) {
+      const { locationX, locationY } = event.nativeEvent;
+      const positionX = (locationX / containerLayout.width) * 100;
+      const positionY = (locationY / containerLayout.height) * 100;
+      onAddPoiPress({ positionX, positionY });
+      return;
+    }
   };
 
+  // Calculate progress for POIs
   const totalPois = pois.filter(p => p.isActive !== false).length;
   const scannedCount = scannedPoiIds.length;
-  const progress = totalPois > 0 ? scannedCount / totalPois : 0;
+  const poiProgress = totalPois > 0 ? scannedCount / totalPois : 0;
+  
+  // Calculate progress for POIs (Points of Interest)
+  const totalPOIs = quests.filter(q => q.is_active !== false).length;
+  const completedPOICount = completedQuestIds.length;
+  const poiProgressValue = totalPOIs > 0 ? completedPOICount / totalPOIs : 0;
+  
+  // Combined progress (if both exist, show both; if only one exists, show that)
+  const hasPOIs = totalPOIs > 0;
+  const hasPois = totalPois > 0;
 
   return (
     <View style={styles.container}>
-      {/* Progress Bar */}
+      {/* Progress Bars */}
       <View style={[styles.progressContainer, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.progressHeader}>
-          <Text style={styles.progressTitle}>Stationen</Text>
-          <Text style={styles.progressText}>
-            {scannedCount}/{totalPois}
-          </Text>
-        </View>
-        <View style={styles.progressBar}>
-          <LinearGradient
-            colors={COLORS.gradients.gold}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.progressFill, { width: `${progress * 100}%` }]}
-          />
-        </View>
+        {/* POIs Progress */}
+        {hasPOIs && (
+          <>
+            <View style={styles.progressHeader}>
+              <View style={styles.progressTitleRow}>
+                <Ionicons name="compass" size={16} color={COLORS.primary} />
+                <Text style={styles.progressTitle}>Points of Interest</Text>
+              </View>
+              <Text style={styles.progressText}>
+                {completedPOICount}/{totalPOIs}
+              </Text>
+            </View>
+            <View style={styles.progressBar}>
+              <LinearGradient
+                colors={COLORS.gradients.gold}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.progressFill, { width: `${poiProgressValue * 100}%` }]}
+              />
+            </View>
+          </>
+        )}
+        
+        {/* POIs Progress */}
+        {hasPois && (
+          <>
+            <View style={[styles.progressHeader, hasPOIs && { marginTop: 12 }]}>
+              <View style={styles.progressTitleRow}>
+                <Ionicons name="location" size={16} color="#5DADE2" />
+                <Text style={styles.progressTitle}>Stationen</Text>
+              </View>
+              <Text style={[styles.progressText, { color: '#5DADE2' }]}>
+                {scannedCount}/{totalPois}
+              </Text>
+            </View>
+            <View style={styles.progressBar}>
+              <LinearGradient
+                colors={['#5DADE2', '#3498DB']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.progressFill, { width: `${poiProgress * 100}%` }]}
+              />
+            </View>
+          </>
+        )}
       </View>
 
       {/* Map Container */}
@@ -202,10 +322,10 @@ const StaticPresentationMap = ({
 
             {/* Map Image */}
             <TouchableOpacity
-              activeOpacity={isAddingPoi ? 0.9 : 1}
+              activeOpacity={(isAddingPoi || isAddingQuest) ? 0.9 : 1}
               onPress={handleImagePress}
               style={styles.imageWrapper}
-              disabled={!isAddingPoi}
+              disabled={!isAddingPoi && !isAddingQuest}
             >
               <Image
                 source={{ uri: imageUrl }}
@@ -215,10 +335,27 @@ const StaticPresentationMap = ({
                 onError={() => setImageError(true)}
               />
 
+              {/* Quest Markers */}
+              {imageLoaded && quests.filter(q => q.is_active !== false).map((quest) => {
+                let status = 'available';
+                if (completedQuestIds.includes(quest.id)) {
+                  status = 'completed';
+                } else if (activeQuestIds.includes(quest.id)) {
+                  status = 'active';
+                }
+                return (
+                  <QuestMarker
+                    key={`quest-${quest.id}`}
+                    quest={quest}
+                    status={status}
+                  />
+                );
+              })}
+
               {/* POI Markers */}
               {imageLoaded && pois.filter(p => p.isActive !== false).map((poi) => (
                 <POIMarker
-                  key={poi.id}
+                  key={`poi-${poi.id}`}
                   poi={poi}
                   isScanned={scannedPoiIds.includes(poi.id)}
                   onPress={onPoiPress}
@@ -227,9 +364,20 @@ const StaticPresentationMap = ({
                 />
               ))}
 
+              {/* Adding Quest Mode Indicator */}
+              {isAddingQuest && (
+                <View style={[styles.addingModeOverlay, styles.addingQuestOverlay]}>
+                  <Ionicons name="compass" size={20} color={COLORS.text.primary} />
+                  <Text style={styles.addingModeText}>
+                    Tippe auf die Karte um eine Quest zu platzieren
+                  </Text>
+                </View>
+              )}
+
               {/* Adding POI Mode Indicator */}
               {isAddingPoi && (
                 <View style={styles.addingModeOverlay}>
+                  <Ionicons name="location" size={20} color={COLORS.text.primary} />
                   <Text style={styles.addingModeText}>
                     Tippe auf die Karte um einen POI zu platzieren
                   </Text>
@@ -245,39 +393,72 @@ const StaticPresentationMap = ({
         )}
       </View>
 
-      {/* Admin: Add POI Button */}
-      {isAdmin && onAddPoiPress && (
+      {/* Admin: Add Quest / Add POI Buttons */}
+      {isAdmin && (onAddQuestPress || onAddPoiPress) && (
         <View style={[styles.adminActions, { paddingBottom: insets.bottom + 80 }]}>
-          <TouchableOpacity
-            style={[styles.addPoiButton, isAddingPoi && styles.addPoiButtonActive]}
-            onPress={() => onAddPoiPress(null)} // null = toggle mode
-          >
-            <LinearGradient
-              colors={isAddingPoi ? ['#E74C3C', '#C0392B'] : COLORS.gradients.gold}
-              style={styles.addPoiGradient}
+          {/* Add Quest Button */}
+          {onAddQuestPress && (
+            <TouchableOpacity
+              style={[styles.addButton, isAddingQuest && styles.addButtonActive]}
+              onPress={() => onAddQuestPress(null)} // null = toggle mode
             >
-              <Ionicons
-                name={isAddingPoi ? 'close' : 'add'}
-                size={24}
-                color={COLORS.text.primary}
-              />
-              <Text style={styles.addPoiText}>
-                {isAddingPoi ? 'Abbrechen' : 'POI hinzufügen'}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={isAddingQuest ? ['#E74C3C', '#C0392B'] : COLORS.gradients.gold}
+                style={styles.addButtonGradient}
+              >
+                <Ionicons
+                  name={isAddingQuest ? 'close' : 'compass'}
+                  size={22}
+                  color={COLORS.text.primary}
+                />
+                <Text style={styles.addButtonText}>
+                  {isAddingQuest ? 'Abbrechen' : 'POI hinzufügen'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+          
+          {/* Add POI Button */}
+          {onAddPoiPress && (
+            <TouchableOpacity
+              style={[styles.addButton, styles.addPoiButton, isAddingPoi && styles.addButtonActive]}
+              onPress={() => onAddPoiPress(null)} // null = toggle mode
+            >
+              <LinearGradient
+                colors={isAddingPoi ? ['#E74C3C', '#C0392B'] : ['#5DADE2', '#3498DB']}
+                style={styles.addButtonGradient}
+              >
+                <Ionicons
+                  name={isAddingPoi ? 'close' : 'location'}
+                  size={22}
+                  color={COLORS.text.primary}
+                />
+                <Text style={styles.addButtonText}>
+                  {isAddingPoi ? 'Abbrechen' : 'POI hinzufügen'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
       {/* Legend */}
       <View style={[styles.legend, { bottom: insets.bottom + 80 }]}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
-          <Text style={styles.legendText}>Noch nicht besucht</Text>
-        </View>
+        {hasPOIs && (
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
+            <Text style={styles.legendText}>POI</Text>
+          </View>
+        )}
+        {hasPois && (
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#5DADE2' }]} />
+            <Text style={styles.legendText}>Station</Text>
+          </View>
+        )}
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: COLORS.success }]} />
-          <Text style={styles.legendText}>Besucht</Text>
+          <Text style={styles.legendText}>Erledigt</Text>
         </View>
       </View>
     </View>
@@ -306,6 +487,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  progressTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   progressTitle: {
     fontSize: 14,
@@ -427,17 +613,82 @@ const styles = StyleSheet.create({
     color: COLORS.success,
   },
 
+  // Quest Marker
+  questMarker: {
+    position: 'absolute',
+    alignItems: 'center',
+    transform: [{ translateX: -24 }, { translateY: -36 }],
+    zIndex: 10,
+  },
+  questGlow: {
+    position: 'absolute',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  questIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    ...SHADOWS.md,
+  },
+  questIncomplete: {
+    backgroundColor: COLORS.surface,
+  },
+  questCompleted: {
+    backgroundColor: 'rgba(46,204,113,0.2)',
+    borderColor: COLORS.success,
+  },
+  questLabel: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADII.sm,
+    maxWidth: 100,
+    alignItems: 'center',
+    ...SHADOWS.sm,
+  },
+  questLabelCompleted: {
+    backgroundColor: 'rgba(46,204,113,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(46,204,113,0.3)',
+  },
+  questLabelText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+    textAlign: 'center',
+  },
+  questLabelTextCompleted: {
+    color: COLORS.success,
+  },
+  questXpText: {
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
   // Adding mode
   addingModeOverlay: {
     position: 'absolute',
     bottom: 100,
     left: 20,
     right: 20,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#5DADE2',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: RADII.md,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  addingQuestOverlay: {
+    backgroundColor: COLORS.primary,
   },
   addingModeText: {
     color: COLORS.text.primary,
@@ -454,22 +705,26 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 20,
     paddingTop: 16,
+    gap: 10,
   },
-  addPoiButton: {
+  addButton: {
     borderRadius: RADII.lg,
     overflow: 'hidden',
     ...SHADOWS.glow,
   },
-  addPoiButtonActive: {},
-  addPoiGradient: {
+  addPoiButton: {
+    marginTop: 0,
+  },
+  addButtonActive: {},
+  addButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
     paddingVertical: 14,
   },
-  addPoiText: {
-    fontSize: 16,
+  addButtonText: {
+    fontSize: 15,
     fontWeight: '700',
     color: COLORS.text.primary,
   },
