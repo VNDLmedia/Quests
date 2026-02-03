@@ -23,7 +23,7 @@ import { COLORS, SHADOWS, RADII } from '../theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Quest Marker Component (for presentation quests)
+// Quest Marker Component (for presentation quests) - just a dot, no label
 const QuestMarker = ({ quest, status }) => {
   const isCompleted = status === 'completed';
 
@@ -44,7 +44,7 @@ const QuestMarker = ({ quest, status }) => {
   return (
     <View
       style={[
-        styles.questMarkerOuter,
+        styles.questMarker,
         {
           left: `${quest.positionX}%`,
           top: `${quest.positionY}%`,
@@ -52,37 +52,19 @@ const QuestMarker = ({ quest, status }) => {
       ]}
       pointerEvents="none"
     >
-      {/* Inner container centered on position */}
-      <View style={styles.questMarkerInner}>
-        {/* Marker Icon */}
-        <View
-          style={[
-            styles.questIcon,
-            isCompleted ? styles.questCompleted : styles.questIncomplete,
-            { borderColor: isCompleted ? COLORS.success : iconColor },
-          ]}
-        >
-          <Ionicons
-            name={isCompleted ? 'checkmark' : (quest.icon || 'compass')}
-            size={12}
-            color={isCompleted ? COLORS.success : iconColor}
-          />
-        </View>
-
-        {/* Label - positioned below the marker */}
-        <View style={[styles.questLabel, isCompleted && styles.questLabelCompleted]}>
-          <Text
-            style={[styles.questLabelText, isCompleted && styles.questLabelTextCompleted]}
-            numberOfLines={1}
-          >
-            {quest.title}
-          </Text>
-          {!isCompleted && (
-            <Text style={[styles.questXpText, { color: iconColor }]}>
-              +{quest.xp_reward || 100} XP
-            </Text>
-          )}
-        </View>
+      {/* Marker Icon - centered on exact position */}
+      <View
+        style={[
+          styles.questIcon,
+          isCompleted ? styles.questCompleted : styles.questIncomplete,
+          { borderColor: isCompleted ? COLORS.success : iconColor },
+        ]}
+      >
+        <Ionicons
+          name={isCompleted ? 'checkmark' : (quest.icon || 'compass')}
+          size={12}
+          color={isCompleted ? COLORS.success : iconColor}
+        />
       </View>
     </View>
   );
@@ -626,25 +608,12 @@ const styles = StyleSheet.create({
     color: COLORS.success,
   },
 
-  // Quest Marker - outer container at exact position
-  questMarkerOuter: {
+  // Quest Marker - just a dot centered on position
+  questMarker: {
     position: 'absolute',
     zIndex: 10,
-  },
-  // Inner container - centered on position, contains icon + label
-  questMarkerInner: {
-    alignItems: 'center',
-    // Center the inner container on the position (shift left by half width, up by half icon height)
-    transform: [{ translateX: -40 }, { translateY: -12 }],
-    width: 80,
-  },
-  questGlow: {
-    position: 'absolute',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    top: -6,
-    left: 22, // (80 - 36) / 2 = 22 to center in 80px container
+    // Center the marker on the exact position (shift by half the icon size)
+    transform: [{ translateX: -12 }, { translateY: -12 }],
   },
   questIcon: {
     width: 24,
@@ -661,35 +630,6 @@ const styles = StyleSheet.create({
   questCompleted: {
     backgroundColor: 'rgba(46,204,113,0.2)',
     borderColor: COLORS.success,
-  },
-  questLabel: {
-    marginTop: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADII.sm,
-    maxWidth: 80,
-    alignItems: 'center',
-    ...SHADOWS.sm,
-  },
-  questLabelCompleted: {
-    backgroundColor: 'rgba(46,204,113,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(46,204,113,0.3)',
-  },
-  questLabelText: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: COLORS.text.primary,
-    textAlign: 'center',
-  },
-  questLabelTextCompleted: {
-    color: COLORS.success,
-  },
-  questXpText: {
-    fontSize: 7,
-    fontWeight: '600',
-    marginTop: 1,
   },
 
   // Adding mode
