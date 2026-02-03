@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { supabase, isSupabaseConfigured } from '../../config/supabase';
+import { getHardcodedPOI, isHardcodedPOI } from '../config/presentationPOIs';
 
 /**
  * Process a scanned QR code - checks POIs, quests, and reward codes
@@ -39,6 +40,27 @@ export const processQRCode = async (scannedData, userId) => {
     // Process as friend request
     const playerResult = await checkPlayerCode(friendId, userId);
     return playerResult;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHECK HARDCODED PRESENTATION POIs FIRST
+  // These are demo POIs with predefined content (no database lookup needed)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (isHardcodedPOI(trimmedData)) {
+    const hardcodedPOI = getHardcodedPOI(trimmedData);
+    console.log('[QRScannerService] Hardcoded POI found:', hardcodedPOI.name);
+    
+    // For hardcoded POIs, we don't track in database - just return the content
+    // This allows repeated scanning for demo purposes
+    return {
+      found: true,
+      success: true,
+      type: 'hardcoded_poi',
+      poi: hardcodedPOI,
+      progress: null, // No progress tracking for hardcoded POIs
+      completionData: null,
+      message: `Station "${hardcodedPOI.name}" entdeckt!`,
+    };
   }
 
   // Try to find in POIs first (for presentation mode)

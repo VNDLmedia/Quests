@@ -65,7 +65,7 @@ const getImageUrl = (pathOrFilename) => {
 
 const POIModal = ({
   visible,
-  poi, // { name, videoUrl, infoTitle, infoText, infoImageUrl }
+  poi, // { name, videoUrl, infoTitle, infoText, infoImageUrl, hook }
   onComplete, // Called when user closes the info modal
   onClose, // Called if user skips/closes early
 }) => {
@@ -314,6 +314,13 @@ const POIModal = ({
                 {poi.infoTitle || poi.name}
               </Text>
 
+              {/* Hook (subtitle) - if available */}
+              {poi.hook && (
+                <Text style={styles.infoHook}>
+                  {poi.hook}
+                </Text>
+              )}
+
               {/* Scrollable Content */}
               <ScrollView 
                 style={styles.infoScroll} 
@@ -453,8 +460,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.text.primary,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
     paddingHorizontal: 16,
+  },
+  infoHook: {
+    fontSize: 16,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    color: COLORS.primary,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 24,
   },
   infoScroll: {
     maxHeight: height * 0.4,

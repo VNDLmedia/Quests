@@ -761,6 +761,25 @@ const MapScreen = () => {
       const result = await processQRCode(data.trim(), userId);
       // console.log('[VibeMapScreen] QR result:', result);
       
+      // Handle hardcoded POI scan (demo presentation mode)
+      if (result.type === 'hardcoded_poi') {
+        if (result.success && result.poi) {
+          console.log('[VibeMapScreen] Hardcoded POI scanned:', result.poi.name);
+          // Show POI modal with the hardcoded content
+          setCurrentPOI(result.poi);
+          setShowPOIModal(true);
+        } else {
+          setAlertModal({
+            visible: true,
+            title: 'Fehler',
+            message: result.error || 'Fehler beim Laden der Station',
+            type: 'error'
+          });
+        }
+        setScanningQuest(null);
+        return;
+      }
+
       // Handle POI scan (presentation mode)
       if (result.type === 'poi') {
         if (result.success) {

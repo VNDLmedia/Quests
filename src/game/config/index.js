@@ -11,3 +11,4 @@ export * from './cardsData';
 export * from './countries';
 export * from './cardCollection';
 export * from './challenges';
+export * from './presentationPOIs';
