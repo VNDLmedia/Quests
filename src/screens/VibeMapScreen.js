@@ -784,13 +784,26 @@ const MapScreen = () => {
       // Handle Presentation Quest (POI) scan
       if (result.type === 'presentation_quest') {
         if (result.success) {
-          // POI completed successfully!
-          const successMsg = result.message || `Point of Interest "${result.quest?.title}" entdeckt!`;
-          if (Platform.OS === 'web') {
-            window.alert(successMsg);
-          } else {
-            Alert.alert('Entdeckt!', successMsg);
-          }
+          // POI completed successfully! Show completion modal with image
+          const quest = result.quest;
+          const questTitle = quest?.title || '';
+          
+          // Build image URL from quest title (stored in /public/img/)
+          const imageUrl = questTitle ? `/img/${questTitle}.jpeg` : null;
+          
+          // Show completion modal with image
+          setCompletionModalData({
+            quest: quest,
+            rewards: {
+              score: quest?.xp_reward || 100,
+              card: null,
+            },
+            infoContent: {
+              title: questTitle,
+              text: quest?.description || '',
+              image_url: imageUrl,
+            },
+          });
           
           // Refresh presentation quests to update the map
           if (isPresentationMode) {
@@ -812,7 +825,7 @@ const MapScreen = () => {
           // Already scanned or error
           const errorMsg = result.error || 'Fehler beim Scannen';
           if (Platform.OS === 'web') {
-            window.alert(errorMsg);
+            alert(errorMsg);
           } else {
             Alert.alert('Hinweis', errorMsg);
           }

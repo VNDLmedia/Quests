@@ -174,7 +174,59 @@ const QuestCompletionModal = ({
 
   const scoreReward = rewards?.score || 10;
   const cardReward = rewards?.card || null;
+  const hasImage = infoContent?.image_url || infoContent?.imageUrl;
+  const imageUrl = infoContent?.image_url || infoContent?.imageUrl;
 
+  // Fullscreen image mode for POIs
+  if (hasImage) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="fade"
+        transparent
+        onRequestClose={onClose}
+      >
+        <View style={styles.fullscreenOverlay}>
+          {/* Fullscreen Image */}
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.fullscreenImage}
+            resizeMode="contain"
+          />
+
+          {/* Overlay gradient at bottom for button */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,0.95)']}
+            style={[styles.fullscreenGradient, { paddingBottom: insets.bottom + 24 }]}
+          >
+            {/* Title */}
+            <Text style={styles.fullscreenTitle}>{quest.title}</Text>
+            
+            {/* Points badge */}
+            <View style={styles.fullscreenPointsBadge}>
+              <Ionicons name="trophy" size={20} color={COLORS.primary} />
+              <Text style={styles.fullscreenPoints}>+{scoreReward} Punkte</Text>
+            </View>
+
+            {/* Continue button */}
+            <TouchableOpacity style={styles.continueButton} onPress={onClose}>
+              <LinearGradient
+                colors={COLORS.gradients.gold}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.continueGradient}
+              >
+                <Text style={styles.continueText}>Weiter</Text>
+                <Ionicons name="arrow-forward" size={20} color={COLORS.text.primary} />
+              </LinearGradient>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      </Modal>
+    );
+  }
+
+  // Standard quest completion modal (no image)
   return (
     <Modal
       visible={visible}
@@ -281,8 +333,8 @@ const QuestCompletionModal = ({
             )}
           </View>
 
-          {/* Info Content (if provided) */}
-          {infoContent && (
+          {/* Info Content text (if provided) */}
+          {infoContent && infoContent.text && (
             <View style={styles.infoContainer}>
               <View style={styles.infoHeader}>
                 <Ionicons name="information-circle" size={20} color={COLORS.primary} />
@@ -292,13 +344,6 @@ const QuestCompletionModal = ({
               </View>
               <ScrollView style={styles.infoScroll} showsVerticalScrollIndicator={false}>
                 <Text style={styles.infoText}>{infoContent.text}</Text>
-                {infoContent.imageUrl && (
-                  <Image
-                    source={{ uri: infoContent.imageUrl }}
-                    style={styles.infoImage}
-                    resizeMode="cover"
-                  />
-                )}
               </ScrollView>
             </View>
           )}
@@ -438,6 +483,47 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: RADII.md,
     marginTop: 12,
+  },
+  // Fullscreen image mode styles
+  fullscreenOverlay: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  fullscreenImage: {
+    flex: 1,
+    width: '100%',
+  },
+  fullscreenGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  fullscreenTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFF',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  fullscreenPointsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(232,184,74,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 24,
+  },
+  fullscreenPoints: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   continueButton: {
     width: '100%',

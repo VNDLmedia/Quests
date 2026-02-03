@@ -412,8 +412,6 @@ const processFoundQuest = async (quest, userId) => {
   // Extract info_content from quest metadata
   const infoContent = quest.metadata?.info_content || null;
   
-  console.log('[QRScannerService] Quest/POI completed successfully:', quest.title);
-  
   return {
     found: true,
     success: true,
@@ -441,7 +439,6 @@ const checkQuestCode = async (qrCodeId, userId) => {
   try {
     // Normalize to uppercase (QR codes are stored uppercase)
     const normalizedQrCode = qrCodeId.toUpperCase();
-    console.log('[QRScannerService] Checking quests table for:', normalizedQrCode);
 
     // Search in quests table where metadata contains this qr_code_id
     const { data: quest, error } = await supabase
@@ -451,8 +448,6 @@ const checkQuestCode = async (qrCodeId, userId) => {
       .single();
 
     if (error || !quest) {
-      console.log('[QRScannerService] Quest not found for QR code:', normalizedQrCode, 'Error:', error?.message);
-      
       // Fallback: Try to find any quest with this QR code in metadata (manual search)
       const { data: allQuests } = await supabase
         .from('quests')
@@ -464,7 +459,6 @@ const checkQuestCode = async (qrCodeId, userId) => {
           q.metadata?.qr_code_id?.toUpperCase() === normalizedQrCode
         );
         if (matchingQuest) {
-          console.log('[QRScannerService] Found quest with manual search:', matchingQuest.title);
           // Use this quest instead
           const { data: fullQuest } = await supabase
             .from('quests')
@@ -473,21 +467,14 @@ const checkQuestCode = async (qrCodeId, userId) => {
             .single();
           
           if (fullQuest) {
-            console.log('[QRScannerService] Using manually found quest:', fullQuest.title);
             return await processFoundQuest(fullQuest, userId);
           }
-        } else {
-          console.log('[QRScannerService] No quest found with QR code in metadata. Total quests checked:', allQuests.length);
-          // Log some sample metadata for debugging
-          const questsWithMetadata = allQuests.filter(q => q.metadata?.qr_code_id);
-          console.log('[QRScannerService] Quests with QR codes:', questsWithMetadata.map(q => ({ title: q.title, qr: q.metadata?.qr_code_id })));
         }
       }
       
       return { found: false };
     }
 
-    console.log('[QRScannerService] Quest found:', quest.id, quest.title);
     return await processFoundQuest(quest, userId);
 
   } catch (error) {

@@ -135,13 +135,14 @@ function AppContent() {
     <View style={styles.container}>
       <AppNavigator />
       
-      {/* Global Achievement Toast */}
+      {/* Global Achievement Toast - DISABLED
       {newAchievement && (
         <AchievementToast
           achievement={newAchievement}
           onDismiss={clearNewAchievement}
         />
       )}
+      */}
 
       {/* Global Card Unlock Overlay */}
       <CardUnlockOverlay />
