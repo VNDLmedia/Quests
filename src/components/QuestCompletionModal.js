@@ -210,13 +210,23 @@ const QuestCompletionModal = ({
             resizeMode="contain"
           />
 
-          {/* Overlay gradient at bottom for button */}
+          {/* Overlay gradient at bottom for content and button */}
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,0.95)']}
+            colors={['transparent', 'rgba(0,0,0,0.85)', 'rgba(0,0,0,0.95)']}
             style={[styles.fullscreenGradient, { paddingBottom: insets.bottom + 24 }]}
           >
             {/* Title */}
-            <Text style={styles.fullscreenTitle}>{quest.title}</Text>
+            <Text style={styles.fullscreenTitle}>{infoContent?.title || quest.title}</Text>
+            
+            {/* Text content */}
+            {infoContent?.text && (
+              <ScrollView 
+                style={styles.fullscreenTextScroll}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={styles.fullscreenText}>{infoContent.text}</Text>
+              </ScrollView>
+            )}
             
             {/* Points badge */}
             <View style={styles.fullscreenPointsBadge}>
@@ -525,6 +535,17 @@ const styles = StyleSheet.create({
     color: '#FFF',
     textAlign: 'center',
     marginBottom: 12,
+  },
+  fullscreenTextScroll: {
+    maxHeight: 120,
+    width: '100%',
+    marginBottom: 16,
+  },
+  fullscreenText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
   },
   fullscreenPointsBadge: {
     flexDirection: 'row',

@@ -792,10 +792,11 @@ const MapScreen = () => {
         if (result.success) {
           // POI completed successfully! Show completion modal with image
           const quest = result.quest;
-          const questTitle = quest?.title || '';
           
-          // Build image URL from quest title (stored in /public/img/)
-          const imageUrl = questTitle ? `/img/${questTitle}.jpeg` : null;
+          // HARDCODED FOR TESTING
+          const imageUrl = '/poi/oma.jpeg';
+          const hardcodedTitle = 'Future-Proof Reality: Hardware Agility';
+          const hardcodedText = "We aren't waiting for the future; we're building the foundation for it. Because every point of interest is already mapped on our 2D grid, the transition to AR overlays and smart glasses is seamless. Your investment today is ready for the hardware of 2027 and beyond.";
           
           // Show completion modal with image
           setCompletionModalData({
@@ -805,8 +806,8 @@ const MapScreen = () => {
               card: null,
             },
             infoContent: {
-              title: questTitle,
-              text: quest?.description || '',
+              title: hardcodedTitle,
+              text: hardcodedText,
               image_url: imageUrl,
             },
           });
