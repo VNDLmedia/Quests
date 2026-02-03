@@ -344,30 +344,6 @@ const UserScreen = () => {
 
         <View style={{height: 16}} />
 
-        {/* Score Card */}
-        <GlassCard style={styles.card}>
-          <Text style={styles.sectionTitle}>My Progress</Text>
-          
-          <View style={styles.scoreRow}>
-            <View style={styles.scoreItem}>
-              <Text style={styles.scoreValue}>{player.score || 0}</Text>
-              <Text style={styles.scoreLabel}>Score</Text>
-            </View>
-            <View style={styles.scoreDivider} />
-            <View style={styles.scoreItem}>
-              <Text style={styles.scoreValue}>{player.totalQuestsCompleted || 0}</Text>
-              <Text style={styles.scoreLabel}>Quests</Text>
-            </View>
-            <View style={styles.scoreDivider} />
-            <View style={styles.scoreItem}>
-              <Text style={styles.scoreValue}>{ownedCardsCount}/{totalCardsCount}</Text>
-              <Text style={styles.scoreLabel}>Cards</Text>
-            </View>
-          </View>
-        </GlassCard>
-
-        <View style={{height: 16}} />
-
         {/* Card Collection Preview */}
         <GlassCard style={styles.card}>
           <Text style={styles.sectionTitle}>My Collection</Text>

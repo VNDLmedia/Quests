@@ -538,34 +538,6 @@ const QuestLogScreen = ({ navigation }) => {
               </TouchableOpacity>
             )}
 
-            {/* Challenge Info Banner */}
-            <LinearGradient
-              colors={['#EC4899', '#8B5CF6']}
-              style={styles.challengeInfoBanner}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={styles.challengeInfoContent}>
-                <Ionicons name="trophy" size={24} color="#FFF" />
-                <View style={styles.challengeInfoText}>
-                  <Text style={styles.challengeInfoTitle}>Event Challenges</Text>
-                  <Text style={styles.challengeInfoSub}>
-                    Complete challenges for real collectible cards!
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.challengeInfoStats}>
-                <View style={styles.challengeInfoStat}>
-                  <Text style={styles.challengeInfoStatValue}>{challengeStats.completed}</Text>
-                  <Text style={styles.challengeInfoStatLabel}>Done</Text>
-                </View>
-                <View style={styles.challengeInfoDivider} />
-                <View style={styles.challengeInfoStat}>
-                  <Text style={styles.challengeInfoStatValue}>{challengeStats.inProgress}</Text>
-                  <Text style={styles.challengeInfoStatLabel}>Active</Text>
-                </View>
-              </View>
-            </LinearGradient>
 
             {/* Questline Challenges Section */}
             {questlineChallenges.length > 0 && (
@@ -677,14 +649,14 @@ const QuestLogScreen = ({ navigation }) => {
                 </View>
               )}
 
-              {/* Aktive Challenges */}
+              {/* Aktive Challenges (not completed AND not claimed) */}
               <View style={styles.challengeGroup}>
                 <View style={styles.challengeGroupHeader}>
                   <Ionicons name="flash" size={16} color={COLORS.primary} />
                   <Text style={styles.challengeGroupTitle}>In Progress</Text>
                 </View>
                 {eventChallenges
-                  .filter(c => !c.isCompleted && c.challenge_mode !== 'questline')
+                  .filter(c => !c.isCompleted && !c.isClaimed && c.challenge_mode !== 'questline')
                   .map(challenge => (
                     <EventChallengeCard
                       key={challenge.id}
@@ -702,8 +674,8 @@ const QuestLogScreen = ({ navigation }) => {
                 }
               </View>
 
-              {/* Completed Challenges */}
-              {eventChallenges.filter(c => c.isCompleted && c.isClaimed && c.challenge_mode !== 'questline').length > 0 && (
+              {/* Completed Challenges (isCompleted OR isClaimed - includes admin-completed) */}
+              {eventChallenges.filter(c => (c.isCompleted || c.isClaimed) && c.challenge_mode !== 'questline').length > 0 && (
                 <View style={styles.challengeGroup}>
                   <View style={styles.challengeGroupHeader}>
                     <Ionicons name="checkmark-done-circle" size={16} color={COLORS.text.muted} />
@@ -712,7 +684,7 @@ const QuestLogScreen = ({ navigation }) => {
                     </Text>
                   </View>
                   {eventChallenges
-                    .filter(c => c.isCompleted && c.isClaimed && c.challenge_mode !== 'questline')
+                    .filter(c => (c.isCompleted || c.isClaimed) && c.challenge_mode !== 'questline')
                     .map(challenge => (
                       <EventChallengeCard
                         key={challenge.id}

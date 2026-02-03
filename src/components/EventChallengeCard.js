@@ -142,28 +142,38 @@ const EventChallengeCard = ({
   };
 
   if (compact) {
+    // Gray out if claimed (includes admin-completed challenges)
+    const isGrayedOut = isClaimed;
     return (
       <View style={styles.compactWrapper}>
         <TouchableOpacity 
-          style={styles.compactCard}
+          style={[styles.compactCard, isGrayedOut && styles.compactCardGrayed]}
           activeOpacity={0.8}
           onPress={onPress}
         >
           <LinearGradient
-            colors={challenge.gradient || tier.gradient || [tier.color, tier.color]}
-            style={styles.compactIconContainer}
+            colors={isGrayedOut 
+              ? [COLORS.text.muted, COLORS.text.muted] 
+              : (challenge.gradient || tier.gradient || [tier.color, tier.color])}
+            style={[styles.compactIconContainer, isGrayedOut && styles.compactIconGrayed]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Ionicons name={challenge.icon} size={20} color="#FFF" />
+            <Ionicons name={isGrayedOut ? 'checkmark-done' : challenge.icon} size={20} color={isGrayedOut ? COLORS.surface : '#FFF'} />
           </LinearGradient>
           <View style={styles.compactContent}>
-            <Text style={styles.compactTitle} numberOfLines={1}>{challenge.title}</Text>
-            <View style={styles.compactProgressBar}>
-              <View style={[styles.compactProgressFill, { width: `${progressPercent}%` }]} />
+            <Text style={[styles.compactTitle, isGrayedOut && styles.compactTitleGrayed]} numberOfLines={1}>{challenge.title}</Text>
+            <View style={[styles.compactProgressBar, isGrayedOut && styles.compactProgressBarGrayed]}>
+              <View style={[styles.compactProgressFill, isGrayedOut && styles.compactProgressFillGrayed, { width: `${progressPercent}%` }]} />
             </View>
           </View>
-          <Text style={styles.compactProgress}>{progress}/{challenge.target}</Text>
+          {isGrayedOut ? (
+            <View style={styles.compactCompletedBadge}>
+              <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
+            </View>
+          ) : (
+            <Text style={styles.compactProgress}>{progress}/{challenge.target}</Text>
+          )}
         </TouchableOpacity>
         {isAdmin && isClaimed && (
           <TouchableOpacity 
@@ -738,6 +748,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(220, 38, 38, 0.3)',
+  },
+  // Grayed out styles for completed challenges
+  compactCardGrayed: {
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.borderLight,
+    opacity: 0.7,
+  },
+  compactIconGrayed: {
+    opacity: 0.6,
+  },
+  compactTitleGrayed: {
+    color: COLORS.text.muted,
+    textDecorationLine: 'line-through',
+  },
+  compactProgressBarGrayed: {
+    backgroundColor: COLORS.borderLight,
+  },
+  compactProgressFillGrayed: {
+    backgroundColor: COLORS.text.muted,
+  },
+  compactCompletedBadge: {
+    marginLeft: 8,
   },
 });
 

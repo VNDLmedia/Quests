@@ -143,40 +143,88 @@ const SocialScreen = () => {
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Friends List */}
         {friends.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={48} color={COLORS.text.muted} />
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="people-outline" size={48} color={COLORS.text.muted} />
+            </View>
             <Text style={styles.emptyText}>No friends yet</Text>
-            <Text style={styles.emptySubtext}>Scan a QR code to add friends</Text>
+            <Text style={styles.emptySubtext}>Scan a QR code or enter a friend code to connect</Text>
+            <TouchableOpacity style={styles.emptyAddBtn} onPress={startScan}>
+              <Ionicons name="person-add" size={18} color="#FFF" style={styles.emptyAddBtnIcon} />
+              <Text style={styles.emptyAddBtnText}>Add Friend</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.friendsList}>
-            {friends.filter(f => f && f.id).map((friend) => (
-              <TouchableOpacity 
-                key={friend.id} 
-                style={[
-                  styles.friendItem,
-                  friend.team && TEAMS[friend.team] ? { borderLeftWidth: 3, borderLeftColor: TEAMS[friend.team].color } : null
-                ]}
-                onPress={() => setSelectedFriend(friend)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.friendAvatar}>
-                  <Text style={styles.friendInitial}>{String(friend.display_name || friend.username || 'U').charAt(0).toUpperCase()}</Text>
-                </View>
-                <View style={styles.friendInfo}>
-                  <View style={styles.friendNameRow}>
-                    <Text style={styles.friendName}>{String(friend.display_name || friend.username || 'Unknown')}</Text>
-                    {friend.team && TEAMS[friend.team] ? (
-                      <Ionicons name={TEAMS[friend.team].icon} size={14} color={TEAMS[friend.team].color} style={{ marginLeft: 6 }} />
-                    ) : null}
+            <View style={styles.friendsListHeader}>
+              <Text style={styles.friendsListTitle}>{friends.length} {friends.length === 1 ? 'Friend' : 'Friends'}</Text>
+            </View>
+            {friends.filter(f => f && f.id).map((friend) => {
+              const teamData = friend.team && TEAMS[friend.team] ? TEAMS[friend.team] : null;
+              const hasLinkedIn = friend.linkedin_url && String(friend.linkedin_url).trim() !== '';
+              const hasBio = friend.bio && String(friend.bio).trim() !== '';
+              return (
+                <TouchableOpacity 
+                  key={friend.id} 
+                  style={styles.friendCard}
+                  onPress={() => setSelectedFriend(friend)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.friendCardMain}>
+                    <View style={[
+                      styles.friendAvatarContainer,
+                      { borderColor: teamData?.color || COLORS.primary }
+                    ]}>
+                      <LinearGradient
+                        colors={teamData 
+                          ? [teamData.color, teamData.darkColor || teamData.color]
+                          : [COLORS.primary, COLORS.primaryDark]
+                        }
+                        style={styles.friendAvatarGradient}
+                      >
+                        <Text style={styles.friendAvatarInitial}>{String(friend.display_name || friend.username || 'U').charAt(0).toUpperCase()}</Text>
+                      </LinearGradient>
+                    </View>
+                    <View style={styles.friendCardInfo}>
+                      <View style={styles.friendNameRow}>
+                        <Text style={styles.friendCardName} numberOfLines={1}>{String(friend.display_name || friend.username || 'Unknown')}</Text>
+                        {hasLinkedIn ? (
+                          <TouchableOpacity 
+                            style={styles.linkedinIconBtn}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              Linking.openURL(friend.linkedin_url);
+                            }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <Ionicons name="logo-linkedin" size={16} color="#0A66C2" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                      <View style={styles.friendMetaRow}>
+                        {teamData ? (
+                          <View style={[styles.friendTeamBadge, { backgroundColor: teamData.bgColor }]}>
+                            <Ionicons name={teamData.icon} size={12} color={teamData.color} style={styles.friendTeamBadgeIcon} />
+                            <Text style={[styles.friendTeamText, { color: teamData.color }]}>{teamData.name}</Text>
+                          </View>
+                        ) : null}
+                        <View style={styles.friendPointsBadge}>
+                          <Ionicons name="star" size={12} color={COLORS.primary} style={styles.friendPointsBadgeIcon} />
+                          <Text style={styles.friendPointsText}>{Number(friend.score || 0).toLocaleString()}</Text>
+                        </View>
+                      </View>
+                      {hasBio ? (
+                        <Text style={styles.friendBioPreview} numberOfLines={1}>{String(friend.bio)}</Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.friendCardArrow}>
+                      <Ionicons name="chevron-forward" size={18} color={COLORS.text.muted} />
+                    </View>
                   </View>
-                  <Text style={styles.friendLevel}>{String(friend.score || 0)} Points</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={COLORS.text.muted} />
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -359,53 +407,100 @@ const SocialScreen = () => {
         </View>
       </Modal>
 
-      {selectedFriend !== null ? (
-        <View style={styles.friendProfileOverlayFixed}>
-          <TouchableOpacity 
-            style={styles.friendProfileOverlay} 
-            activeOpacity={1} 
-            onPress={() => setSelectedFriend(null)}
-          >
-            <TouchableOpacity activeOpacity={1} style={styles.friendProfileCard}>
+      {/* Friend Profile Modal */}
+      <Modal visible={selectedFriend !== null} animationType="fade" transparent>
+        <View style={styles.friendProfileOverlay}>
+          <TouchableOpacity style={styles.friendProfileBackdrop} activeOpacity={1} onPress={() => setSelectedFriend(null)} />
+          {selectedFriend && (
+            <View style={styles.friendProfileCard}>
               <TouchableOpacity style={styles.friendProfileCloseBtn} onPress={() => setSelectedFriend(null)}>
-                <Ionicons name="close" size={24} color={COLORS.text.muted} />
+                <View style={styles.friendProfileCloseBtnCircle}>
+                  <Ionicons name="close" size={20} color="rgba(255,255,255,0.8)" />
+                </View>
               </TouchableOpacity>
-              <View style={[styles.friendProfileHeader, { backgroundColor: selectedFriend.team && TEAMS[selectedFriend.team] ? TEAMS[selectedFriend.team].color : COLORS.primary }]}>
-                <View style={styles.friendProfileAvatarCircle}>
-                  <Text style={styles.friendProfileAvatarLetter}>{String(selectedFriend.display_name || selectedFriend.username || 'U').charAt(0).toUpperCase()}</Text>
+              <LinearGradient
+                colors={
+                  selectedFriend.team && TEAMS[selectedFriend.team]
+                    ? [TEAMS[selectedFriend.team].color, TEAMS[selectedFriend.team].darkColor || TEAMS[selectedFriend.team].color]
+                    : [COLORS.primary, COLORS.primaryDark]
+                }
+                style={styles.friendProfileHeader}
+              >
+                <View style={styles.friendProfileAvatarOuter}>
+                  <View style={styles.friendProfileAvatarCircle}>
+                    <Text style={styles.friendProfileAvatarLetter}>{String(selectedFriend.display_name || selectedFriend.username || 'U').charAt(0).toUpperCase()}</Text>
+                  </View>
                 </View>
                 <Text style={styles.friendProfileDisplayName}>{String(selectedFriend.display_name || selectedFriend.username || 'Unknown')}</Text>
                 {selectedFriend.team && TEAMS[selectedFriend.team] ? (
                   <View style={styles.friendProfileTeamBadge}>
-                    <Ionicons name={TEAMS[selectedFriend.team].icon} size={14} color="#FFF" />
+                    <Ionicons name={TEAMS[selectedFriend.team].icon} size={14} color="#FFF" style={styles.friendProfileTeamBadgeIcon} />
                     <Text style={styles.friendProfileTeamText}>{String(TEAMS[selectedFriend.team].name)}</Text>
                   </View>
                 ) : null}
-              </View>
+              </LinearGradient>
               <View style={styles.friendProfileBody}>
-                <View style={styles.friendProfileScoreRow}>
-                  <View style={styles.friendProfileScoreItem}>
-                    <Text style={styles.friendProfileScoreValue}>{String(selectedFriend.score || 0)}</Text>
-                    <Text style={styles.friendProfileScoreLabel}>Points</Text>
+                <View style={styles.friendProfileStatsRow}>
+                  <View style={styles.friendProfileStatItem}>
+                    <View style={styles.friendProfileStatIcon}>
+                      <Ionicons name="star" size={18} color={COLORS.primary} />
+                    </View>
+                    <Text style={styles.friendProfileStatValue}>{Number(selectedFriend.score || 0).toLocaleString()}</Text>
+                    <Text style={styles.friendProfileStatLabel}>Points</Text>
+                  </View>
+                  <View style={styles.friendProfileStatDivider} />
+                  <View style={styles.friendProfileStatItem}>
+                    <View style={styles.friendProfileStatIcon}>
+                      <Ionicons name="trophy" size={18} color={COLORS.secondary} />
+                    </View>
+                    <Text style={styles.friendProfileStatValue}>{selectedFriend.score >= 5000 ? 'Pioneer' : selectedFriend.score >= 1500 ? 'Navigator' : selectedFriend.score >= 500 ? 'Cartographer' : 'Pathfinder'}</Text>
+                    <Text style={styles.friendProfileStatLabel}>Rank</Text>
                   </View>
                 </View>
                 {selectedFriend.bio && String(selectedFriend.bio).trim() !== '' ? (
-                  <View style={styles.friendProfileBioSection}>
-                    <Text style={styles.friendProfileBioTitle}>About</Text>
+                  <View style={styles.friendProfileSection}>
+                    <View style={styles.friendProfileSectionHeader}>
+                      <Ionicons name="person-circle-outline" size={16} color={COLORS.text.muted} style={styles.friendProfileSectionHeaderIcon} />
+                      <Text style={styles.friendProfileSectionTitle}>About</Text>
+                    </View>
                     <Text style={styles.friendProfileBioText}>{String(selectedFriend.bio)}</Text>
                   </View>
                 ) : null}
+                <View style={styles.friendProfileSection}>
+                  <View style={styles.friendProfileSectionHeader}>
+                    <Ionicons name="information-circle-outline" size={16} color={COLORS.text.muted} style={styles.friendProfileSectionHeaderIcon} />
+                    <Text style={styles.friendProfileSectionTitle}>Account</Text>
+                  </View>
+                  <View style={styles.friendProfileInfoGrid}>
+                    <View style={styles.friendProfileInfoItem}>
+                      <Text style={styles.friendProfileInfoLabel}>User ID</Text>
+                      <Text style={styles.friendProfileInfoValue}>{'EP-' + String(selectedFriend.id || '').slice(0, 8)}</Text>
+                    </View>
+                    {selectedFriend.created_at ? (
+                      <View style={styles.friendProfileInfoItem}>
+                        <Text style={styles.friendProfileInfoLabel}>Member Since</Text>
+                        <Text style={styles.friendProfileInfoValue}>{new Date(selectedFriend.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
                 {selectedFriend.linkedin_url && String(selectedFriend.linkedin_url).trim() !== '' ? (
-                  <TouchableOpacity style={styles.friendProfileLinkedIn} onPress={() => Linking.openURL(selectedFriend.linkedin_url)}>
-                    <Ionicons name="logo-linkedin" size={24} color="#FFF" />
-                    <Text style={styles.friendProfileLinkedInText}>View LinkedIn Profile</Text>
+                  <TouchableOpacity style={styles.friendProfileLinkedIn} onPress={() => Linking.openURL(selectedFriend.linkedin_url)} activeOpacity={0.8}>
+                    <Ionicons name="logo-linkedin" size={22} color="#FFF" style={styles.friendProfileLinkedInIcon} />
+                    <Text style={styles.friendProfileLinkedInText}>Connect on LinkedIn</Text>
+                    <Ionicons name="open-outline" size={16} color="rgba(255,255,255,0.7)" style={styles.linkedInOpenIcon} />
                   </TouchableOpacity>
-                ) : null}
+                ) : (
+                  <View style={styles.friendProfileNoLinkedIn}>
+                    <Ionicons name="logo-linkedin" size={18} color={COLORS.text.muted} style={styles.friendProfileNoLinkedInIcon} />
+                    <Text style={styles.friendProfileNoLinkedInText}>LinkedIn not connected</Text>
+                  </View>
+                )}
               </View>
-            </TouchableOpacity>
-          </TouchableOpacity>
+            </View>
+          )}
         </View>
-      ) : null}
+      </Modal>
     </View>
   );
 };
@@ -570,8 +665,128 @@ const styles = StyleSheet.create({
 
   // Friends List
   friendsList: {
-    gap: 8,
   },
+  friendsListHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  friendsListTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text.muted,
+    letterSpacing: 0.3,
+  },
+  friendCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    overflow: 'hidden',
+    marginBottom: 12,
+    ...SHADOWS.sm,
+  },
+  friendCardMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+  },
+  friendAvatarContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    padding: 2,
+    marginRight: 14,
+  },
+  friendAvatarGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendAvatarInitial: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  friendCardInfo: {
+    flex: 1,
+  },
+  friendNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  friendCardName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+    flex: 1,
+  },
+  linkedinIconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: 'rgba(10, 102, 194, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  friendMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 4,
+  },
+  friendTeamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  friendTeamBadgeIcon: {
+    marginRight: 4,
+  },
+  friendTeamText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  friendPointsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: COLORS.primaryLight,
+  },
+  friendPointsBadgeIcon: {
+    marginRight: 4,
+  },
+  friendPointsText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  friendBioPreview: {
+    fontSize: 13,
+    color: COLORS.text.muted,
+    marginTop: 2,
+  },
+  friendCardArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.glass.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  // Legacy styles kept for compatibility
   friendItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -595,10 +810,6 @@ const styles = StyleSheet.create({
   },
   friendInfo: {
     flex: 1,
-  },
-  friendNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   friendName: {
     fontSize: 14,
@@ -697,17 +908,49 @@ const styles = StyleSheet.create({
   // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
-    gap: 12,
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+  },
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
   },
   emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: COLORS.text.primary,
+    marginBottom: 8,
   },
   emptySubtext: {
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.text.muted,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+    ...SHADOWS.md,
+  },
+  emptyAddBtnIcon: {
+    marginRight: 8,
+  },
+  emptyAddBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFF',
   },
 
   // QR Modal
@@ -1066,78 +1309,234 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFF',
   },
-  friendProfileOverlayFixed: {
+  friendProfileOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  friendProfileBackdrop: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 1000,
-  },
-  friendProfileOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
   },
   friendProfileCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    borderRadius: 24,
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 380,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    ...SHADOWS.lg,
   },
   friendProfileCloseBtn: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 16,
+    right: 16,
     zIndex: 10,
-    padding: 4,
+  },
+  friendProfileCloseBtnCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   friendProfileHeader: {
-    paddingTop: 30,
-    paddingBottom: 20,
+    paddingTop: 36,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
     alignItems: 'center',
   },
+  friendProfileAvatarOuter: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 4,
+    marginBottom: 16,
+  },
   friendProfileAvatarCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: '100%',
+    height: '100%',
+    borderRadius: 42,
     backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
   friendProfileAvatarLetter: {
-    fontSize: 32,
-    fontWeight: '700',
+    fontSize: 36,
+    fontWeight: '800',
     color: '#FFF',
   },
   friendProfileDisplayName: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: '#FFF',
     textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   friendProfileTeamBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  friendProfileTeamBadgeIcon: {
+    marginRight: 6,
   },
   friendProfileTeamText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: '#FFF',
-    marginLeft: 6,
   },
   friendProfileBody: {
     padding: 20,
   },
+  friendProfileStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.glass.white,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginBottom: 16,
+  },
+  friendProfileStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  friendProfileStatIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.glass.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  friendProfileStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+    textAlign: 'center',
+  },
+  friendProfileStatLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: COLORS.text.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  friendProfileStatDivider: {
+    width: 1,
+    height: 48,
+    backgroundColor: COLORS.borderLight,
+    marginHorizontal: 16,
+  },
+  friendProfileSection: {
+    marginBottom: 16,
+  },
+  friendProfileSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  friendProfileSectionHeaderIcon: {
+    marginRight: 6,
+  },
+  friendProfileSectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.text.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  friendProfileBioText: {
+    fontSize: 15,
+    color: COLORS.text.secondary,
+    lineHeight: 22,
+  },
+  friendProfileInfoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+  },
+  friendProfileInfoItem: {
+    flex: 1,
+    minWidth: 120,
+    backgroundColor: COLORS.glass.white,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginHorizontal: 6,
+    marginBottom: 6,
+  },
+  friendProfileInfoLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: COLORS.text.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  friendProfileInfoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+  },
+  friendProfileLinkedIn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0A66C2',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    ...SHADOWS.sm,
+  },
+  friendProfileLinkedInIcon: {
+    marginRight: 12,
+  },
+  friendProfileLinkedInText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+    flex: 1,
+  },
+  linkedInOpenIcon: {
+    marginLeft: 8,
+  },
+  friendProfileNoLinkedIn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    opacity: 0.6,
+  },
+  friendProfileNoLinkedInIcon: {
+    marginRight: 8,
+  },
+  friendProfileNoLinkedInText: {
+    fontSize: 14,
+    color: COLORS.text.muted,
+  },
+  // Legacy styles kept for compatibility
   friendProfileScoreRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1146,11 +1545,6 @@ const styles = StyleSheet.create({
   friendProfileScoreItem: {
     alignItems: 'center',
     paddingHorizontal: 24,
-  },
-  friendProfileScoreValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text.primary,
   },
   friendProfileScoreLabel: {
     fontSize: 12,
@@ -1167,26 +1561,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  friendProfileBioText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    lineHeight: 20,
-  },
-  friendProfileLinkedIn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0A66C2',
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  friendProfileLinkedInText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFF',
-    marginLeft: 10,
   },
 });
 
