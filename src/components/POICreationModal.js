@@ -266,17 +266,19 @@ const POICreationModal = ({
                 numberOfLines={4}
               />
 
-              {/* Info Image URL */}
-              <Text style={styles.label}>Info Bild URL (optional)</Text>
+              {/* Info Image Filename */}
+              <Text style={styles.label}>Fullscreen Bild (optional)</Text>
               <TextInput
                 style={styles.input}
                 value={infoImageUrl}
                 onChangeText={setInfoImageUrl}
-                placeholder="https://..."
+                placeholder="beispiel.jpg"
                 placeholderTextColor={COLORS.text.muted}
                 autoCapitalize="none"
-                keyboardType="url"
               />
+              <Text style={styles.helperText}>
+                Dateiname aus /public/img/screens (z.B. "welcome.jpg")
+              </Text>
 
               <View style={{ height: 20 }} />
             </ScrollView>
@@ -438,6 +440,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.text.primary,
+  },
+  helperText: {
+    fontSize: 12,
+    color: COLORS.text.muted,
+    marginTop: 4,
+    marginBottom: 8,
+    fontStyle: 'italic',
   },
 });
 

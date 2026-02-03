@@ -44,7 +44,7 @@ const QuestMarker = ({ quest, status }) => {
   return (
     <View
       style={[
-        styles.questMarker,
+        styles.questMarkerOuter,
         {
           left: `${quest.positionX}%`,
           top: `${quest.positionY}%`,
@@ -52,34 +52,37 @@ const QuestMarker = ({ quest, status }) => {
       ]}
       pointerEvents="none"
     >
-      {/* Marker Icon */}
-      <View
-        style={[
-          styles.questIcon,
-          isCompleted ? styles.questCompleted : styles.questIncomplete,
-          { borderColor: isCompleted ? COLORS.success : iconColor },
-        ]}
-      >
-        <Ionicons
-          name={isCompleted ? 'checkmark' : (quest.icon || 'compass')}
-          size={18}
-          color={isCompleted ? COLORS.success : iconColor}
-        />
-      </View>
-
-      {/* Label */}
-      <View style={[styles.questLabel, isCompleted && styles.questLabelCompleted]}>
-        <Text
-          style={[styles.questLabelText, isCompleted && styles.questLabelTextCompleted]}
-          numberOfLines={1}
+      {/* Inner container centered on position */}
+      <View style={styles.questMarkerInner}>
+        {/* Marker Icon */}
+        <View
+          style={[
+            styles.questIcon,
+            isCompleted ? styles.questCompleted : styles.questIncomplete,
+            { borderColor: isCompleted ? COLORS.success : iconColor },
+          ]}
         >
-          {quest.title}
-        </Text>
-        {!isCompleted && (
-          <Text style={[styles.questXpText, { color: iconColor }]}>
-            +{quest.xp_reward || 100} XP
+          <Ionicons
+            name={isCompleted ? 'checkmark' : (quest.icon || 'compass')}
+            size={12}
+            color={isCompleted ? COLORS.success : iconColor}
+          />
+        </View>
+
+        {/* Label - positioned below the marker */}
+        <View style={[styles.questLabel, isCompleted && styles.questLabelCompleted]}>
+          <Text
+            style={[styles.questLabelText, isCompleted && styles.questLabelTextCompleted]}
+            numberOfLines={1}
+          >
+            {quest.title}
           </Text>
-        )}
+          {!isCompleted && (
+            <Text style={[styles.questXpText, { color: iconColor }]}>
+              +{quest.xp_reward || 100} XP
+            </Text>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -131,7 +134,7 @@ const POIMarker = ({ poi, isScanned, onPress, isAdmin, onAdminPress }) => {
   return (
     <TouchableOpacity
       style={[
-        styles.poiMarker,
+        styles.poiMarkerOuter,
         {
           left: `${poi.positionX}%`,
           top: `${poi.positionY}%`,
@@ -140,47 +143,50 @@ const POIMarker = ({ poi, isScanned, onPress, isAdmin, onAdminPress }) => {
       onPress={() => (isAdmin && onAdminPress ? onAdminPress(poi) : onPress(poi))}
       activeOpacity={0.8}
     >
-      {/* Glow effect for unscanned */}
-      {!isScanned && (
+      {/* Inner container centered on position */}
+      <View style={styles.poiMarkerInner}>
+        {/* Glow effect for unscanned */}
+        {!isScanned && (
+          <Animated.View
+            style={[
+              styles.markerGlow,
+              {
+                backgroundColor: iconColor,
+                opacity: glowAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.2, 0.5],
+                }),
+                transform: [{ scale: pulseAnim }],
+              },
+            ]}
+          />
+        )}
+
+        {/* Marker Icon */}
         <Animated.View
           style={[
-            styles.markerGlow,
-            {
-              backgroundColor: iconColor,
-              opacity: glowAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.2, 0.5],
-              }),
-              transform: [{ scale: pulseAnim }],
-            },
+            styles.markerIcon,
+            isScanned ? styles.markerScanned : styles.markerUnscanned,
+            { borderColor: iconColor },
+            !isScanned && { transform: [{ scale: pulseAnim }] },
           ]}
-        />
-      )}
-
-      {/* Marker Icon */}
-      <Animated.View
-        style={[
-          styles.markerIcon,
-          isScanned ? styles.markerScanned : styles.markerUnscanned,
-          { borderColor: iconColor },
-          !isScanned && { transform: [{ scale: pulseAnim }] },
-        ]}
-      >
-        <Ionicons
-          name={isScanned ? 'checkmark' : (poi.icon || 'location')}
-          size={20}
-          color={isScanned ? COLORS.success : iconColor}
-        />
-      </Animated.View>
-
-      {/* Label */}
-      <View style={[styles.markerLabel, isScanned && styles.markerLabelScanned]}>
-        <Text
-          style={[styles.markerLabelText, isScanned && styles.markerLabelTextScanned]}
-          numberOfLines={1}
         >
-          {poi.name}
-        </Text>
+          <Ionicons
+            name={isScanned ? 'checkmark' : (poi.icon || 'location')}
+            size={14}
+            color={isScanned ? COLORS.success : iconColor}
+          />
+        </Animated.View>
+
+        {/* Label - positioned below the marker */}
+        <View style={[styles.markerLabel, isScanned && styles.markerLabelScanned]}>
+          <Text
+            style={[styles.markerLabelText, isScanned && styles.markerLabelTextScanned]}
+            numberOfLines={1}
+          >
+            {poi.name}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -561,25 +567,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  // POI Marker
-  poiMarker: {
+  // POI Marker - outer container at exact position
+  poiMarkerOuter: {
     position: 'absolute',
+  },
+  // Inner container - centered on position, contains icon + label
+  poiMarkerInner: {
     alignItems: 'center',
-    transform: [{ translateX: -24 }, { translateY: -32 }],
+    // Center the inner container on the position (shift left by half width, up by half icon height)
+    transform: [{ translateX: -50 }, { translateY: -14 }],
+    width: 100,
   },
   markerGlow: {
     position: 'absolute',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    top: -4,
+    left: 32, // (100 - 36) / 2 = 32 to center in 100px container
   },
   markerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     ...SHADOWS.md,
   },
   markerUnscanned: {
@@ -591,11 +604,11 @@ const styles = StyleSheet.create({
   },
   markerLabel: {
     marginTop: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     backgroundColor: COLORS.surface,
     borderRadius: RADII.sm,
-    maxWidth: 120,
+    maxWidth: 100,
     ...SHADOWS.sm,
   },
   markerLabelScanned: {
@@ -604,7 +617,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(46,204,113,0.3)',
   },
   markerLabelText: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '600',
     color: COLORS.text.primary,
     textAlign: 'center',
@@ -613,26 +626,33 @@ const styles = StyleSheet.create({
     color: COLORS.success,
   },
 
-  // Quest Marker
-  questMarker: {
+  // Quest Marker - outer container at exact position
+  questMarkerOuter: {
     position: 'absolute',
-    alignItems: 'center',
-    transform: [{ translateX: -24 }, { translateY: -36 }],
     zIndex: 10,
+  },
+  // Inner container - centered on position, contains icon + label
+  questMarkerInner: {
+    alignItems: 'center',
+    // Center the inner container on the position (shift left by half width, up by half icon height)
+    transform: [{ translateX: -40 }, { translateY: -12 }],
+    width: 80,
   },
   questGlow: {
     position: 'absolute',
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-  },
-  questIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
+    top: -6,
+    left: 22, // (80 - 36) / 2 = 22 to center in 80px container
+  },
+  questIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     ...SHADOWS.md,
   },
   questIncomplete: {
@@ -644,11 +664,11 @@ const styles = StyleSheet.create({
   },
   questLabel: {
     marginTop: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     backgroundColor: COLORS.surface,
     borderRadius: RADII.sm,
-    maxWidth: 100,
+    maxWidth: 80,
     alignItems: 'center',
     ...SHADOWS.sm,
   },
@@ -658,7 +678,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(46,204,113,0.3)',
   },
   questLabelText: {
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: '700',
     color: COLORS.text.primary,
     textAlign: 'center',
@@ -667,9 +687,9 @@ const styles = StyleSheet.create({
     color: COLORS.success,
   },
   questXpText: {
-    fontSize: 9,
+    fontSize: 7,
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 1,
   },
 
   // Adding mode

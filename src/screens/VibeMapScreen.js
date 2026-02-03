@@ -781,6 +781,46 @@ const MapScreen = () => {
         return;
       }
       
+      // Handle Presentation Quest (POI) scan
+      if (result.type === 'presentation_quest') {
+        if (result.success) {
+          // POI completed successfully!
+          const successMsg = result.message || `Point of Interest "${result.quest?.title}" entdeckt!`;
+          if (Platform.OS === 'web') {
+            window.alert(successMsg);
+          } else {
+            Alert.alert('Entdeckt!', successMsg);
+          }
+          
+          // Refresh presentation quests to update the map
+          if (isPresentationMode) {
+            const refreshedQuests = await fetchPresentationQuests();
+            if (refreshedQuests.success) {
+              setPresentationQuests(refreshedQuests.quests || []);
+              
+              // Update completed IDs
+              const poiIds = refreshedQuests.quests?.map(q => q.id) || [];
+              if (poiIds.length > 0) {
+                const progressResult = await fetchUserPresentationQuestProgress(userId, poiIds);
+                if (progressResult.success && progressResult.completed) {
+                  setCompletedQuestIds(Array.from(progressResult.completed));
+                }
+              }
+            }
+          }
+        } else {
+          // Already scanned or error
+          const errorMsg = result.error || 'Fehler beim Scannen';
+          if (Platform.OS === 'web') {
+            window.alert(errorMsg);
+          } else {
+            Alert.alert('Hinweis', errorMsg);
+          }
+        }
+        setScanningQuest(null);
+        return;
+      }
+      
       // Handle Quest scan (only if we were scanning a quest)
       if (result.success && result.type === 'quest' && scanningQuest) {
         // Quest completed successfully!
@@ -811,6 +851,14 @@ const MapScreen = () => {
         
         // Close quest detail sheet
         closeQuestDetail();
+      } else if (result.success && result.type === 'quest' && !scanningQuest) {
+        // Quest scanned directly without selecting it first
+        const successMsg = result.message || `Quest "${result.quest?.title}" abgeschlossen!`;
+        if (Platform.OS === 'web') {
+          window.alert(successMsg);
+        } else {
+          Alert.alert('Quest abgeschlossen!', successMsg);
+        }
       } else if (!result.success) {
         // Wrong code or error
         const errorMsg = result.error || 'Wrong QR code. Please try again.';

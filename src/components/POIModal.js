@@ -25,6 +25,17 @@ import { COLORS, RADII, SHADOWS } from '../theme';
 
 const { width, height } = Dimensions.get('window');
 
+// Helper to construct image URL from filename
+const getImageUrl = (filename) => {
+  if (!filename) return null;
+  // If it's already a full URL, use it as-is
+  if (filename.startsWith('http://') || filename.startsWith('https://')) {
+    return filename;
+  }
+  // Otherwise, construct path to /public/img/screens/
+  return `/img/screens/${filename}`;
+};
+
 const POIModal = ({
   visible,
   poi, // { name, videoUrl, infoTitle, infoText, infoImageUrl }
@@ -32,19 +43,28 @@ const POIModal = ({
   onClose, // Called if user skips/closes early
 }) => {
   const insets = useSafeAreaInsets();
-  const [phase, setPhase] = useState('video'); // 'video' | 'info'
+  const [phase, setPhase] = useState('video'); // 'video' | 'image' | 'info'
   const [videoLoading, setVideoLoading] = useState(true);
   const [videoError, setVideoError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
   const videoRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
+  // Determine the starting phase based on what content is available
+  const getInitialPhase = () => {
+    if (poi?.videoUrl) return 'video';
+    if (poi?.infoImageUrl) return 'image';
+    return 'info';
+  };
+
   useEffect(() => {
     if (visible) {
       // Reset state
-      setPhase(poi?.videoUrl ? 'video' : 'info');
+      setPhase(getInitialPhase());
       setVideoLoading(true);
       setVideoError(false);
+      setImageLoading(true);
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.8);
 
@@ -66,7 +86,7 @@ const POIModal = ({
   }, [visible, poi]);
 
   const handleVideoEnd = () => {
-    // Video finished, transition to info phase
+    // Video finished, transition to image phase (if image exists) or info phase
     Animated.sequence([
       Animated.timing(fadeAnim, {
         toValue: 0,
@@ -74,7 +94,8 @@ const POIModal = ({
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setPhase('info');
+      const nextPhase = poi?.infoImageUrl ? 'image' : 'info';
+      setPhase(nextPhase);
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 300,
@@ -88,6 +109,29 @@ const POIModal = ({
       videoRef.current.stopAsync();
     }
     handleVideoEnd();
+  };
+
+  const handleImageClose = () => {
+    // Image closed, transition to info phase (or complete if no info text)
+    Animated.sequence([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // If there's info text, show it; otherwise complete
+      if (poi?.infoText || poi?.infoTitle) {
+        setPhase('info');
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      } else {
+        if (onComplete) onComplete();
+      }
+    });
   };
 
   const handleComplete = () => {
@@ -188,6 +232,43 @@ const POIModal = ({
                 <Ionicons name="arrow-forward" size={18} color={COLORS.text.secondary} />
               </TouchableOpacity>
             </View>
+          ) : phase === 'image' && poi.infoImageUrl ? (
+            // FULLSCREEN IMAGE PHASE
+            <View style={styles.fullscreenImageContainer}>
+              {/* Close Button for Image */}
+              <TouchableOpacity 
+                style={styles.imageCloseButton} 
+                onPress={handleImageClose}
+              >
+                <View style={styles.imageCloseButtonInner}>
+                  <Ionicons name="close" size={28} color="#FFF" />
+                </View>
+              </TouchableOpacity>
+
+              {/* Fullscreen Image */}
+              {imageLoading && (
+                <View style={styles.imageLoadingContainer}>
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                </View>
+              )}
+              <Image
+                source={{ uri: getImageUrl(poi.infoImageUrl) }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+                onLoad={() => setImageLoading(false)}
+                onError={() => {
+                  setImageLoading(false);
+                  // If image fails to load, skip to info phase
+                  handleImageClose();
+                }}
+              />
+
+              {/* Tap hint */}
+              <View style={styles.imageTapHint}>
+                <Ionicons name="close-circle-outline" size={20} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.imageTapHintText}>Tippe zum Schließen</Text>
+              </View>
+            </View>
           ) : (
             // INFO PHASE
             <View style={styles.infoContainer}>
@@ -212,14 +293,6 @@ const POIModal = ({
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.infoScrollContent}
               >
-                {poi.infoImageUrl && (
-                  <Image
-                    source={{ uri: poi.infoImageUrl }}
-                    style={styles.infoImage}
-                    resizeMode="cover"
-                  />
-                )}
-
                 <Text style={styles.infoText}>
                   {poi.infoText || 'Station erfolgreich besucht!'}
                 </Text>
@@ -395,6 +468,57 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text.primary,
+  },
+
+  // Fullscreen Image Phase
+  fullscreenImageContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
+    marginHorizontal: -24, // Expand to full width
+    marginTop: -20,
+    marginBottom: -20,
+  },
+  imageCloseButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 100,
+  },
+  imageCloseButtonInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  fullscreenImage: {
+    width: width,
+    height: height,
+  },
+  imageLoadingContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageTapHint: {
+    position: 'absolute',
+    bottom: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+  },
+  imageTapHintText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
   },
 });
 
