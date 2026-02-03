@@ -51,6 +51,7 @@ const UserScreen = () => {
     updateProfile, 
     uniqueCards,
     eventChallenges,
+    userEventChallenges,
     collectedCardIds 
   } = useGame();
   const [showQR, setShowQR] = useState(false);
@@ -373,7 +374,7 @@ const UserScreen = () => {
           <CardCollection 
             compact={true}
             challenges={eventChallenges}
-            collectedCardIds={collectedCardIds}
+            userEventChallenges={userEventChallenges}
           />
         </GlassCard>
 

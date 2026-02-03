@@ -345,7 +345,7 @@ const CardDetailModal = ({ card, visible, onClose, isCollected }) => {
 // HAUPTKOMPONENTE
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [] }) => {
+const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [], userEventChallenges = [] }) => {
   const [selectedCard, setSelectedCard] = useState(null);
   const [activeTab, setActiveTab] = useState('cards'); // 'cards', 'sets', 'countries'
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
@@ -361,13 +361,14 @@ const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [
   
   // Use challenges to create card objects if provided, otherwise use COLLECTIBLE_CARDS
   const allCards = useMemo(() => {
-    // If challenges is provided, use them to create cards
+    // If challenges is provided, filter to only those with cardId
+    // Each challenge is its own card (no deduplication - same image can be used for different challenges)
     if (challenges && challenges.length > 0) {
-      // console.log('CardCollection: Creating cards from', challenges.length, 'challenges');
+      // Filter to only challenges that have a reward with cardId
+      const challengesWithCards = challenges.filter(c => c.reward?.cardId);
       
-      // Create card objects from challenges
-      return challenges.map(challenge => {
-        const cardId = challenge.reward?.cardId || challenge.id;
+      return challengesWithCards.map(challenge => {
+        const cardId = challenge.reward.cardId;
         const imagePath = challenge.reward?.imagePath;
         const existingCard = COLLECTIBLE_CARDS[cardId];
         
@@ -379,12 +380,10 @@ const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [
           imageUrl = existingCard.image;
         }
         
-        // console.log(`Card ${challenge.id}: cardId=${cardId}, imagePath=${imagePath}, url=${imageUrl}`);
-        
         return {
-          id: challenge.id,
-          cardId: cardId,
-          name: challenge.title,
+          id: challenge.id, // Use challenge id as unique identifier
+          cardId: cardId, // Keep cardId for reference to COLLECTIBLE_CARDS data
+          name: challenge.title, // Use challenge title as card name
           image: imageUrl,
           category: challenge.type,
           country: challenge.country?.name,
@@ -396,9 +395,30 @@ const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [
     }
     
     // Fallback to hardcoded COLLECTIBLE_CARDS
-    // console.log('CardCollection: No challenges provided, using COLLECTIBLE_CARDS');
     return Object.values(COLLECTIBLE_CARDS);
   }, [challenges]);
+  
+  // Get set of claimed challenge IDs for checking if a card (challenge) is collected
+  const claimedChallengeIds = useMemo(() => {
+    if (userEventChallenges && userEventChallenges.length > 0) {
+      return new Set(
+        userEventChallenges
+          .filter(uc => uc.status === 'claimed')
+          .map(uc => uc.challenge_id)
+      );
+    }
+    return new Set();
+  }, [userEventChallenges]);
+  
+  // Helper to check if a card (challenge) is collected
+  const isCardCollected = (card) => {
+    // If we have userEventChallenges, check if this challenge was claimed
+    if (userEventChallenges && userEventChallenges.length > 0) {
+      return claimedChallengeIds.has(card.id);
+    }
+    // Fallback to collectedCardIds for backwards compatibility
+    return collectedCardIds.includes(card.cardId || card.id);
+  };
   
   // Berechnete Werte
   const bonuses = useMemo(() => 
@@ -406,11 +426,23 @@ const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [
     [collectedCardIds]
   );
   
-  const collectionStats = useMemo(() => ({
-    collected: collectedCardIds.length,
-    total: allCards.length,
-    percentage: (collectedCardIds.length / allCards.length) * 100,
-  }), [collectedCardIds, allCards]);
+  const collectionStats = useMemo(() => {
+    // Count how many of our allCards are collected
+    const collectedCount = allCards.filter(card => {
+      // If we have userEventChallenges, check if this challenge was claimed
+      if (claimedChallengeIds.size > 0) {
+        return claimedChallengeIds.has(card.id);
+      }
+      // Fallback to collectedCardIds for backwards compatibility
+      return collectedCardIds.includes(card.cardId || card.id);
+    }).length;
+    
+    return {
+      collected: collectedCount,
+      total: allCards.length,
+      percentage: allCards.length > 0 ? (collectedCount / allCards.length) * 100 : 0,
+    };
+  }, [allCards, claimedChallengeIds, collectedCardIds]);
 
   // Set-Fortschritte
   const setProgresses = useMemo(() => {
@@ -459,22 +491,15 @@ const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [
           </View>
         ) : (
           <View style={styles.compactCardsGrid}>
-            {allCards.map(card => {
-              // Check if this card is collected using the cardId from the reward
-              const isCollected = collectedCardIds.includes(card.cardId);
-              
-              // console.log(`Rendering card ${card.id}: cardId=${card.cardId}, isCollected=${isCollected}`);
-              
-              return (
-                <CollectibleCard
-                  key={card.id}
-                  card={card}
-                  isCollected={isCollected}
-                  onPress={setSelectedCard}
-                  cardWidth={cardWidth}
-                />
-              );
-            })}
+            {allCards.map(card => (
+              <CollectibleCard
+                key={card.id}
+                card={card}
+                isCollected={isCardCollected(card)}
+                onPress={setSelectedCard}
+                cardWidth={cardWidth}
+              />
+            ))}
           </View>
         )}
         
@@ -482,7 +507,7 @@ const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [
           card={selectedCard}
           visible={!!selectedCard}
           onClose={() => setSelectedCard(null)}
-          isCollected={selectedCard ? collectedCardIds.includes(selectedCard.cardId || selectedCard.id) : false}
+          isCollected={selectedCard ? isCardCollected(selectedCard) : false}
         />
       </View>
     );
@@ -583,7 +608,7 @@ const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [
             <CollectibleCard
               key={card.id}
               card={card}
-              isCollected={collectedCardIds.includes(card.id)}
+              isCollected={isCardCollected(card)}
               onPress={setSelectedCard}
               cardWidth={cardWidth}
             />
@@ -628,7 +653,7 @@ const CardCollection = ({ collectedCardIds = [], compact = false, challenges = [
         card={selectedCard}
         visible={!!selectedCard}
         onClose={() => setSelectedCard(null)}
-        isCollected={selectedCard ? collectedCardIds.includes(selectedCard.id) : false}
+        isCollected={selectedCard ? isCardCollected(selectedCard) : false}
       />
     </View>
   );

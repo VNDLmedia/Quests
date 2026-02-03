@@ -50,8 +50,11 @@ const QuestLogScreen = ({ navigation }) => {
     player,
     user,
     fetchEventChallenges,
+    fetchUserEventChallenges,
     fetchQuestlineProgress,
     startQuestlineChallenge,
+    adminCompleteChallenge,
+    adminUncompleteChallenge,
   } = useGame();
 
   const {
@@ -201,6 +204,92 @@ const QuestLogScreen = ({ navigation }) => {
     // Close expanded view
     setExpandedChallenge(null);
     setQuestlineDetails(null);
+  };
+
+  // Admin: Complete challenge for current user
+  const handleAdminComplete = async (challenge) => {
+    if (!player?.admin || !user?.id) return;
+    
+    const result = await adminCompleteChallenge(user.id, challenge.id);
+    
+    if (result.error) {
+      if (Platform.OS === 'web') {
+        window.alert('Could not complete challenge. Please try again.');
+      } else {
+        Alert.alert('Error', 'Could not complete challenge. Please try again.');
+      }
+      return;
+    }
+    
+    const successMessage = `Challenge "${challenge.title}" marked as completed.\nXP awarded: ${challenge.xp_reward || challenge.xpReward || 0}`;
+    if (Platform.OS === 'web') {
+      window.alert(successMessage);
+    } else {
+      Alert.alert('Admin Action', successMessage, [{ text: 'OK' }]);
+    }
+    
+    // Refresh challenges and user progress
+    await fetchEventChallenges();
+    await fetchUserEventChallenges();
+    setExpandedChallenge(null);
+  };
+
+  // Admin: Uncomplete challenge for current user
+  const handleAdminUncomplete = async (challenge) => {
+    if (!player?.admin || !user?.id) return;
+    
+    const confirmMessage = `Are you sure you want to uncomplete "${challenge.title}"?\n\nThis will:\n- Remove the completion status\n- Deduct ${challenge.xp_reward || challenge.xpReward || 0} XP\n- Remove the card from collection`;
+    
+    // Use window.confirm on web, Alert on native
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(confirmMessage);
+      if (!confirmed) return;
+      
+      console.log('[Admin Uncomplete] Starting for challenge:', challenge.id, 'user:', user.id);
+      const result = await adminUncompleteChallenge(user.id, challenge.id);
+      console.log('[Admin Uncomplete] Result:', result);
+      
+      if (result.error) {
+        console.error('[Admin Uncomplete] Error:', result.error);
+        window.alert(`Could not uncomplete challenge: ${JSON.stringify(result.error)}`);
+        return;
+      }
+      
+      window.alert(`Challenge "${challenge.title}" has been reset.`);
+      
+      // Refresh challenges and user progress
+      console.log('[Admin Uncomplete] Refreshing challenges...');
+      await fetchEventChallenges();
+      await fetchUserEventChallenges();
+      setExpandedChallenge(null);
+    } else {
+      Alert.alert(
+        'Confirm',
+        confirmMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Uncomplete', 
+            style: 'destructive',
+            onPress: async () => {
+              const result = await adminUncompleteChallenge(user.id, challenge.id);
+              
+              if (result.error) {
+                Alert.alert('Error', 'Could not uncomplete challenge. Please try again.');
+                return;
+              }
+              
+              Alert.alert('Admin Action', `Challenge "${challenge.title}" has been reset.`);
+              
+              // Refresh challenges and user progress
+              await fetchEventChallenges();
+              await fetchUserEventChallenges();
+              setExpandedChallenge(null);
+            }
+          }
+        ]
+      );
+    }
   };
 
   // Handle challenge creation success
@@ -547,6 +636,9 @@ const QuestLogScreen = ({ navigation }) => {
                       onPress={() => handleExpandChallenge(nearComplete)}
                       onClaim={() => handleClaimChallenge(nearComplete)}
                       isClaimed={nearComplete.isClaimed}
+                      isAdmin={player?.admin}
+                      onAdminComplete={() => handleAdminComplete(nearComplete)}
+                      onAdminUncomplete={() => handleAdminUncomplete(nearComplete)}
                     />
                   </View>
                 );
@@ -556,7 +648,6 @@ const QuestLogScreen = ({ navigation }) => {
 
             {/* Alle Challenges (excluding questlines) */}
             <View style={styles.allChallengesSection}>
-              <Text style={styles.allChallengesTitle}>Progress Challenges</Text>
               
               {/* Abholbare Challenges (completed, not claimed) */}
               {eventChallenges.filter(c => c.isCompleted && !c.isClaimed && c.challenge_mode !== 'questline').length > 0 && (
@@ -577,6 +668,9 @@ const QuestLogScreen = ({ navigation }) => {
                         onPress={() => handleExpandChallenge(challenge)}
                         onClaim={() => handleClaimChallenge(challenge)}
                         isClaimed={false}
+                        isAdmin={player?.admin}
+                        onAdminComplete={() => handleAdminComplete(challenge)}
+                        onAdminUncomplete={() => handleAdminUncomplete(challenge)}
                       />
                     ))
                   }
@@ -600,6 +694,9 @@ const QuestLogScreen = ({ navigation }) => {
                       onClaim={() => handleClaimChallenge(challenge)}
                       isClaimed={challenge.isClaimed}
                       style={{ marginBottom: 12 }}
+                      isAdmin={player?.admin}
+                      onAdminComplete={() => handleAdminComplete(challenge)}
+                      onAdminUncomplete={() => handleAdminUncomplete(challenge)}
                     />
                   ))
                 }
@@ -623,6 +720,9 @@ const QuestLogScreen = ({ navigation }) => {
                         currentProgress={challenge.currentProgress}
                         compact
                         isClaimed={true}
+                        isAdmin={player?.admin}
+                        onAdminComplete={() => handleAdminComplete(challenge)}
+                        onAdminUncomplete={() => handleAdminUncomplete(challenge)}
                       />
                     ))
                   }

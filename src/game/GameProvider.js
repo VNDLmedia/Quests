@@ -132,6 +132,8 @@ const ACTIONS = {
   UPDATE_USER_EVENT_CHALLENGE: 'UPDATE_USER_EVENT_CHALLENGE',
   SET_COLLECTED_CARDS: 'SET_COLLECTED_CARDS',
   ADD_COLLECTED_CARD: 'ADD_COLLECTED_CARD',
+  REMOVE_COLLECTED_CARD: 'REMOVE_COLLECTED_CARD',
+  REMOVE_USER_EVENT_CHALLENGE: 'REMOVE_USER_EVENT_CHALLENGE',
   
   // Questline challenges
   SET_QUESTLINE_PROGRESS: 'SET_QUESTLINE_PROGRESS',
@@ -365,6 +367,20 @@ function gameReducer(state, action) {
       return {
         ...state,
         collectedCardIds: [...new Set([...state.collectedCardIds, action.payload])],
+      };
+    
+    case ACTIONS.REMOVE_COLLECTED_CARD:
+      return {
+        ...state,
+        collectedCardIds: state.collectedCardIds.filter(id => id !== action.payload),
+      };
+    
+    case ACTIONS.REMOVE_USER_EVENT_CHALLENGE:
+      return {
+        ...state,
+        userEventChallenges: state.userEventChallenges.filter(
+          uc => !(uc.challenge_id === action.payload.challengeId && uc.user_id === action.payload.userId)
+        ),
       };
     
     // ─────────────────────────────────────────────────────────────────────────
@@ -732,16 +748,20 @@ export function GameProvider({ children }) {
   // ─────────────────────────────────────────────────────────────────────────
   
   // Add score points
-  const addScore = useCallback((amount, reason = '') => {
-    const newScore = state.player.score + amount;
+  const addScore = useCallback(async (amount, reason = '') => {
+    const newScore = (state.player.score || 0) + amount;
     dispatch({ type: ACTIONS.UPDATE_PLAYER, payload: { score: newScore } });
     
     // Sync to Supabase if online
     if (isSupabaseConfigured() && state.user) {
-      supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ score: newScore })
         .eq('id', state.user.id);
+      
+      if (error) {
+        console.error('[addScore] Failed to sync score to database:', error);
+      }
     }
     
     return amount;
@@ -994,6 +1014,255 @@ export function GameProvider({ children }) {
       return null;
     }
   }, [state.user, completeQuestlineQuestAction]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ADMIN: COMPLETE CHALLENGE FOR ANY USER
+  // ─────────────────────────────────────────────────────────────────────────
+  const adminCompleteChallenge = useCallback(async (targetUserId, challengeId) => {
+    if (!isSupabaseConfigured() || !state.player?.admin) {
+      return { error: 'Not authorized' };
+    }
+    
+    try {
+      // Find the challenge
+      const challenge = state.eventChallenges.find(c => c.id === challengeId);
+      if (!challenge) {
+        return { error: 'Challenge not found' };
+      }
+      
+      const now = new Date().toISOString();
+      // Check all possible XP field names (database uses xp_reward, config uses scoreReward/xpReward)
+      const xpReward = challenge.xp_reward || challenge.scoreReward || challenge.xpReward || 0;
+      
+      // Check if record already exists
+      const { data: existing } = await supabase
+        .from('user_event_challenges')
+        .select('*')
+        .eq('user_id', targetUserId)
+        .eq('challenge_id', challengeId)
+        .single();
+      
+      if (existing && existing.status === 'claimed') {
+        return { error: 'Already claimed' };
+      }
+      
+      if (existing) {
+        // Update existing record to claimed
+        const { error } = await supabase
+          .from('user_event_challenges')
+          .update({
+            status: 'claimed',
+            claimed_at: now,
+            completed_at: existing.completed_at || now,
+          })
+          .eq('id', existing.id);
+        
+        if (error) {
+          console.error('Error admin completing challenge:', error);
+          return { error };
+        }
+      } else {
+        // Insert new record as claimed
+        const { error } = await supabase
+          .from('user_event_challenges')
+          .insert({
+            user_id: targetUserId,
+            challenge_id: challengeId,
+            status: 'claimed',
+            completed_at: now,
+            claimed_at: now,
+          });
+        
+        if (error) {
+          console.error('Error admin completing challenge:', error);
+          return { error };
+        }
+      }
+      
+      // Award XP to the target user (update their profile score directly)
+      if (xpReward > 0) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('score')
+          .eq('id', targetUserId)
+          .single();
+        
+        const newScore = (profile?.score || 0) + xpReward;
+        
+        await supabase
+          .from('profiles')
+          .update({ score: newScore })
+          .eq('id', targetUserId);
+      }
+      
+      // If this is for the current user, update local state
+      if (targetUserId === state.user?.id) {
+        // Refresh user event challenges
+        await fetchUserEventChallenges();
+        
+        // Add card to collection if challenge has a card reward
+        if (challenge?.reward?.cardId) {
+          dispatch({ 
+            type: ACTIONS.ADD_COLLECTED_CARD, 
+            payload: challenge.reward.cardId 
+          });
+        }
+        
+        // Update local score
+        if (xpReward > 0) {
+          dispatch({
+            type: ACTIONS.SET_PLAYER,
+            payload: { ...state.player, score: (state.player.score || 0) + xpReward }
+          });
+        }
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to admin complete challenge:', error);
+      return { error };
+    }
+  }, [state.player, state.user, state.eventChallenges, fetchUserEventChallenges]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ADMIN: UNCOMPLETE CHALLENGE FOR ANY USER
+  // ─────────────────────────────────────────────────────────────────────────
+  const adminUncompleteChallenge = useCallback(async (targetUserId, challengeId) => {
+    console.log('[adminUncompleteChallenge] Called with:', { targetUserId, challengeId });
+    console.log('[adminUncompleteChallenge] Admin status:', state.player?.admin);
+    console.log('[adminUncompleteChallenge] Supabase configured:', isSupabaseConfigured());
+    
+    if (!isSupabaseConfigured() || !state.player?.admin) {
+      console.log('[adminUncompleteChallenge] Not authorized');
+      return { error: 'Not authorized' };
+    }
+    
+    try {
+      // Find the challenge
+      console.log('[adminUncompleteChallenge] Looking for challenge in:', state.eventChallenges.length, 'challenges');
+      const challenge = state.eventChallenges.find(c => c.id === challengeId);
+      console.log('[adminUncompleteChallenge] Found challenge:', challenge ? challenge.title : 'NOT FOUND');
+      if (!challenge) {
+        return { error: 'Challenge not found' };
+      }
+      
+      // Check all possible XP field names (database uses xp_reward, config uses scoreReward/xpReward)
+      const xpReward = challenge.xp_reward || challenge.scoreReward || challenge.xpReward || 0;
+      console.log('[adminUncompleteChallenge] XP to deduct:', xpReward, '(from xp_reward:', challenge.xp_reward, 'scoreReward:', challenge.scoreReward, 'xpReward:', challenge.xpReward, ')');
+      
+      // Check if record exists
+      console.log('[adminUncompleteChallenge] Checking for existing record...');
+      const { data: existing, error: fetchError } = await supabase
+        .from('user_event_challenges')
+        .select('*')
+        .eq('user_id', targetUserId)
+        .eq('challenge_id', challengeId)
+        .single();
+      
+      console.log('[adminUncompleteChallenge] Existing record:', existing, 'Error:', fetchError);
+      
+      if (!existing) {
+        return { error: 'No record to uncomplete' };
+      }
+      
+      // Delete the user_event_challenges record
+      console.log('[adminUncompleteChallenge] Deleting record with id:', existing.id);
+      const { data: deleteData, error: deleteError, count } = await supabase
+        .from('user_event_challenges')
+        .delete()
+        .eq('user_id', targetUserId)
+        .eq('challenge_id', challengeId)
+        .select();
+      
+      console.log('[adminUncompleteChallenge] Delete result - data:', deleteData, 'error:', deleteError, 'count:', count);
+      
+      // Verify deletion by checking if record still exists
+      const { data: verifyData } = await supabase
+        .from('user_event_challenges')
+        .select('*')
+        .eq('user_id', targetUserId)
+        .eq('challenge_id', challengeId)
+        .single();
+      
+      console.log('[adminUncompleteChallenge] Verification - record still exists:', verifyData ? 'YES' : 'NO', verifyData);
+      
+      if (deleteError) {
+        console.error('Error admin uncompleting challenge:', deleteError);
+        return { error: deleteError };
+      }
+      
+      if (verifyData) {
+        console.error('[adminUncompleteChallenge] DELETE FAILED - record still exists!');
+        return { error: 'Delete appeared to succeed but record still exists. Check RLS policies.' };
+      }
+      
+      // If this was claimed, also delete questline progress if applicable
+      if (challenge.challenge_mode === 'questline') {
+        await supabase
+          .from('user_challenge_quest_progress')
+          .delete()
+          .eq('user_id', targetUserId)
+          .eq('challenge_id', challengeId);
+      }
+      
+      // Remove XP from the target user (update their profile score directly)
+      if (xpReward > 0 && existing.status === 'claimed') {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('score')
+          .eq('id', targetUserId)
+          .single();
+        
+        const newScore = Math.max(0, (profile?.score || 0) - xpReward);
+        console.log('[adminUncompleteChallenge] Updating score from', profile?.score, 'to', newScore);
+        
+        const { error: scoreError } = await supabase
+          .from('profiles')
+          .update({ score: newScore })
+          .eq('id', targetUserId);
+        
+        if (scoreError) {
+          console.error('[adminUncompleteChallenge] Failed to update score:', scoreError);
+        }
+      }
+      
+      // If this is for the current user, update local state
+      if (targetUserId === state.user?.id) {
+        // Remove from local state
+        dispatch({
+          type: ACTIONS.REMOVE_USER_EVENT_CHALLENGE,
+          payload: { userId: targetUserId, challengeId }
+        });
+        
+        // Remove card from collection if challenge has a card reward and was claimed
+        if (challenge?.reward?.cardId && existing.status === 'claimed') {
+          dispatch({ 
+            type: ACTIONS.REMOVE_COLLECTED_CARD, 
+            payload: challenge.reward.cardId 
+          });
+        }
+        
+        // Update local score
+        if (xpReward > 0 && existing.status === 'claimed') {
+          dispatch({
+            type: ACTIONS.SET_PLAYER,
+            payload: { ...state.player, score: Math.max(0, (state.player.score || 0) - xpReward) }
+          });
+        }
+        
+        // Refresh questline progress if applicable
+        if (challenge.challenge_mode === 'questline') {
+          await fetchQuestlineProgress();
+        }
+      }
+      
+      console.log('[adminUncompleteChallenge] Completed successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to admin uncomplete challenge:', error);
+      return { error };
+    }
+  }, [state.player, state.user, state.eventChallenges, fetchQuestlineProgress]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // FETCH USER QUESTS FROM SUPABASE
@@ -1886,6 +2155,10 @@ export function GameProvider({ children }) {
     completeQuestlineQuest: completeQuestlineQuestAction,
     handleQuestCompletionForQuestline,
     
+    // Admin Challenge Actions
+    adminCompleteChallenge,
+    adminUncompleteChallenge,
+    
     // Utilities
     dispatch,
   }), [
@@ -1917,6 +2190,8 @@ export function GameProvider({ children }) {
     startQuestlineChallenge,
     completeQuestlineQuestAction,
     handleQuestCompletionForQuestline,
+    adminCompleteChallenge,
+    adminUncompleteChallenge,
   ]);
 
   return (

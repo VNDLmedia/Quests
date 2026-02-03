@@ -18,6 +18,9 @@ const EventChallengeCard = ({
   onClaim,
   isClaimed = false,
   compact = false,
+  isAdmin = false,
+  onAdminComplete,
+  onAdminUncomplete,
 }) => {
   if (!challenge) return null;
 
@@ -140,27 +143,37 @@ const EventChallengeCard = ({
 
   if (compact) {
     return (
-      <TouchableOpacity 
-        style={styles.compactCard}
-        activeOpacity={0.8}
-        onPress={onPress}
-      >
-        <LinearGradient
-          colors={challenge.gradient || tier.gradient || [tier.color, tier.color]}
-          style={styles.compactIconContainer}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+      <View style={styles.compactWrapper}>
+        <TouchableOpacity 
+          style={styles.compactCard}
+          activeOpacity={0.8}
+          onPress={onPress}
         >
-          <Ionicons name={challenge.icon} size={20} color="#FFF" />
-        </LinearGradient>
-        <View style={styles.compactContent}>
-          <Text style={styles.compactTitle} numberOfLines={1}>{challenge.title}</Text>
-          <View style={styles.compactProgressBar}>
-            <View style={[styles.compactProgressFill, { width: `${progressPercent}%` }]} />
+          <LinearGradient
+            colors={challenge.gradient || tier.gradient || [tier.color, tier.color]}
+            style={styles.compactIconContainer}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name={challenge.icon} size={20} color="#FFF" />
+          </LinearGradient>
+          <View style={styles.compactContent}>
+            <Text style={styles.compactTitle} numberOfLines={1}>{challenge.title}</Text>
+            <View style={styles.compactProgressBar}>
+              <View style={[styles.compactProgressFill, { width: `${progressPercent}%` }]} />
+            </View>
           </View>
-        </View>
-        <Text style={styles.compactProgress}>{progress}/{challenge.target}</Text>
-      </TouchableOpacity>
+          <Text style={styles.compactProgress}>{progress}/{challenge.target}</Text>
+        </TouchableOpacity>
+        {isAdmin && isClaimed && (
+          <TouchableOpacity 
+            style={styles.compactAdminBtn}
+            onPress={onAdminUncomplete}
+          >
+            <Ionicons name="arrow-undo" size={14} color="#DC2626" />
+          </TouchableOpacity>
+        )}
+      </View>
     );
   }
 
@@ -278,6 +291,30 @@ const EventChallengeCard = ({
             <Text style={styles.claimedText}>Abgeholt!</Text>
           </View>
         )}
+
+        {/* Admin Toggle Section */}
+        {isAdmin && (
+          <View style={styles.adminSection}>
+            <View style={styles.adminDivider} />
+            {!isClaimed ? (
+              <TouchableOpacity 
+                style={styles.adminCompleteBtn}
+                onPress={onAdminComplete}
+              >
+                <Ionicons name="shield-checkmark" size={16} color="#FFF" />
+                <Text style={styles.adminBtnText}>Admin: Als abgeschlossen markieren</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={styles.adminUncompleteBtn}
+                onPress={onAdminUncomplete}
+              >
+                <Ionicons name="arrow-undo" size={16} color="#FFF" />
+                <Text style={styles.adminBtnText}>Admin: Rückgängig machen</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -291,6 +328,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.borderLight,
     ...SHADOWS.md,
+    marginBottom: 10
   },
   cardCompleted: {
     borderColor: '#10B981',
@@ -607,8 +645,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
+  // Admin styles
+  adminSection: {
+    marginTop: 16,
+  },
+  adminDivider: {
+    height: 1,
+    backgroundColor: COLORS.borderLight,
+    marginBottom: 12,
+  },
+  adminCompleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7C3AED',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 8,
+  },
+  adminUncompleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DC2626',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 8,
+  },
+  adminBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
   // Compact styles
   compactCard: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
@@ -649,6 +723,21 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     fontSize: 12,
     fontWeight: '700',
+  },
+  compactWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compactAdminBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.3)',
   },
 });
 
