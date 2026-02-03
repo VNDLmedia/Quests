@@ -381,74 +381,29 @@ const StaticPresentationMap = ({
         )}
       </View>
 
-      {/* Admin: Add Quest / Add POI Buttons */}
-      {isAdmin && (onAddQuestPress || onAddPoiPress) && (
-        <View style={[styles.adminActions, { paddingBottom: insets.bottom + 80 }]}>
-          {/* Add Quest Button */}
-          {onAddQuestPress && (
-            <TouchableOpacity
-              style={[styles.addButton, isAddingQuest && styles.addButtonActive]}
-              onPress={() => onAddQuestPress(null)} // null = toggle mode
+      {/* Admin: Add Quest Button - positioned above the scan button */}
+      {isAdmin && onAddQuestPress && (
+        <View style={[styles.adminActions, { bottom: insets.bottom + 115 }]}>
+          <TouchableOpacity
+            style={[styles.addButton, isAddingQuest && styles.addButtonActive]}
+            onPress={() => onAddQuestPress(null)} // null = toggle mode
+          >
+            <LinearGradient
+              colors={isAddingQuest ? ['#E74C3C', '#C0392B'] : COLORS.gradients.gold}
+              style={styles.addButtonGradient}
             >
-              <LinearGradient
-                colors={isAddingQuest ? ['#E74C3C', '#C0392B'] : COLORS.gradients.gold}
-                style={styles.addButtonGradient}
-              >
-                <Ionicons
-                  name={isAddingQuest ? 'close' : 'compass'}
-                  size={22}
-                  color={COLORS.text.primary}
-                />
-                <Text style={styles.addButtonText}>
-                  {isAddingQuest ? 'Abbrechen' : 'POI hinzufügen'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-          
-          {/* Add POI Button */}
-          {onAddPoiPress && (
-            <TouchableOpacity
-              style={[styles.addButton, styles.addPoiButton, isAddingPoi && styles.addButtonActive]}
-              onPress={() => onAddPoiPress(null)} // null = toggle mode
-            >
-              <LinearGradient
-                colors={isAddingPoi ? ['#E74C3C', '#C0392B'] : ['#5DADE2', '#3498DB']}
-                style={styles.addButtonGradient}
-              >
-                <Ionicons
-                  name={isAddingPoi ? 'close' : 'location'}
-                  size={22}
-                  color={COLORS.text.primary}
-                />
-                <Text style={styles.addButtonText}>
-                  {isAddingPoi ? 'Abbrechen' : 'POI hinzufügen'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
+              <Ionicons
+                name={isAddingQuest ? 'close' : 'compass'}
+                size={22}
+                color={COLORS.text.primary}
+              />
+              <Text style={styles.addButtonText}>
+                {isAddingQuest ? 'Abbrechen' : 'POI hinzufügen'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
       )}
-
-      {/* Legend */}
-      <View style={[styles.legend, { bottom: insets.bottom + 80 }]}>
-        {hasPOIs && (
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
-            <Text style={styles.legendText}>POI</Text>
-          </View>
-        )}
-        {hasPois && (
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#5DADE2' }]} />
-            <Text style={styles.legendText}>Station</Text>
-          </View>
-        )}
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: COLORS.success }]} />
-          <Text style={styles.legendText}>Erledigt</Text>
-        </View>
-      </View>
     </View>
   );
 };
@@ -660,20 +615,14 @@ const styles = StyleSheet.create({
   // Admin Actions
   adminActions: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    left: 16,
+    right: 16,
     gap: 10,
   },
   addButton: {
     borderRadius: RADII.lg,
     overflow: 'hidden',
     ...SHADOWS.glow,
-  },
-  addPoiButton: {
-    marginTop: 0,
   },
   addButtonActive: {},
   addButtonGradient: {
@@ -687,32 +636,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: COLORS.text.primary,
-  },
-
-  // Legend
-  legend: {
-    position: 'absolute',
-    left: 16,
-    backgroundColor: COLORS.surface,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: RADII.md,
-    gap: 8,
-    ...SHADOWS.sm,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  legendText: {
-    fontSize: 11,
-    color: COLORS.text.secondary,
   },
 });
 

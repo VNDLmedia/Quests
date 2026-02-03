@@ -930,7 +930,7 @@ const MapScreen = () => {
         />
 
         {/* Scan Button for Presentation Mode */}
-        <View style={[styles.scanButtonContainer, { bottom: insets.bottom + 80 }]}>
+        <View style={[styles.scanButtonContainer, { bottom: insets.bottom + 60 }]}>
           <TouchableOpacity
             style={styles.scanButton}
             onPress={() => setShowQRScanner(true)}
