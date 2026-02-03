@@ -92,8 +92,8 @@ const ConfettiParticle = ({ delay, startX }) => {
 
 const POICompletionModal = ({
   visible,
-  title = 'Alle Stationen gefunden!',
-  text = 'Herzlichen Glückwunsch! Du hast alle Stationen besucht.',
+  title = 'All Stations Found!',
+  text = 'Congratulations! You have visited all stations.',
   hintText, // The secret hint where the card is hidden
   imageUrl,
   onClose,
@@ -238,7 +238,7 @@ const POICompletionModal = ({
               >
                 <View style={styles.hintHeader}>
                   <Ionicons name="key" size={24} color={COLORS.primary} />
-                  <Text style={styles.hintTitle}>Geheimnis enthüllt!</Text>
+                  <Text style={styles.hintTitle}>Secret Revealed!</Text>
                 </View>
                 <Text style={styles.hintText}>{hintText}</Text>
               </LinearGradient>

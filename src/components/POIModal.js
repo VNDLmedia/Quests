@@ -210,16 +210,16 @@ const POIModal = ({
                 {videoLoading && (
                   <View style={styles.videoLoading}>
                     <ActivityIndicator size="large" color={COLORS.primary} />
-                    <Text style={styles.loadingText}>Video wird geladen...</Text>
+                    <Text style={styles.loadingText}>Loading video...</Text>
                   </View>
                 )}
 
                 {videoError ? (
                   <View style={styles.videoError}>
                     <Ionicons name="alert-circle" size={48} color={COLORS.error} />
-                    <Text style={styles.errorText}>Video konnte nicht geladen werden</Text>
+                    <Text style={styles.errorText}>Video could not be loaded</Text>
                     <TouchableOpacity style={styles.skipButton} onPress={handleVideoEnd}>
-                      <Text style={styles.skipButtonText}>Weiter</Text>
+                      <Text style={styles.skipButtonText}>Continue</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -247,7 +247,7 @@ const POIModal = ({
 
               {/* Skip Button */}
               <TouchableOpacity style={styles.skipVideoButton} onPress={handleSkipVideo}>
-                <Text style={styles.skipVideoText}>Überspringen</Text>
+                <Text style={styles.skipVideoText}>Skip</Text>
                 <Ionicons name="arrow-forward" size={18} color={COLORS.text.secondary} />
               </TouchableOpacity>
             </View>
@@ -312,7 +312,7 @@ const POIModal = ({
                   >
                     <Ionicons name="checkmark" size={20} color={COLORS.text.primary} />
                   </LinearGradient>
-                  <Text style={styles.successBadgeText}>Station entdeckt!</Text>
+                  <Text style={styles.successBadgeText}>Station discovered!</Text>
                 </View>
 
                 {/* Title */}
@@ -334,7 +334,7 @@ const POIModal = ({
                   contentContainerStyle={styles.textScrollContent}
                 >
                   <Text style={styles.contentText}>
-                    {poi.infoText || 'Station erfolgreich besucht!'}
+                    {poi.infoText || 'Station successfully visited!'}
                   </Text>
                 </ScrollView>
 
@@ -346,7 +346,7 @@ const POIModal = ({
                     end={{ x: 1, y: 0 }}
                     style={styles.continueGradient}
                   >
-                    <Text style={styles.continueText}>Weiter</Text>
+                    <Text style={styles.continueText}>Continue</Text>
                     <Ionicons name="arrow-forward" size={20} color={COLORS.text.primary} />
                   </LinearGradient>
                 </TouchableOpacity>

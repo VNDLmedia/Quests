@@ -242,7 +242,7 @@ const QuestCompletionModal = ({
                 end={{ x: 1, y: 0 }}
                 style={styles.continueGradient}
               >
-                <Text style={styles.continueText}>Weiter</Text>
+                <Text style={styles.continueText}>Continue</Text>
                 <Ionicons name="arrow-forward" size={20} color={COLORS.text.primary} />
               </LinearGradient>
             </TouchableOpacity>

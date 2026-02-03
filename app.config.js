@@ -48,13 +48,13 @@ module.exports = {
       [
         'expo-camera',
         {
-          cameraPermission: 'Erlaubt Ethernal Paths auf deine Kamera zuzugreifen um QR-Codes zu scannen.'
+          cameraPermission: 'Allows Eternal Paths to access your camera to scan QR codes.'
         }
       ],
       [
         'expo-location',
         {
-          locationAlwaysAndWhenInUsePermission: 'Erlaubt Ethernal Paths deinen Standort zu verwenden um Quests in deiner Nähe anzuzeigen.'
+          locationAlwaysAndWhenInUsePermission: 'Allows Eternal Paths to use your location to display quests nearby.'
         }
       ]
     ],

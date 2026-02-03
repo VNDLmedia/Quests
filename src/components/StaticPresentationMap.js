@@ -239,9 +239,8 @@ const StaticPresentationMap = ({
 
   return (
     <View style={styles.container}>
-      {/* Progress Bars */}
+      {/* Progress Bars - COMMENTED OUT
       <View style={[styles.progressContainer, { paddingTop: insets.top + 10 }]}>
-        {/* POIs Progress */}
         {hasPOIs && (
           <>
             <View style={styles.progressHeader}>
@@ -264,7 +263,6 @@ const StaticPresentationMap = ({
           </>
         )}
         
-        {/* POIs Progress */}
         {hasPois && (
           <>
             <View style={[styles.progressHeader, hasPOIs && { marginTop: 12 }]}>
@@ -287,6 +285,7 @@ const StaticPresentationMap = ({
           </>
         )}
       </View>
+      */}
 
       {/* Map Container */}
       <View style={styles.mapContainer} onLayout={handleImageLayout}>
@@ -296,7 +295,7 @@ const StaticPresentationMap = ({
             {!imageLoaded && !imageError && (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={styles.loadingText}>Karte wird geladen...</Text>
+                <Text style={styles.loadingText}>Loading map...</Text>
               </View>
             )}
 
@@ -304,7 +303,7 @@ const StaticPresentationMap = ({
             {imageError && (
               <View style={styles.errorContainer}>
                 <Ionicons name="alert-circle" size={48} color={COLORS.error} />
-                <Text style={styles.errorText}>Karte konnte nicht geladen werden</Text>
+                <Text style={styles.errorText}>Map could not be loaded</Text>
               </View>
             )}
 
@@ -357,7 +356,7 @@ const StaticPresentationMap = ({
                 <View style={[styles.addingModeOverlay, styles.addingQuestOverlay]}>
                   <Ionicons name="compass" size={20} color={COLORS.text.primary} />
                   <Text style={styles.addingModeText}>
-                    Tippe auf die Karte um eine Quest zu platzieren
+                    Tap on the map to place a quest
                   </Text>
                 </View>
               )}
@@ -367,7 +366,7 @@ const StaticPresentationMap = ({
                 <View style={styles.addingModeOverlay}>
                   <Ionicons name="location" size={20} color={COLORS.text.primary} />
                   <Text style={styles.addingModeText}>
-                    Tippe auf die Karte um einen POI zu platzieren
+                    Tap on the map to place a POI
                   </Text>
                 </View>
               )}
@@ -376,7 +375,7 @@ const StaticPresentationMap = ({
         ) : (
           <View style={styles.noMapContainer}>
             <Ionicons name="map-outline" size={64} color={COLORS.text.muted} />
-            <Text style={styles.noMapText}>Keine Karte verfügbar</Text>
+            <Text style={styles.noMapText}>No map available</Text>
           </View>
         )}
       </View>
@@ -398,7 +397,7 @@ const StaticPresentationMap = ({
                 color={COLORS.text.primary}
               />
               <Text style={styles.addButtonText}>
-                {isAddingQuest ? 'Abbrechen' : 'POI hinzufügen'}
+                {isAddingQuest ? 'Cancel' : 'Add POI'}
               </Text>
             </LinearGradient>
           </TouchableOpacity>

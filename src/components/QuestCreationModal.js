@@ -724,7 +724,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                   <Text style={styles.infoContentTitle}>Info-Inhalt (Optional)</Text>
                 </View>
                 <Text style={styles.infoContentHint}>
-                  Diese Info wird dem User angezeigt, wenn er den QR-Code scannt
+                  This info will be shown to the user when they scan the QR code
                 </Text>
                 
                 <Text style={styles.inputLabel}>Info Titel</Text>
@@ -742,7 +742,7 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
                   style={[styles.input, styles.inputMultiline, { height: 100 }]}
                   value={infoText}
                   onChangeText={setInfoText}
-                  placeholder="Interessante Informationen über diesen Ort..."
+                  placeholder="Interesting information about this place..."
                   placeholderTextColor={COLORS.text.muted}
                   multiline
                   numberOfLines={4}

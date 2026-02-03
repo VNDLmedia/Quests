@@ -192,7 +192,7 @@ export const CardUnlockOverlay = () => {
                 >
                   <View style={[styles.cardInnerBorder, { borderColor: '#334155' }]}>
                     <Ionicons name="help-circle-outline" size={80} color="#475569" />
-                    <Text style={styles.tapText}>Tippen zum Enthüllen</Text>
+                    <Text style={styles.tapText}>Tap to Reveal</Text>
                   </View>
                 </LinearGradient>
               </Animated.View>

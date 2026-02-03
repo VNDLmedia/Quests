@@ -267,7 +267,7 @@ const ProfileScreen = () => {
         .from('qr_codes')
         .insert({
           qr_code_id: qrCodeId,
-          name: options.name || `QR-Code ${qrCodeId.slice(0, 8)}`,
+          name: options.name || `QR Code ${qrCodeId.slice(0, 8)}`,
           feature_type: options.feature_type || 'gems',
           feature_value: options.feature_value || { amount: 50 },
           single_use: options.single_use !== false,
@@ -280,7 +280,7 @@ const ProfileScreen = () => {
         if (error.code === '23505') {
           Alert.alert('Already registered', 'This QR code is already registered.');
         } else {
-          Alert.alert('Fehler', error.message);
+          Alert.alert('Error', error.message);
         }
         return { error };
       }
@@ -361,12 +361,12 @@ const ProfileScreen = () => {
     if (!isSupabaseConfigured()) return;
     
     Alert.alert(
-      'QR-Code löschen',
-      'Bist du sicher, dass du diesen QR-Code löschen möchtest?',
+      'Delete QR Code',
+      'Are you sure you want to delete this QR code?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Löschen',
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -378,7 +378,7 @@ const ProfileScreen = () => {
               if (error) throw error;
               loadRegisteredQRCodes();
             } catch (error) {
-              Alert.alert('Fehler', error.message);
+              Alert.alert('Error', error.message);
             }
           },
         },
@@ -438,7 +438,7 @@ const ProfileScreen = () => {
         const res = await requestPermission();
         if (!res.granted) {
           Alert.alert(
-            'Kamera-Berechtigung benötigt',
+            'Camera Permission Required',
             'Please allow camera access in settings to scan QR codes.',
             [{ text: 'OK' }]
           );
@@ -501,7 +501,7 @@ const ProfileScreen = () => {
         }
       } catch (error) {
         console.error('QR processing error:', error);
-        result = { success: false, error: 'Fehler beim Verarbeiten' };
+        result = { success: false, error: 'Error processing' };
       }
 
       setScanResult(result);
@@ -517,15 +517,15 @@ const ProfileScreen = () => {
             setIsScanning(false);
             if (result.alreadyFriends) {
               Alert.alert(
-                '👋 Bereits Freunde!',
-                `${result.friend.display_name || result.friend.username} ist bereits in deiner Freundesliste.`,
+                '👋 Already Friends!',
+                `${result.friend.display_name || result.friend.username} is already in your friends list.`,
                 [{ text: 'OK', style: 'default' }]
               );
             } else {
               Alert.alert(
-                '🎉 Freund hinzugefügt!',
-                `${result.friend.display_name || result.friend.username} wurde zu deiner Freundesliste hinzugefügt!`,
-                [{ text: 'Super!', style: 'default' }]
+                '🎉 Friend Added!',
+                `${result.friend.display_name || result.friend.username} has been added to your friends list!`,
+                [{ text: 'Great!', style: 'default' }]
               );
               // Refresh friends list in GameProvider
               if (fetchFriends && user?.id) {
@@ -568,7 +568,7 @@ const ProfileScreen = () => {
 
           if (result.type === 'player') {
             // Player scan failed
-            Alert.alert('Fehler', result.error || 'User konnte nicht gefunden werden');
+            Alert.alert('Error', result.error || 'User could not be found');
           } else if (result.type === 'unknown') {
             Alert.alert('Unbekannt', result.error || 'QR code nicht erkannt');
           } else {
@@ -655,7 +655,7 @@ const ProfileScreen = () => {
       <View style={styles.adminTab}>
         {/* Admin Header */}
         <View style={styles.adminHeader}>
-          <Text style={styles.adminTitle}>QR-Code Verwaltung</Text>
+          <Text style={styles.adminTitle}>QR Code Management</Text>
           <Text style={styles.adminSubtitle}>Register and manage your QR codes</Text>
         </View>
 
@@ -711,12 +711,12 @@ const ProfileScreen = () => {
         </View>
 
         {/* Registered QR Codes List */}
-        <Text style={styles.sectionTitle}>Registrierte QR-Codes</Text>
+        <Text style={styles.sectionTitle}>Registered QR Codes</Text>
         
         {loadingQRCodes ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Lade QR-Codes...</Text>
+            <Text style={styles.loadingText}>Loading QR codes...</Text>
           </View>
         ) : registeredQRCodes.length === 0 ? (
           <View style={styles.emptyState}>

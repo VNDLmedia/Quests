@@ -486,13 +486,13 @@ const MapScreen = () => {
         // Refresh POIs
         const { data: pois } = await getPresentationPOIs();
         setPresentationPOIs(pois);
-        Alert.alert('Erfolg', 'POI wurde erstellt!');
+        Alert.alert('Success', 'POI has been created!');
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error creating POI:', error);
-      Alert.alert('Fehler', 'POI konnte nicht erstellt werden');
+      Alert.alert('Error', 'POI could not be created');
     }
   }, [userId]);
 
@@ -521,13 +521,13 @@ const MapScreen = () => {
         if (questsResult.success) {
           setPresentationQuests(questsResult.quests);
         }
-        Alert.alert('Erfolg', 'Quest wurde erstellt!');
+        Alert.alert('Success', 'Quest has been created!');
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error creating presentation quest:', error);
-      Alert.alert('Fehler', error.message || 'Quest konnte nicht erstellt werden');
+      Alert.alert('Error', error.message || 'Quest could not be created');
       throw error; // Re-throw so modal knows it failed
     }
   }, []);
@@ -771,8 +771,8 @@ const MapScreen = () => {
         } else {
           setAlertModal({
             visible: true,
-            title: 'Fehler',
-            message: result.error || 'Fehler beim Laden der Station',
+            title: 'Error',
+            message: result.error || 'Error loading station',
             type: 'error'
           });
         }
@@ -790,15 +790,15 @@ const MapScreen = () => {
           setAlertModal({
             visible: true,
             title: 'Bereits besucht',
-            message: result.error || 'Diese Station wurde bereits besucht',
+            message: result.error || 'This station has already been visited',
             type: 'info'
           });
         } else {
           // Error - show custom modal
           setAlertModal({
             visible: true,
-            title: 'Fehler',
-            message: result.error || 'Fehler beim Scannen',
+            title: 'Error',
+            message: result.error || 'Error scanning',
             type: 'error'
           });
         }
@@ -852,7 +852,7 @@ const MapScreen = () => {
           setAlertModal({
             visible: true,
             title: 'Hinweis',
-            message: result.error || 'Fehler beim Scannen',
+            message: result.error || 'Error scanning',
             type: 'info'
           });
         }
@@ -902,8 +902,8 @@ const MapScreen = () => {
         // Wrong code or error
         setAlertModal({
           visible: true,
-          title: 'Fehler',
-          message: result.error || 'Falscher QR-Code. Bitte erneut versuchen.',
+          title: 'Error',
+          message: result.error || 'Wrong QR code. Please try again.',
           type: 'error'
         });
       }
@@ -911,8 +911,8 @@ const MapScreen = () => {
       console.error('[VibeMapScreen] QR scan error:', error);
       setAlertModal({
         visible: true,
-        title: 'Fehler',
-        message: error.message || 'Fehler beim Verarbeiten des QR-Codes',
+        title: 'Error',
+        message: error.message || 'Error processing QR code',
         type: 'error'
       });
     }
@@ -1011,8 +1011,8 @@ const MapScreen = () => {
         {/* All POIs Complete Modal */}
         <POICompletionModal
           visible={showCompletionModal}
-          title={completionData?.title || 'Alle Stationen gefunden!'}
-          text={completionData?.text || 'Herzlichen Glückwunsch!'}
+          title={completionData?.title || 'All Stations Found!'}
+          text={completionData?.text || 'Congratulations!'}
           hintText={completionData?.secretHint}
           imageUrl={completionData?.imageUrl}
           onClose={() => {

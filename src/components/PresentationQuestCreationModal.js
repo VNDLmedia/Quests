@@ -157,19 +157,19 @@ const PresentationQuestCreationModal = ({
   const handleSave = async () => {
     // Validate required fields
     if (!title.trim()) {
-      Alert.alert('Fehler', 'Bitte gib einen Titel ein');
+      Alert.alert('Error', 'Please enter a title');
       return;
     }
     if (!qrCodeId.trim()) {
-      Alert.alert('Fehler', 'Bitte gib eine QR-Code ID ein');
+      Alert.alert('Error', 'Please enter a QR code ID');
       return;
     }
     if (!position) {
-      Alert.alert('Fehler', 'Bitte wähle eine Position auf der Karte');
+      Alert.alert('Error', 'Please select a position on the map');
       return;
     }
     if (!userId) {
-      Alert.alert('Fehler', 'User ID nicht gefunden. Bitte erneut einloggen.');
+      Alert.alert('Error', 'User ID not found. Please log in again.');
       console.error('[PresentationQuestCreationModal] userId is missing!');
       return;
     }
@@ -204,7 +204,7 @@ const PresentationQuestCreationModal = ({
       onClose();
     } catch (error) {
       console.error('Error saving quest:', error);
-      Alert.alert('Fehler', error.message || 'Quest konnte nicht gespeichert werden');
+      Alert.alert('Error', error.message || 'Quest could not be saved');
     } finally {
       setIsSaving(false);
     }
@@ -216,9 +216,9 @@ const PresentationQuestCreationModal = ({
   const renderPositionSelection = () => (
     <View style={styles.positionContainer}>
       <View style={styles.positionHeader}>
-        <Text style={styles.positionTitle}>Position wählen</Text>
+        <Text style={styles.positionTitle}>Select Position</Text>
         <Text style={styles.positionSubtitle}>
-          Tippe auf die Karte um die POI-Position festzulegen
+          Tap on the map to set the POI position
         </Text>
       </View>
 
@@ -267,7 +267,7 @@ const PresentationQuestCreationModal = ({
           style={styles.confirmGradient}
         >
           <Ionicons name="checkmark-circle" size={22} color={COLORS.text.primary} />
-          <Text style={styles.confirmText}>Position bestätigen</Text>
+          <Text style={styles.confirmText}>Confirm Position</Text>
         </LinearGradient>
       </TouchableOpacity>
     </View>
@@ -280,7 +280,7 @@ const PresentationQuestCreationModal = ({
         <TouchableOpacity onPress={() => setStep(1)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.stepTitle}>QR-Code zuweisen</Text>
+        <Text style={styles.stepTitle}>Assign QR Code</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -312,7 +312,7 @@ const PresentationQuestCreationModal = ({
                 onPress={() => setQrScanning(true)}
               >
                 <Ionicons name="qr-code" size={24} color={COLORS.primary} />
-                <Text style={styles.scanButtonText}>QR-Code scannen</Text>
+                <Text style={styles.scanButtonText}>Scan QR Code</Text>
               </TouchableOpacity>
             )}
 
@@ -327,7 +327,7 @@ const PresentationQuestCreationModal = ({
                 end={{ x: 1, y: 0 }}
                 style={styles.confirmGradient}
               >
-                <Text style={styles.confirmText}>Weiter</Text>
+                <Text style={styles.confirmText}>Continue</Text>
                 <Ionicons name="arrow-forward" size={22} color={COLORS.text.primary} />
               </LinearGradient>
             </TouchableOpacity>
@@ -382,12 +382,12 @@ const PresentationQuestCreationModal = ({
           />
 
           {/* Description */}
-          <Text style={styles.label}>Beschreibung</Text>
+          <Text style={styles.label}>Description</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             value={description}
             onChangeText={setDescription}
-            placeholder="Was gibt es hier zu entdecken?"
+            placeholder="What is there to discover here?"
             placeholderTextColor={COLORS.text.muted}
             multiline
             numberOfLines={3}
@@ -415,7 +415,7 @@ const PresentationQuestCreationModal = ({
           </View>
 
           {/* Team/Category Selection */}
-          <Text style={styles.label}>Team/Kategorie</Text>
+          <Text style={styles.label}>Team/Category</Text>
           <View style={styles.teamGrid}>
             {TEAM_LIST.map((team) => (
               <TouchableOpacity
@@ -447,7 +447,7 @@ const PresentationQuestCreationModal = ({
           {/* Rewards */}
           <View style={styles.rewardsRow}>
             <View style={styles.rewardInput}>
-              <Text style={styles.label}>XP Belohnung</Text>
+              <Text style={styles.label}>XP Reward</Text>
               <TextInput
                 style={styles.input}
                 value={xpReward}
@@ -458,7 +458,7 @@ const PresentationQuestCreationModal = ({
               />
             </View>
             <View style={styles.rewardInput}>
-              <Text style={styles.label}>Gem Belohnung</Text>
+              <Text style={styles.label}>Gem Reward</Text>
               <TextInput
                 style={styles.input}
                 value={gemReward}
@@ -472,15 +472,15 @@ const PresentationQuestCreationModal = ({
 
           {/* Info Content Section */}
           <Text style={[styles.label, styles.sectionLabel]}>
-            Info nach Scan (optional)
+            Info after Scan (optional)
           </Text>
 
-          <Text style={styles.label}>Info Titel</Text>
+          <Text style={styles.label}>Info Title</Text>
           <TextInput
             style={styles.input}
             value={infoTitle}
             onChangeText={setInfoTitle}
-            placeholder="Überschrift..."
+            placeholder="Headline..."
             placeholderTextColor={COLORS.text.muted}
           />
 
@@ -489,7 +489,7 @@ const PresentationQuestCreationModal = ({
             style={[styles.input, styles.textArea]}
             value={infoText}
             onChangeText={setInfoText}
-            placeholder="Detaillierter Text nach dem Scan..."
+            placeholder="Detailed text after scan..."
             placeholderTextColor={COLORS.text.muted}
             multiline
             numberOfLines={4}
@@ -527,7 +527,7 @@ const PresentationQuestCreationModal = ({
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={22} color={COLORS.text.primary} />
-                  <Text style={styles.saveText}>POI erstellen</Text>
+                  <Text style={styles.saveText}>Create POI</Text>
                 </>
               )}
             </LinearGradient>

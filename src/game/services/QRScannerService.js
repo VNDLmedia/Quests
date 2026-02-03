@@ -18,7 +18,7 @@ export const processQRCode = async (scannedData, userId) => {
   if (!scannedData || scannedData.trim() === '') {
     return {
       success: false,
-      error: 'QR-Code ist leer',
+      error: 'QR code is empty',
       type: 'error'
     };
   }
@@ -52,15 +52,15 @@ export const processQRCode = async (scannedData, userId) => {
     
     // For hardcoded POIs, we don't track in database - just return the content
     // This allows repeated scanning for demo purposes
-    return {
-      found: true,
-      success: true,
-      type: 'hardcoded_poi',
-      poi: hardcodedPOI,
-      progress: null, // No progress tracking for hardcoded POIs
-      completionData: null,
-      message: `Station "${hardcodedPOI.name}" entdeckt!`,
-    };
+      return {
+        found: true,
+        success: true,
+        type: 'hardcoded_poi',
+        poi: hardcodedPOI,
+        progress: null, // No progress tracking for hardcoded POIs
+        completionData: null,
+        message: `Station "${hardcodedPOI.name}" discovered!`,
+      };
   }
 
   // Try to find in POIs first (for presentation mode)
@@ -126,7 +126,7 @@ const checkPOICode = async (qrCodeId, userId) => {
         found: true,
         success: false,
         type: 'poi',
-        error: 'Du hast diese Station bereits besucht',
+        error: 'You have already visited this station',
         poi: {
           id: poi.id,
           name: poi.name,
@@ -197,7 +197,7 @@ const checkPOICode = async (qrCodeId, userId) => {
         allComplete,
       },
       completionData,
-      message: `Station "${poi.name}" besucht!`,
+      message: `Station "${poi.name}" visited!`,
     };
 
   } catch (error) {
@@ -225,7 +225,7 @@ const checkPlayerCode = async (friendId, userId) => {
     return {
       success: false,
       type: 'player',
-      error: 'Das bist du selbst!'
+      error: "That's yourself!"
     };
   }
 
@@ -242,7 +242,7 @@ const checkPlayerCode = async (friendId, userId) => {
       return {
         success: false,
         type: 'player',
-        error: 'User nicht gefunden'
+        error: 'User not found'
       };
     }
 
@@ -273,7 +273,7 @@ const checkPlayerCode = async (friendId, userId) => {
         type: 'player',
         alreadyFriends: true,
         friend: friendData,
-        message: `${profile.display_name || profile.username} ist bereits dein Freund!`
+        message: `${profile.display_name || profile.username} is already your friend!`
       };
     }
 
@@ -295,13 +295,13 @@ const checkPlayerCode = async (friendId, userId) => {
           type: 'player',
           alreadyFriends: true,
           friend: friendData,
-          message: `${profile.display_name || profile.username} ist bereits dein Freund!`
+          message: `${profile.display_name || profile.username} is already your friend!`
         };
       }
       return {
         success: false,
         type: 'player',
-        error: 'Fehler beim Hinzufügen: ' + friendshipError.message
+        error: 'Error adding: ' + friendshipError.message
       };
     }
 
@@ -311,7 +311,7 @@ const checkPlayerCode = async (friendId, userId) => {
       type: 'player',
       alreadyFriends: false,
       friend: friendData,
-      message: `${profile.display_name || profile.username} wurde als Freund hinzugefügt!`
+      message: `${profile.display_name || profile.username} has been added as friend!`
     };
 
   } catch (error) {
@@ -319,7 +319,7 @@ const checkPlayerCode = async (friendId, userId) => {
     return {
       success: false,
       type: 'player',
-      error: 'Fehler: ' + error.message
+      error: 'Error: ' + error.message
     };
   }
 };
@@ -345,7 +345,7 @@ const processFoundQuest = async (quest, userId) => {
       found: true,
       success: false,
       type: isPresentationQuest ? 'presentation_quest' : 'quest',
-      error: isPresentationQuest ? 'Dieser Point of Interest wurde bereits besucht' : 'This quest has already been completed',
+      error: isPresentationQuest ? 'This point of interest has already been visited' : 'This quest has already been completed',
       quest: quest
     };
   }
@@ -364,7 +364,7 @@ const processFoundQuest = async (quest, userId) => {
       found: true,
       success: false,
       type: isPresentationQuest ? 'presentation_quest' : 'quest',
-      error: isPresentationQuest ? 'Dieser Point of Interest wurde bereits besucht' : 'This quest has already been completed',
+      error: isPresentationQuest ? 'This point of interest has already been visited' : 'This quest has already been completed',
       quest: quest
     };
   }
@@ -401,7 +401,7 @@ const processFoundQuest = async (quest, userId) => {
           found: true,
           success: false,
           type: isPresentationQuest ? 'presentation_quest' : 'quest',
-          error: 'Fehler beim Aktualisieren des Fortschritts: ' + updateError.message
+          error: 'Error updating progress: ' + updateError.message
         };
       }
     } else {
@@ -410,7 +410,7 @@ const processFoundQuest = async (quest, userId) => {
         found: true,
         success: false,
         type: isPresentationQuest ? 'presentation_quest' : 'quest',
-        error: 'Fehler beim Speichern des Fortschritts: ' + insertError.message
+        error: 'Error saving progress: ' + insertError.message
       };
     }
   }
@@ -546,7 +546,7 @@ const checkRewardCode = async (qrCodeId, userId) => {
         found: true,
         success: false,
         type: 'reward',
-        error: 'QR-Code ist abgelaufen'
+        error: 'QR code has expired'
       };
     }
 
@@ -563,7 +563,7 @@ const checkRewardCode = async (qrCodeId, userId) => {
         found: true,
         success: false,
         type: 'reward',
-        error: 'Du hast diesen Code bereits gescannt'
+        error: 'You have already scanned this code'
       };
     }
 
@@ -573,7 +573,7 @@ const checkRewardCode = async (qrCodeId, userId) => {
         found: true,
         success: false,
         type: 'reward',
-        error: 'QR-Code wurde bereits verwendet'
+        error: 'QR code has already been used'
       };
     }
 
@@ -582,7 +582,7 @@ const checkRewardCode = async (qrCodeId, userId) => {
         found: true,
         success: false,
         type: 'reward',
-        error: 'QR-Code hat maximale Nutzungen erreicht'
+        error: 'QR code has reached maximum uses'
       };
     }
 

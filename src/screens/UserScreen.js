@@ -91,15 +91,15 @@ const UserScreen = () => {
       if (result.success) {
         setPresentationModeActive(value);
         Alert.alert(
-          'Präsentationsmodus',
-          value ? 'Präsentationsmodus wurde aktiviert!' : 'Präsentationsmodus wurde deaktiviert!'
+          'Presentation Mode',
+          value ? 'Presentation mode has been activated!' : 'Presentation mode has been deactivated!'
         );
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error toggling presentation mode:', error);
-      Alert.alert('Fehler', 'Präsentationsmodus konnte nicht geändert werden');
+      Alert.alert('Error', 'Presentation mode could not be changed');
     } finally {
       setIsTogglingPresentationMode(false);
     }
@@ -261,7 +261,7 @@ const UserScreen = () => {
             <View style={styles.presentationHeader}>
               <View style={styles.presentationTitleRow}>
                 <Ionicons name="easel" size={22} color={COLORS.primary} />
-                <Text style={styles.sectionTitle}>Präsentationsmodus</Text>
+                <Text style={styles.sectionTitle}>Presentation Mode</Text>
               </View>
               <Switch
                 value={presentationModeActive}
@@ -273,7 +273,7 @@ const UserScreen = () => {
             </View>
             
             <Text style={styles.presentationDesc}>
-              Aktiviert die statische Karte mit Points of Interest für Präsentationen.
+              Activates the static map with points of interest for presentations.
             </Text>
             
             {presentationSettings?.auto_activate_at && (

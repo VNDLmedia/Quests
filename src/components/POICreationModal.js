@@ -80,11 +80,11 @@ const POICreationModal = ({
   const handleSave = async () => {
     // Validate required fields
     if (!name.trim()) {
-      Alert.alert('Fehler', 'Bitte gib einen Namen ein');
+      Alert.alert('Error', 'Please enter a name');
       return;
     }
     if (!qrCodeId.trim()) {
-      Alert.alert('Fehler', 'Bitte gib eine QR-Code ID ein');
+      Alert.alert('Error', 'Please enter a QR code ID');
       return;
     }
 
@@ -107,7 +107,7 @@ const POICreationModal = ({
       onClose();
     } catch (error) {
       console.error('Error saving POI:', error);
-      Alert.alert('Fehler', 'POI konnte nicht gespeichert werden');
+      Alert.alert('Error', 'POI could not be saved');
     } finally {
       setIsSaving(false);
     }
@@ -138,7 +138,7 @@ const POICreationModal = ({
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color={COLORS.text.muted} />
               </TouchableOpacity>
-              <Text style={styles.title}>Neuer POI</Text>
+              <Text style={styles.title}>New POI</Text>
               <View style={styles.placeholder} />
             </View>
 
@@ -179,12 +179,12 @@ const POICreationModal = ({
               />
 
               {/* Description */}
-              <Text style={styles.label}>Beschreibung</Text>
+              <Text style={styles.label}>Description</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Kurze Beschreibung..."
+                placeholder="Short description..."
                 placeholderTextColor={COLORS.text.muted}
                 multiline
                 numberOfLines={3}
@@ -213,7 +213,7 @@ const POICreationModal = ({
               </View>
 
               {/* Color Selection */}
-              <Text style={styles.label}>Farbe</Text>
+              <Text style={styles.label}>Color</Text>
               <View style={styles.colorGrid}>
                 {COLOR_OPTIONS.map((option) => (
                   <TouchableOpacity
@@ -245,12 +245,12 @@ const POICreationModal = ({
               />
 
               {/* Info Title */}
-              <Text style={styles.label}>Info Titel</Text>
+              <Text style={styles.label}>Info Title</Text>
               <TextInput
                 style={styles.input}
                 value={infoTitle}
                 onChangeText={setInfoTitle}
-                placeholder="Überschrift nach Video..."
+                placeholder="Headline after video..."
                 placeholderTextColor={COLORS.text.muted}
               />
 
@@ -260,19 +260,19 @@ const POICreationModal = ({
                 style={[styles.input, styles.textArea]}
                 value={infoText}
                 onChangeText={setInfoText}
-                placeholder="Ausführlicher Text..."
+                placeholder="Detailed text..."
                 placeholderTextColor={COLORS.text.muted}
                 multiline
                 numberOfLines={4}
               />
 
               {/* Info Image Filename */}
-              <Text style={styles.label}>Fullscreen Bild (optional)</Text>
+              <Text style={styles.label}>Fullscreen Image (optional)</Text>
               <TextInput
                 style={styles.input}
                 value={infoImageUrl}
                 onChangeText={setInfoImageUrl}
-                placeholder="beispiel.jpg"
+                placeholder="example.jpg"
                 placeholderTextColor={COLORS.text.muted}
                 autoCapitalize="none"
               />
@@ -296,11 +296,11 @@ const POICreationModal = ({
                 style={styles.saveGradient}
               >
                 {isSaving ? (
-                  <Text style={styles.saveText}>Speichern...</Text>
+                  <Text style={styles.saveText}>Saving...</Text>
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle" size={22} color={COLORS.text.primary} />
-                    <Text style={styles.saveText}>POI erstellen</Text>
+                    <Text style={styles.saveText}>Create POI</Text>
                   </>
                 )}
               </LinearGradient>

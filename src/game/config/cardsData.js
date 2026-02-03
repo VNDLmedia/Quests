@@ -13,11 +13,11 @@ export const RARITY_COLORS = {
 };
 
 export const RARITY_LABELS = {
-  common: 'Gewöhnlich',
-  uncommon: 'Ungewöhnlich',
-  rare: 'Selten',
-  epic: 'Episch',
-  legendary: 'Legendär',
+  common: 'Common',
+  uncommon: 'Uncommon',
+  rare: 'Rare',
+  epic: 'Epic',
+  legendary: 'Legendary',
 };
 
 export const RARITY_ORDER = {
@@ -72,8 +72,8 @@ export const COLLECTIBLE_CARDS = {
     description: 'Leader von Lucram Media',
     individualBonus: {
       type: 'social_bonus',
-      value: 2, // 2x Punkte für Social-Quests
-      label: '2x Punkte für Social-Quests',
+      value: 2, // 2x Points for Social Quests
+      label: '2x Points for Social Quests',
     },
   },
   roland: {

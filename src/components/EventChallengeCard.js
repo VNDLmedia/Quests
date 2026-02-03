@@ -320,7 +320,7 @@ const EventChallengeCard = ({
                 onPress={onAdminUncomplete}
               >
                 <Ionicons name="arrow-undo" size={16} color="#FFF" />
-                <Text style={styles.adminBtnText}>Admin: Rückgängig machen</Text>
+                <Text style={styles.adminBtnText}>Admin: Undo</Text>
               </TouchableOpacity>
             )}
           </View>

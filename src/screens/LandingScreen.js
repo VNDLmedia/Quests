@@ -232,8 +232,8 @@ const LandingScreen = ({ onGetStarted }) => {
         {canInstall && Platform.OS === 'web' && (
           <TouchableOpacity style={styles.installButton} onPress={handleInstallPWA}>
             <View style={styles.installContent}>
-              <Text style={styles.installTitle}>App installieren</Text>
-              <Text style={styles.installSubtitle}>Zum Home-Screen hinzufügen</Text>
+              <Text style={styles.installTitle}>Install App</Text>
+              <Text style={styles.installSubtitle}>Add to home screen</Text>
             </View>
             <Ionicons name="download-outline" size={20} color={COLORS.primary} />
           </TouchableOpacity>

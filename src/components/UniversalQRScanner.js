@@ -1,151 +1,317 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // ETERNAL PATH - Universal QR Scanner Component
 // Works in Web, PWA, and Native environments with fallback support
+// iOS Safari requires user gesture to request camera permission
 // ═══════════════════════════════════════════════════════════════════════════
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SHADOWS } from '../theme';
+
+// Import jsQR for iOS/Safari fallback (BarcodeDetector not supported)
+let jsQR = null;
+try {
+  jsQR = require('jsqr');
+} catch (e) {
+  console.warn('[UniversalQRScanner] jsQR not available');
+}
+
+// Detect iOS
+const isIOS = () => {
+  if (Platform.OS !== 'web') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+// Check if we're in a secure context (HTTPS or localhost)
+const isSecureContext = () => {
+  if (Platform.OS !== 'web') return true;
+  // window.isSecureContext is the standard way to check
+  if (typeof window !== 'undefined' && 'isSecureContext' in window) {
+    return window.isSecureContext;
+  }
+  // Fallback check
+  const protocol = window.location?.protocol;
+  const hostname = window.location?.hostname;
+  return protocol === 'https:' || 
+         hostname === 'localhost' || 
+         hostname === '127.0.0.1' ||
+         hostname?.endsWith('.localhost');
+};
 
 /**
  * Universal QR Scanner that works across all platforms
+ * Uses BarcodeDetector API where available (Chrome/Edge on Android/Desktop)
+ * Falls back to jsQR library for iOS/Safari
  * @param {Function} onScan - Callback when QR code is scanned: ({ data }) => void
  * @param {Function} onClose - Callback when scanner is closed
  */
 const UniversalQRScanner = ({ onScan, onClose }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [hasCamera, setHasCamera] = useState(true);
-  const [scanning, setScanning] = useState(true);
+  const [cameraState, setCameraState] = useState('idle'); // 'idle' | 'requesting' | 'active' | 'error'
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualCode, setManualCode] = useState('');
-  const [detectorSupported, setDetectorSupported] = useState(true);
+  const [cameraError, setCameraError] = useState(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const hasScannedRef = useRef(false);
   const streamRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const scanningRef = useRef(false);
 
+  // Detect if we can use camera-based scanning (either BarcodeDetector or jsQR)
+  const secureContextOk = isSecureContext();
+  const hasMediaDevices = Platform.OS === 'web' && 
+    typeof navigator !== 'undefined' && 
+    navigator.mediaDevices && 
+    navigator.mediaDevices.getUserMedia;
+  const hasDecoder = ('BarcodeDetector' in window) || jsQR;
+  const canUseCamera = secureContextOk && hasMediaDevices && hasDecoder;
+  
+  // Debug logging for iOS issues
   useEffect(() => {
-    // Check if BarcodeDetector is supported
-    if (Platform.OS === 'web' && !('BarcodeDetector' in window)) {
-      // console.warn('[UniversalQRScanner] BarcodeDetector not supported - showing manual input');
-      setDetectorSupported(false);
-      setShowManualInput(true);
+    if (Platform.OS === 'web') {
+      console.log('[UniversalQRScanner] Environment check:', {
+        isIOS: isIOS(),
+        isSecureContext: secureContextOk,
+        hasMediaDevices,
+        hasDecoder,
+        canUseCamera,
+        protocol: window.location?.protocol,
+        hostname: window.location?.hostname,
+      });
+    }
+  }, []);
+
+  // Cleanup function
+  const cleanup = useCallback(() => {
+    scanningRef.current = false;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+  }, []);
+
+  // Handle successful scan
+  const handleSuccessfulScan = useCallback((data) => {
+    if (hasScannedRef.current) return;
+    
+    console.log('[UniversalQRScanner] QR code detected:', data);
+    hasScannedRef.current = true;
+    scanningRef.current = false;
+
+    // Haptic feedback on web (if supported)
+    if (navigator.vibrate) {
+      navigator.vibrate(200);
+    }
+
+    // Clean up before calling onScan
+    cleanup();
+
+    // Call onScan with slight delay to ensure cleanup
+    setTimeout(() => {
+      onScan({ data });
+    }, 50);
+  }, [cleanup, onScan]);
+
+  // QR Code scanning loop
+  const scanQRCode = useCallback(() => {
+    if (!scanningRef.current || hasScannedRef.current) {
       return;
     }
 
-    const startCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Try BarcodeDetector first (Chrome/Edge on Android/Desktop)
+      if ('BarcodeDetector' in window) {
+        const barcodeDetector = new BarcodeDetector({
+          formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8']
         });
 
-        streamRef.current = stream;
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-          scanQRCode();
-        }
-      } catch (err) {
-        console.error('[UniversalQRScanner] Camera error:', err);
-        setHasCamera(false);
-        setShowManualInput(true);
+        barcodeDetector
+          .detect(canvas)
+          .then((barcodes) => {
+            if (barcodes.length > 0 && !hasScannedRef.current) {
+              handleSuccessfulScan(barcodes[0].rawValue);
+            }
+          })
+          .catch(() => {
+            // Silent catch - detection errors are normal
+          });
       }
-    };
-
-    const scanQRCode = () => {
-      if (!scanning || hasScannedRef.current) {
-        return;
-      }
-
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-
-      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
-        const ctx = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        if ('BarcodeDetector' in window) {
-          const barcodeDetector = new BarcodeDetector({
-            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8']
+      // Fallback to jsQR for iOS/Safari
+      else if (jsQR) {
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, canvas.width, canvas.height, {
+            inversionAttempts: 'dontInvert',
           });
 
-          barcodeDetector
-            .detect(canvas)
-            .then((barcodes) => {
-              if (barcodes.length > 0 && !hasScannedRef.current) {
-                const code = barcodes[0].rawValue;
-                // console.log('[UniversalQRScanner] QR code detected:', code);
-                hasScannedRef.current = true;
-                setScanning(false);
-
-                // Haptic feedback on web (if supported)
-                if (navigator.vibrate) {
-                  navigator.vibrate(200);
-                }
-
-                // Clean up before calling onScan
-                cleanup();
-
-                // Call onScan with slight delay to ensure cleanup
-                setTimeout(() => {
-                  onScan({ data: code });
-                }, 50);
-              }
-            })
-            .catch((err) => {
-              // console.log('[UniversalQRScanner] Detection error:', err)
-            });
+          if (code && code.data && !hasScannedRef.current) {
+            handleSuccessfulScan(code.data);
+          }
+        } catch (e) {
+          // Ignore jsQR errors
         }
       }
-
-      if (scanning && !hasScannedRef.current) {
-        animationFrameRef.current = requestAnimationFrame(scanQRCode);
-      }
-    };
-
-    const cleanup = () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-    };
-
-    if (Platform.OS === 'web' && detectorSupported) {
-      startCamera();
     }
 
+    if (scanningRef.current && !hasScannedRef.current) {
+      animationFrameRef.current = requestAnimationFrame(scanQRCode);
+    }
+  }, [handleSuccessfulScan]);
+
+  // Start camera - MUST be called from user gesture on iOS
+  const startCamera = useCallback(async () => {
+    console.log('[UniversalQRScanner] Starting camera...');
+    setCameraState('requesting');
+    setCameraError(null);
+    setPermissionDenied(false);
+
+    try {
+      // Check if mediaDevices is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Kamera-API nicht verfügbar. Bitte verwende einen modernen Browser.');
+      }
+
+      // Request camera permission - iOS requires this to be in response to user gesture
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 }
+        },
+        audio: false
+      });
+
+      console.log('[UniversalQRScanner] Camera stream obtained');
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        
+        // Wait for video metadata to load
+        await new Promise((resolve, reject) => {
+          const video = videoRef.current;
+          
+          const onLoadedMetadata = () => {
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            video.removeEventListener('error', onError);
+            resolve();
+          };
+          
+          const onError = (err) => {
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            video.removeEventListener('error', onError);
+            reject(err);
+          };
+          
+          video.addEventListener('loadedmetadata', onLoadedMetadata);
+          video.addEventListener('error', onError);
+          
+          // Timeout after 10 seconds
+          setTimeout(() => {
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            video.removeEventListener('error', onError);
+            reject(new Error('Video-Timeout'));
+          }, 10000);
+        });
+
+        // Try to play the video
+        try {
+          await videoRef.current.play();
+          console.log('[UniversalQRScanner] Video playing');
+        } catch (playErr) {
+          console.warn('[UniversalQRScanner] Play warning:', playErr);
+          // Continue anyway - some browsers report play() errors even when video works
+        }
+
+        // Start scanning
+        setCameraState('active');
+        scanningRef.current = true;
+        hasScannedRef.current = false;
+        scanQRCode();
+      }
+    } catch (err) {
+      console.error('[UniversalQRScanner] Camera error:', err);
+      
+      // Check if permission was denied
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setPermissionDenied(true);
+        setCameraError('Kamerazugriff wurde verweigert');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setCameraError('Keine Kamera gefunden');
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setCameraError('Kamera wird bereits verwendet');
+      } else if (err.name === 'OverconstrainedError') {
+        setCameraError('Kamera unterstützt die Anforderungen nicht');
+      } else {
+        setCameraError(err.message || 'Kamerafehler');
+      }
+      
+      setCameraState('error');
+      cleanup();
+    }
+  }, [cleanup, scanQRCode]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return cleanup;
-  }, [scanning, onScan, detectorSupported]);
+  }, [cleanup]);
 
   const handleManualSubmit = () => {
     if (manualCode.trim()) {
-      // console.log('[UniversalQRScanner] Manual code entered:', manualCode);
       onScan({ data: manualCode.trim() });
     }
   };
 
   const handleClose = () => {
-    // Stop camera before closing
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-    }
+    cleanup();
     onClose();
   };
 
-  // Manual input fallback (for browsers without BarcodeDetector or camera issues)
-  if (showManualInput || !hasCamera || !detectorSupported) {
+  const handleRetryCamera = () => {
+    cleanup();
+    hasScannedRef.current = false;
+    setShowManualInput(false);
+    // On iOS, we need to show the start button again
+    if (isIOS()) {
+      setCameraState('idle');
+    } else {
+      startCamera();
+    }
+  };
+
+  // Show manual input when camera is not available
+  if (!canUseCamera) {
+    // Determine the specific reason
+    let errorTitle = 'QR Scanner nicht verfügbar';
+    let errorMessage = 'Dein Browser unterstützt keinen QR-Scanner. Bitte gib die Code-ID manuell ein.';
+    let errorIcon = 'qr-code-outline';
+    
+    if (!secureContextOk) {
+      errorTitle = 'HTTPS erforderlich';
+      errorMessage = 'Der QR-Scanner benötigt eine sichere Verbindung (HTTPS). Bitte öffne die App über HTTPS oder localhost.';
+      errorIcon = 'lock-closed';
+    } else if (!hasMediaDevices) {
+      errorTitle = 'Kamera nicht unterstützt';
+      errorMessage = 'Dein Browser unterstützt keinen Kamerazugriff. Bitte verwende Safari oder Chrome.';
+      errorIcon = 'camera-off';
+    }
+    
     return (
       <View style={styles.container}>
         <View style={styles.manualContainer}>
@@ -153,24 +319,58 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
             <Ionicons name="close-circle" size={40} color={COLORS.text.muted} />
           </TouchableOpacity>
 
-          <Ionicons
-            name={!detectorSupported ? 'qr-code-outline' : 'camera-off'}
-            size={64}
-            color={COLORS.text.muted}
-          />
+          <Ionicons name={errorIcon} size={64} color={COLORS.text.muted} />
+          <Text style={styles.manualTitle}>{errorTitle}</Text>
+          <Text style={styles.manualSubtitle}>{errorMessage}</Text>
+          
+          {!secureContextOk && (
+            <View style={styles.securityHint}>
+              <Ionicons name="shield-checkmark" size={18} color={COLORS.warning} />
+              <Text style={styles.securityHintText}>
+                URL: {Platform.OS === 'web' ? window.location?.href : 'N/A'}
+              </Text>
+            </View>
+          )}
 
-          <Text style={styles.manualTitle}>
-            {!detectorSupported
-              ? 'QR scanner not available'
-              : !hasCamera
-              ? 'Camera not available'
-              : 'Manual Entry'}
-          </Text>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="z.B. ID001, ID002, ..."
+              placeholderTextColor={COLORS.text.muted}
+              value={manualCode}
+              onChangeText={setManualCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoFocus
+              onSubmitEditing={handleManualSubmit}
+            />
+          </View>
 
+          <TouchableOpacity
+            style={[styles.submitBtn, !manualCode.trim() && styles.submitBtnDisabled]}
+            onPress={handleManualSubmit}
+            disabled={!manualCode.trim()}
+          >
+            <Text style={styles.submitBtnText}>Bestätigen</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Manual input view
+  if (showManualInput) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.manualContainer}>
+          <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
+            <Ionicons name="close-circle" size={40} color={COLORS.text.muted} />
+          </TouchableOpacity>
+
+          <Ionicons name="create-outline" size={64} color={COLORS.text.muted} />
+          <Text style={styles.manualTitle}>Manuelle Eingabe</Text>
           <Text style={styles.manualSubtitle}>
-            {!detectorSupported
-              ? 'Your browser does not support QR scanning. Please enter the code ID manually.'
-              : 'Bitte gib die Code-ID manuell ein (z.B. ID001, ID002, ...)'}
+            Gib die Code-ID manuell ein (z.B. ID001, ID002, ...)
           </Text>
 
           <View style={styles.inputContainer}>
@@ -192,38 +392,172 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
             onPress={handleManualSubmit}
             disabled={!manualCode.trim()}
           >
-            <Text style={styles.submitBtnText}>Scannen</Text>
+            <Text style={styles.submitBtnText}>Bestätigen</Text>
           </TouchableOpacity>
 
-          {!detectorSupported && (
-            <View style={styles.browserHint}>
-              <Ionicons name="information-circle" size={16} color={COLORS.text.muted} />
-              <Text style={styles.browserHintText}>
-                Tip: For QR scanning use Chrome or Edge
-              </Text>
-            </View>
-          )}
-
-          {detectorSupported && !hasCamera && (
-            <TouchableOpacity
-              style={styles.retryBtn}
-              onPress={() => {
-                setHasCamera(true);
-                setShowManualInput(false);
-              }}
-            >
-              <Text style={styles.retryBtnText}>Kamera erneut versuchen</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={styles.backBtn} onPress={() => {
+            setShowManualInput(false);
+            if (cameraState === 'active') {
+              // Camera is already running
+            } else {
+              setCameraState('idle');
+            }
+          }}>
+            <Ionicons name="camera" size={18} color={COLORS.primary} />
+            <Text style={styles.backBtnText}>Zurück zur Kamera</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  // Camera scanner view
+  // Error state - show error and options
+  if (cameraState === 'error') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.manualContainer}>
+          <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
+            <Ionicons name="close-circle" size={40} color={COLORS.text.muted} />
+          </TouchableOpacity>
+
+          <Ionicons 
+            name={permissionDenied ? 'lock-closed' : 'camera-off'} 
+            size={64} 
+            color={COLORS.error} 
+          />
+          <Text style={styles.manualTitle}>
+            {permissionDenied ? 'Kamerazugriff verweigert' : 'Kamera nicht verfügbar'}
+          </Text>
+          <Text style={styles.manualSubtitle}>
+            {cameraError}
+          </Text>
+
+          {permissionDenied && (
+            <View style={styles.permissionHint}>
+              <Ionicons name="information-circle" size={20} color={COLORS.primary} />
+              <Text style={styles.permissionHintText}>
+                {isIOS() 
+                  ? 'Öffne Einstellungen → Safari → Kamera und erlaube den Zugriff für diese Website.'
+                  : 'Klicke auf das Kamera-Symbol in der Adressleiste und erlaube den Zugriff.'}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="z.B. ID001, ID002, ..."
+              placeholderTextColor={COLORS.text.muted}
+              value={manualCode}
+              onChangeText={setManualCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              onSubmitEditing={handleManualSubmit}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.submitBtn, !manualCode.trim() && styles.submitBtnDisabled]}
+            onPress={handleManualSubmit}
+            disabled={!manualCode.trim()}
+          >
+            <Text style={styles.submitBtnText}>Manuell bestätigen</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.retryBtn} onPress={handleRetryCamera}>
+            <Ionicons name="refresh" size={18} color={COLORS.primary} />
+            <Text style={styles.retryBtnText}>Erneut versuchen</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Idle state - show start button (required for iOS user gesture)
+  if (cameraState === 'idle') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.startContainer}>
+          <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
+            <Ionicons name="close-circle" size={40} color={COLORS.text.muted} />
+          </TouchableOpacity>
+
+          <View style={styles.startContent}>
+            <View style={styles.cameraIconWrapper}>
+              <Ionicons name="camera" size={80} color={COLORS.primary} />
+            </View>
+
+            <Text style={styles.startTitle}>QR-Code scannen</Text>
+            <Text style={styles.startSubtitle}>
+              Tippe auf den Button um die Kamera zu starten und den QR-Code zu scannen.
+            </Text>
+
+            {isIOS() && (
+              <View style={styles.iosHint}>
+                <Ionicons name="logo-apple" size={16} color={COLORS.text.muted} />
+                <Text style={styles.iosHintText}>
+                  Erlaube den Kamerazugriff wenn du gefragt wirst
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity style={styles.startButton} onPress={startCamera}>
+              <LinearGradient
+                colors={COLORS.gradients.gold}
+                style={styles.startButtonGradient}
+              >
+                <Ionicons name="camera" size={24} color={COLORS.text.primary} />
+                <Text style={styles.startButtonText}>Kamera starten</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.manualEntryBtn} 
+              onPress={() => setShowManualInput(true)}
+            >
+              <Ionicons name="create-outline" size={18} color={COLORS.text.secondary} />
+              <Text style={styles.manualEntryText}>Code manuell eingeben</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Requesting permission state
+  if (cameraState === 'requesting') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.startContainer}>
+          <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
+            <Ionicons name="close-circle" size={40} color={COLORS.text.muted} />
+          </TouchableOpacity>
+
+          <View style={styles.startContent}>
+            <View style={styles.loadingIconWrapper}>
+              <Ionicons name="camera" size={60} color={COLORS.primary} />
+            </View>
+            <Text style={styles.startTitle}>Kamerazugriff wird angefragt...</Text>
+            <Text style={styles.startSubtitle}>
+              Bitte erlaube den Kamerazugriff im Browser-Dialog.
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Active camera view
   return (
     <View style={styles.container}>
-      <video ref={videoRef} style={styles.video} playsInline muted />
+      {/* Video element with iOS-specific attributes */}
+      <video 
+        ref={videoRef} 
+        style={styles.video} 
+        playsInline={true}
+        muted={true}
+        autoPlay={true}
+      />
       <canvas ref={canvasRef} style={styles.canvas} />
 
       <View style={styles.overlay}>
@@ -240,14 +574,20 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
           <View style={styles.scanLine} />
         </View>
 
-        <Text style={styles.scanText}>Hold QR code in the frame</Text>
+        <Text style={styles.scanText}>QR-Code im Rahmen halten</Text>
+
+        {/* Debug info */}
+        <Text style={styles.scannerInfo}>
+          {('BarcodeDetector' in window) ? 'Native Scanner' : 'jsQR Scanner'}
+          {isIOS() ? ' (iOS)' : ''}
+        </Text>
 
         <TouchableOpacity
           style={styles.manualBtn}
           onPress={() => setShowManualInput(true)}
         >
           <Ionicons name="create-outline" size={20} color="white" />
-          <Text style={styles.manualBtnText}>Manual Entry</Text>
+          <Text style={styles.manualBtnText}>Manuell eingeben</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -339,6 +679,11 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
+  scannerInfo: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    marginTop: 8,
+  },
   manualBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -356,6 +701,100 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+
+  // Start screen styles
+  startContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  startContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  cameraIconWrapper: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(232,184,74,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+    borderWidth: 2,
+    borderColor: 'rgba(232,184,74,0.3)',
+  },
+  loadingIconWrapper: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(232,184,74,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+  },
+  startTitle: {
+    color: COLORS.text.primary,
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  startSubtitle: {
+    color: COLORS.text.secondary,
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  iosHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.surfaceAlt,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 32,
+  },
+  iosHintText: {
+    color: COLORS.text.muted,
+    fontSize: 13,
+  },
+  startButton: {
+    width: '100%',
+    maxWidth: 300,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...SHADOWS.glow,
+    marginBottom: 20,
+  },
+  startButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 18,
+  },
+  startButtonText: {
+    color: COLORS.text.primary,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  manualEntryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  manualEntryText: {
+    color: COLORS.text.secondary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
   // Manual input styles
   manualContainer: {
     flex: 1,
@@ -368,6 +807,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 60,
     right: 20,
+    zIndex: 10,
   },
   manualTitle: {
     color: COLORS.text.primary,
@@ -419,26 +859,63 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  browserHint: {
+  permissionHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: 'rgba(232,184,74,0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 24,
+    maxWidth: 320,
+    borderWidth: 1,
+    borderColor: 'rgba(232,184,74,0.3)',
+  },
+  permissionHintText: {
+    color: COLORS.text.secondary,
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 20,
+  },
+  retryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: COLORS.surfaceAlt,
-    borderRadius: 12,
-  },
-  browserHintText: {
-    color: COLORS.text.muted,
-    fontSize: 12,
-  },
-  retryBtn: {
     marginTop: 20,
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
   retryBtnText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  securityHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(241,196,15,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 20,
+    maxWidth: 320,
+  },
+  securityHintText: {
+    color: COLORS.warning,
+    fontSize: 11,
+    flex: 1,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  backBtnText: {
     color: COLORS.primary,
     fontSize: 14,
     fontWeight: '600',

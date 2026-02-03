@@ -179,8 +179,8 @@ const PackShopScreen = () => {
 
         {/* Packs Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Kartenpacks</Text>
-          <Text style={styles.sectionSub}>Wähle ein Pack und sammle Karten</Text>
+          <Text style={styles.sectionTitle}>Card Packs</Text>
+          <Text style={styles.sectionSub}>Choose a pack and collect cards</Text>
           
           <View style={styles.packsList}>
             {Object.entries(PACK_TYPES).map(([key, pack], index) => (
@@ -211,7 +211,7 @@ const PackShopScreen = () => {
             ))}
           </View>
           <Text style={styles.oddsHint}>
-            Höherwertige Packs haben bessere Chancen auf seltene Karten!
+            Higher-tier packs have better chances for rare cards!
           </Text>
         </View>
       </ScrollView>

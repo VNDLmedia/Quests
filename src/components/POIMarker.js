@@ -72,7 +72,7 @@ const POIMarker = ({
         return {
           icon: 'mic',
           gradient: COLORS.gradients.mysticPurple,
-          label: 'Bühne',
+          label: 'Stage',
         };
       case 'food':
         return {
