@@ -303,6 +303,134 @@ const checkPlayerCode = async (friendId, userId) => {
 };
 
 /**
+ * Process a found quest (helper function to avoid code duplication)
+ */
+const processFoundQuest = async (quest, userId) => {
+  // Check if this is a presentation quest (POI)
+  const isPresentationQuest = quest.metadata?.is_presentation_quest === true;
+
+  // Check if user has already completed this quest - check BOTH tables
+  const { data: userQuestProgress } = await supabase
+    .from('user_quests')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('quest_id', quest.id)
+    .eq('status', 'completed')
+    .single();
+
+  if (userQuestProgress) {
+    return {
+      found: true,
+      success: false,
+      type: isPresentationQuest ? 'presentation_quest' : 'quest',
+      error: isPresentationQuest ? 'Dieser Point of Interest wurde bereits besucht' : 'This quest has already been completed',
+      quest: quest
+    };
+  }
+
+  // Also check quest_progress table (legacy)
+  const { data: legacyProgress } = await supabase
+    .from('quest_progress')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('quest_id', quest.id)
+    .eq('status', 'completed')
+    .single();
+
+  if (legacyProgress) {
+    return {
+      found: true,
+      success: false,
+      type: isPresentationQuest ? 'presentation_quest' : 'quest',
+      error: isPresentationQuest ? 'Dieser Point of Interest wurde bereits besucht' : 'This quest has already been completed',
+      quest: quest
+    };
+  }
+
+  // Mark quest as completed in user_quests table
+  // Try to insert first, then update if exists
+  const { error: insertError } = await supabase
+    .from('user_quests')
+    .insert({
+      user_id: userId,
+      quest_id: quest.id,
+      status: 'completed',
+      progress: quest.target_value || 1,
+      completed_at: new Date().toISOString()
+    });
+
+  // If insert failed due to duplicate, update instead
+  if (insertError) {
+    if (insertError.code === '23505') {
+      // Duplicate - update existing record
+      const { error: updateError } = await supabase
+        .from('user_quests')
+        .update({
+          status: 'completed',
+          progress: quest.target_value || 1,
+          completed_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .eq('quest_id', quest.id);
+
+      if (updateError) {
+        console.error('[QRScannerService] Error updating user_quests:', updateError);
+        return {
+          found: true,
+          success: false,
+          type: isPresentationQuest ? 'presentation_quest' : 'quest',
+          error: 'Fehler beim Aktualisieren des Fortschritts: ' + updateError.message
+        };
+      }
+    } else {
+      console.error('[QRScannerService] Error inserting user_quests:', insertError);
+      return {
+        found: true,
+        success: false,
+        type: isPresentationQuest ? 'presentation_quest' : 'quest',
+        error: 'Fehler beim Speichern des Fortschritts: ' + insertError.message
+      };
+    }
+  }
+
+  // Award XP to user
+  if (quest.xp_reward > 0) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('score')
+      .eq('id', userId)
+      .single();
+
+    if (profile) {
+      await supabase
+        .from('profiles')
+        .update({ score: (profile.score || 0) + quest.xp_reward })
+        .eq('id', userId);
+    }
+  }
+
+  // Extract info_content from quest metadata
+  const infoContent = quest.metadata?.info_content || null;
+  
+  console.log('[QRScannerService] Quest/POI completed successfully:', quest.title);
+  
+  return {
+    found: true,
+    success: true,
+    type: isPresentationQuest ? 'presentation_quest' : 'quest',
+    quest: quest,
+    rewards: {
+      xp: quest.xp_reward || 0,
+      gems: quest.gem_reward || 0
+    },
+    infoContent,
+    message: isPresentationQuest 
+      ? `Point of Interest "${quest.title}" entdeckt! +${quest.xp_reward || 0} Punkte`
+      : `Quest completed! +${quest.xp_reward || 0} Points`
+  };
+};
+
+/**
  * Check if QR code matches a quest
  */
 const checkQuestCode = async (qrCodeId, userId) => {
@@ -311,121 +439,56 @@ const checkQuestCode = async (qrCodeId, userId) => {
   }
 
   try {
-    console.log('[QRScannerService] Checking quests table for:', qrCodeId);
+    // Normalize to uppercase (QR codes are stored uppercase)
+    const normalizedQrCode = qrCodeId.toUpperCase();
+    console.log('[QRScannerService] Checking quests table for:', normalizedQrCode);
 
     // Search in quests table where metadata contains this qr_code_id
     const { data: quest, error } = await supabase
       .from('quests')
       .select('*')
-      .eq('metadata->>qr_code_id', qrCodeId)
+      .eq('metadata->>qr_code_id', normalizedQrCode)
       .single();
 
     if (error || !quest) {
-      console.log('[QRScannerService] Quest not found:', error?.message);
+      console.log('[QRScannerService] Quest not found for QR code:', normalizedQrCode, 'Error:', error?.message);
+      
+      // Fallback: Try to find any quest with this QR code in metadata (manual search)
+      const { data: allQuests } = await supabase
+        .from('quests')
+        .select('id, title, metadata')
+        .not('metadata', 'is', null);
+      
+      if (allQuests) {
+        const matchingQuest = allQuests.find(q => 
+          q.metadata?.qr_code_id?.toUpperCase() === normalizedQrCode
+        );
+        if (matchingQuest) {
+          console.log('[QRScannerService] Found quest with manual search:', matchingQuest.title);
+          // Use this quest instead
+          const { data: fullQuest } = await supabase
+            .from('quests')
+            .select('*')
+            .eq('id', matchingQuest.id)
+            .single();
+          
+          if (fullQuest) {
+            console.log('[QRScannerService] Using manually found quest:', fullQuest.title);
+            return await processFoundQuest(fullQuest, userId);
+          }
+        } else {
+          console.log('[QRScannerService] No quest found with QR code in metadata. Total quests checked:', allQuests.length);
+          // Log some sample metadata for debugging
+          const questsWithMetadata = allQuests.filter(q => q.metadata?.qr_code_id);
+          console.log('[QRScannerService] Quests with QR codes:', questsWithMetadata.map(q => ({ title: q.title, qr: q.metadata?.qr_code_id })));
+        }
+      }
+      
       return { found: false };
     }
 
     console.log('[QRScannerService] Quest found:', quest.id, quest.title);
-
-    // Check if this is a presentation quest (POI)
-    const isPresentationQuest = quest.metadata?.is_presentation_quest === true;
-
-    // Check if user has already completed this quest - check BOTH tables
-    const { data: userQuestProgress } = await supabase
-      .from('user_quests')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('quest_id', quest.id)
-      .eq('status', 'completed')
-      .single();
-
-    if (userQuestProgress) {
-      return {
-        found: true,
-        success: false,
-        type: isPresentationQuest ? 'presentation_quest' : 'quest',
-        error: isPresentationQuest ? 'Dieser Point of Interest wurde bereits besucht' : 'This quest has already been completed',
-        quest: quest
-      };
-    }
-
-    // Also check quest_progress table (legacy)
-    const { data: legacyProgress } = await supabase
-      .from('quest_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('quest_id', quest.id)
-      .eq('status', 'completed')
-      .single();
-
-    if (legacyProgress) {
-      return {
-        found: true,
-        success: false,
-        type: isPresentationQuest ? 'presentation_quest' : 'quest',
-        error: isPresentationQuest ? 'Dieser Point of Interest wurde bereits besucht' : 'This quest has already been completed',
-        quest: quest
-      };
-    }
-
-    // Mark quest as completed in user_quests table
-    const { error: upsertError } = await supabase
-      .from('user_quests')
-      .upsert({
-        user_id: userId,
-        quest_id: quest.id,
-        status: 'completed',
-        progress: quest.target_value || 1,
-        completed_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,quest_id'
-      });
-
-    if (upsertError) {
-      console.error('[QRScannerService] Error updating user_quests:', upsertError);
-      return {
-        found: true,
-        success: false,
-        type: isPresentationQuest ? 'presentation_quest' : 'quest',
-        error: 'Fehler beim Speichern des Fortschritts'
-      };
-    }
-
-    // Award XP to user
-    if (quest.xp_reward > 0) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('score')
-        .eq('id', userId)
-        .single();
-
-      if (profile) {
-        await supabase
-          .from('profiles')
-          .update({ score: (profile.score || 0) + quest.xp_reward })
-          .eq('id', userId);
-      }
-    }
-
-    // Extract info_content from quest metadata
-    const infoContent = quest.metadata?.info_content || null;
-    
-    console.log('[QRScannerService] Quest/POI completed successfully:', quest.title);
-    
-    return {
-      found: true,
-      success: true,
-      type: isPresentationQuest ? 'presentation_quest' : 'quest',
-      quest: quest,
-      rewards: {
-        xp: quest.xp_reward || 0,
-        gems: quest.gem_reward || 0
-      },
-      infoContent,
-      message: isPresentationQuest 
-        ? `Point of Interest "${quest.title}" entdeckt! +${quest.xp_reward || 0} Punkte`
-        : `Quest completed! +${quest.xp_reward || 0} Points`
-    };
+    return await processFoundQuest(quest, userId);
 
   } catch (error) {
     console.error('[QRScannerService] Error checking quest:', error);
