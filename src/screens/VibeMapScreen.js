@@ -968,21 +968,19 @@ const MapScreen = () => {
           isAddingQuest={isAddingQuest}
         />
 
-        {/* Scan Button for Presentation Mode */}
-        <View style={[styles.scanButtonContainer, { bottom: insets.bottom + 60 }]}>
-          <TouchableOpacity
-            style={styles.scanButton}
-            onPress={() => setShowQRScanner(true)}
+        {/* Scan Button for Presentation Mode - compact in corner */}
+        <TouchableOpacity
+          style={[styles.scanButtonCompact, { bottom: insets.bottom + 80, right: 16 }]}
+          onPress={() => setShowQRScanner(true)}
+        >
+          <LinearGradient
+            colors={COLORS.gradients.gold}
+            style={styles.scanButtonCompactGradient}
           >
-            <LinearGradient
-              colors={COLORS.gradients.gold}
-              style={styles.scanButtonGradient}
-            >
-              <Ionicons name="qr-code" size={24} color={COLORS.text.primary} />
-              <Text style={styles.scanButtonText}>Scannen</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+            <Ionicons name="qr-code" size={20} color={COLORS.text.primary} />
+            <Text style={styles.scanButtonCompactText}>Scan</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* QR Scanner Modal */}
         {showQRScanner && Platform.OS === 'web' && UniversalQRScanner && (
@@ -1369,26 +1367,23 @@ const MapScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.backgroundDark },
 
-  // Presentation Mode Scan Button
-  scanButtonContainer: {
+  // Presentation Mode Scan Button - compact corner style
+  scanButtonCompact: {
     position: 'absolute',
-    left: 16,
-    right: 16,
-  },
-  scanButton: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     ...SHADOWS.glow,
   },
-  scanButtonGradient: {
+  scanButtonCompactGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 16,
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  scanButtonText: {
-    fontSize: 18,
+  scanButtonCompactText: {
+    fontSize: 14,
     fontWeight: '700',
     color: COLORS.text.primary,
   },

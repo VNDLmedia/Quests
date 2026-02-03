@@ -26,6 +26,17 @@ import { fetchPresentationQuests, fetchUserPresentationQuestProgress } from '../
 import { COLLECTIBLE_CARDS } from '../game/config/cardsData';
 import GlassCard from '../components/GlassCard';
 import LiveLeaderboard from '../components/LiveLeaderboard';
+import { processQRCode } from '../game/services/QRScannerService';
+
+// Safe import for QR Scanner (Web)
+let UniversalQRScanner = null;
+try {
+  if (Platform.OS === 'web') {
+    UniversalQRScanner = require('../components/UniversalQRScanner').default;
+  }
+} catch (error) {
+  // UniversalQRScanner not available
+}
 
 const { width } = Dimensions.get('window');
 
@@ -568,11 +579,13 @@ const QuestLogScreen = ({ navigation }) => {
   };
 
   const handleScanAction = async (quest) => {
+    // On web, use UniversalQRScanner which has built-in fallback
     if (Platform.OS === 'web') {
-      Alert.alert('Not Supported', 'Scanning is not fully supported on web in this demo.');
+      setScanningQuest(quest);
       return;
     }
 
+    // On native, request camera permission first
     if (!permission?.granted) {
       const { granted } = await requestPermission();
       if (!granted) {
@@ -583,11 +596,81 @@ const QuestLogScreen = ({ navigation }) => {
     setScanningQuest(quest);
   };
 
-  const handleBarCodeScanned = ({ data }) => {
-    if (!scanningQuest) return;
-    setScanningQuest(null);
-    updateProgress(scanningQuest.id, scanningQuest.target);
-    Alert.alert('Quest Updated', `Scanned: ${data}`);
+  // Handle QR code scan result - same logic as VibeMapScreen
+  const handleBarCodeScanned = async ({ data }) => {
+    if (!data) return;
+    
+    const userId = user?.id || player?.id;
+    
+    try {
+      const result = await processQRCode(data.trim(), userId);
+      
+      // Handle POI scan (presentation mode)
+      if (result.type === 'poi' || result.type === 'hardcoded_poi') {
+        setScanningQuest(null);
+        if (result.success) {
+          if (Platform.OS === 'web') {
+            window.alert(`Station discovered: ${result.poi?.name || 'POI'}`);
+          } else {
+            Alert.alert('Station discovered!', result.poi?.name || 'POI completed');
+          }
+        } else {
+          if (Platform.OS === 'web') {
+            window.alert(result.error || 'Error scanning POI');
+          } else {
+            Alert.alert('Info', result.error || 'Error scanning POI');
+          }
+        }
+        return;
+      }
+      
+      // Handle Presentation Quest scan
+      if (result.type === 'presentation_quest') {
+        setScanningQuest(null);
+        if (result.success) {
+          if (Platform.OS === 'web') {
+            window.alert(`Quest completed: ${result.quest?.title || 'Quest'}\n+${result.quest?.xp_reward || 100} Points`);
+          } else {
+            Alert.alert('Quest completed!', `${result.quest?.title || 'Quest'}\n+${result.quest?.xp_reward || 100} Points`);
+          }
+        } else {
+          if (Platform.OS === 'web') {
+            window.alert(result.error || 'Error scanning quest');
+          } else {
+            Alert.alert('Info', result.error || 'Error scanning quest');
+          }
+        }
+        return;
+      }
+      
+      // Handle regular Quest scan
+      if (result.success && result.type === 'quest') {
+        setScanningQuest(null);
+        if (scanningQuest) {
+          updateProgress(scanningQuest.id, scanningQuest.target);
+        }
+        if (Platform.OS === 'web') {
+          window.alert(`Quest completed: ${result.quest?.title || scanningQuest?.title || 'Quest'}`);
+        } else {
+          Alert.alert('Quest completed!', result.quest?.title || scanningQuest?.title || 'Quest');
+        }
+      } else if (!result.success) {
+        if (Platform.OS === 'web') {
+          window.alert(result.error || 'Invalid QR code');
+        } else {
+          Alert.alert('Error', result.error || 'Invalid QR code');
+        }
+        setScanningQuest(null);
+      }
+    } catch (error) {
+      console.error('[QuestLogScreen] QR scan error:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Error processing QR code');
+      } else {
+        Alert.alert('Error', 'Error processing QR code');
+      }
+      setScanningQuest(null);
+    }
   };
 
   const renderSection = (title, data, color) => {
@@ -1054,23 +1137,30 @@ const QuestLogScreen = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* Simple Camera Modal for Quests */}
+      {/* QR Scanner Modal - Universal for Web and Native */}
       <Modal visible={!!scanningQuest} animationType="slide">
-        <View style={styles.cameraContainer}>
-          <CameraView
-            style={styles.camera}
-            onBarcodeScanned={handleBarCodeScanned}
-            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-          >
-            <View style={styles.overlay}>
-              <Text style={styles.overlayText}>Scan Quest Code</Text>
-              <TouchableOpacity style={styles.closeBtn} onPress={() => setScanningQuest(null)}>
-                <Ionicons name="close" size={32} color="#FFF" />
-              </TouchableOpacity>
-              <View style={styles.scanFrame} />
-            </View>
-          </CameraView>
-        </View>
+        {Platform.OS === 'web' && UniversalQRScanner ? (
+          <UniversalQRScanner 
+            onScan={handleBarCodeScanned} 
+            onClose={() => setScanningQuest(null)} 
+          />
+        ) : (
+          <View style={styles.cameraContainer}>
+            <CameraView
+              style={styles.camera}
+              onBarcodeScanned={handleBarCodeScanned}
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            >
+              <View style={styles.overlay}>
+                <Text style={styles.overlayText}>Scan Quest Code</Text>
+                <TouchableOpacity style={styles.closeBtn} onPress={() => setScanningQuest(null)}>
+                  <Ionicons name="close" size={32} color="#FFF" />
+                </TouchableOpacity>
+                <View style={styles.scanFrame} />
+              </View>
+            </CameraView>
+          </View>
+        )}
       </Modal>
 
       {/* Expanded Challenge Modal (for Questlines) */}
