@@ -34,8 +34,13 @@ export const getPresentationSettings = async () => {
 
 /**
  * Check if presentation mode is currently active
+ * DISABLED: Presentation mode is completely disabled
  */
 export const isPresentationModeActive = async () => {
+  // Presentation mode is completely disabled
+  return false;
+  
+  /* ORIGINAL CODE - DISABLED
   const { data: settings, error } = await getPresentationSettings();
   
   if (error || !settings) {
@@ -56,6 +61,7 @@ export const isPresentationModeActive = async () => {
   }
 
   return false;
+  */
 };
 
 /**
