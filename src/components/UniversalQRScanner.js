@@ -184,7 +184,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
     try {
       // Check if mediaDevices is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Kamera-API nicht verfügbar. Bitte verwende einen modernen Browser.');
+        throw new Error('Camera API not available. Please use a modern browser.');
       }
 
       // Request camera permission - iOS requires this to be in response to user gesture
@@ -200,12 +200,19 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
       console.log('[UniversalQRScanner] Camera stream obtained');
       streamRef.current = stream;
 
+      // Wait a tick to ensure video element is rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         
         // Wait for video metadata to load
         await new Promise((resolve, reject) => {
           const video = videoRef.current;
+          if (!video) {
+            reject(new Error('Video element not available'));
+            return;
+          }
           
           const onLoadedMetadata = () => {
             video.removeEventListener('loadedmetadata', onLoadedMetadata);
@@ -226,7 +233,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
           setTimeout(() => {
             video.removeEventListener('loadedmetadata', onLoadedMetadata);
             video.removeEventListener('error', onError);
-            reject(new Error('Video-Timeout'));
+            reject(new Error('Video timeout'));
           }, 10000);
         });
 
@@ -244,6 +251,8 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
         scanningRef.current = true;
         hasScannedRef.current = false;
         scanQRCode();
+      } else {
+        throw new Error('Video element not available');
       }
     } catch (err) {
       console.error('[UniversalQRScanner] Camera error:', err);
@@ -251,15 +260,15 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
       // Check if permission was denied
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setPermissionDenied(true);
-        setCameraError('Kamerazugriff wurde verweigert');
+        setCameraError('Camera access denied');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setCameraError('Keine Kamera gefunden');
+        setCameraError('No camera found');
       } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        setCameraError('Kamera wird bereits verwendet');
+        setCameraError('Camera is already in use');
       } else if (err.name === 'OverconstrainedError') {
-        setCameraError('Kamera unterstützt die Anforderungen nicht');
+        setCameraError('Camera does not support the requirements');
       } else {
-        setCameraError(err.message || 'Kamerafehler');
+        setCameraError(err.message || 'Camera error');
       }
       
       setCameraState('error');
@@ -287,28 +296,23 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
     cleanup();
     hasScannedRef.current = false;
     setShowManualInput(false);
-    // On iOS, we need to show the start button again
-    if (isIOS()) {
-      setCameraState('idle');
-    } else {
-      startCamera();
-    }
+    setCameraState('idle');
   };
 
   // Show manual input when camera is not available
   if (!canUseCamera) {
     // Determine the specific reason
-    let errorTitle = 'QR Scanner nicht verfügbar';
-    let errorMessage = 'Dein Browser unterstützt keinen QR-Scanner. Bitte gib die Code-ID manuell ein.';
+    let errorTitle = 'QR Scanner not available';
+    let errorMessage = 'Your browser does not support QR scanning. Please enter the code ID manually.';
     let errorIcon = 'qr-code-outline';
     
     if (!secureContextOk) {
-      errorTitle = 'HTTPS erforderlich';
-      errorMessage = 'Der QR-Scanner benötigt eine sichere Verbindung (HTTPS). Bitte öffne die App über HTTPS oder localhost.';
+      errorTitle = 'HTTPS required';
+      errorMessage = 'The QR scanner requires a secure connection (HTTPS). Please open the app via HTTPS or localhost.';
       errorIcon = 'lock-closed';
     } else if (!hasMediaDevices) {
-      errorTitle = 'Kamera nicht unterstützt';
-      errorMessage = 'Dein Browser unterstützt keinen Kamerazugriff. Bitte verwende Safari oder Chrome.';
+      errorTitle = 'Camera not supported';
+      errorMessage = 'Your browser does not support camera access. Please use Safari or Chrome.';
       errorIcon = 'camera-off';
     }
     
@@ -335,7 +339,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
-              placeholder="z.B. ID001, ID002, ..."
+              placeholder="e.g. ID001, ID002, ..."
               placeholderTextColor={COLORS.text.muted}
               value={manualCode}
               onChangeText={setManualCode}
@@ -351,7 +355,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
             onPress={handleManualSubmit}
             disabled={!manualCode.trim()}
           >
-            <Text style={styles.submitBtnText}>Bestätigen</Text>
+            <Text style={styles.submitBtnText}>Submit</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -368,15 +372,15 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
           </TouchableOpacity>
 
           <Ionicons name="create-outline" size={64} color={COLORS.text.muted} />
-          <Text style={styles.manualTitle}>Manuelle Eingabe</Text>
+          <Text style={styles.manualTitle}>Manual Entry</Text>
           <Text style={styles.manualSubtitle}>
-            Gib die Code-ID manuell ein (z.B. ID001, ID002, ...)
+            Enter the code ID manually (e.g. ID001, ID002, ...)
           </Text>
 
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
-              placeholder="z.B. ID001, ID002, ..."
+              placeholder="e.g. ID001, ID002, ..."
               placeholderTextColor={COLORS.text.muted}
               value={manualCode}
               onChangeText={setManualCode}
@@ -392,7 +396,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
             onPress={handleManualSubmit}
             disabled={!manualCode.trim()}
           >
-            <Text style={styles.submitBtnText}>Bestätigen</Text>
+            <Text style={styles.submitBtnText}>Submit</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.backBtn} onPress={() => {
@@ -404,7 +408,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
             }
           }}>
             <Ionicons name="camera" size={18} color={COLORS.primary} />
-            <Text style={styles.backBtnText}>Zurück zur Kamera</Text>
+            <Text style={styles.backBtnText}>Back to Camera</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -426,7 +430,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
             color={COLORS.error} 
           />
           <Text style={styles.manualTitle}>
-            {permissionDenied ? 'Kamerazugriff verweigert' : 'Kamera nicht verfügbar'}
+            {permissionDenied ? 'Camera Access Denied' : 'Camera Not Available'}
           </Text>
           <Text style={styles.manualSubtitle}>
             {cameraError}
@@ -437,8 +441,8 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
               <Ionicons name="information-circle" size={20} color={COLORS.primary} />
               <Text style={styles.permissionHintText}>
                 {isIOS() 
-                  ? 'Öffne Einstellungen → Safari → Kamera und erlaube den Zugriff für diese Website.'
-                  : 'Klicke auf das Kamera-Symbol in der Adressleiste und erlaube den Zugriff.'}
+                  ? 'Open Settings → Safari → Camera and allow access for this website.'
+                  : 'Click the camera icon in the address bar and allow access.'}
               </Text>
             </View>
           )}
@@ -446,7 +450,7 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
-              placeholder="z.B. ID001, ID002, ..."
+              placeholder="e.g. ID001, ID002, ..."
               placeholderTextColor={COLORS.text.muted}
               value={manualCode}
               onChangeText={setManualCode}
@@ -461,135 +465,138 @@ const UniversalQRScanner = ({ onScan, onClose }) => {
             onPress={handleManualSubmit}
             disabled={!manualCode.trim()}
           >
-            <Text style={styles.submitBtnText}>Manuell bestätigen</Text>
+            <Text style={styles.submitBtnText}>Submit Manually</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.retryBtn} onPress={handleRetryCamera}>
             <Ionicons name="refresh" size={18} color={COLORS.primary} />
-            <Text style={styles.retryBtnText}>Erneut versuchen</Text>
+            <Text style={styles.retryBtnText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  // Idle state - show start button (required for iOS user gesture)
-  if (cameraState === 'idle') {
-    return (
-      <View style={styles.container}>
-        <View style={styles.startContainer}>
-          <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
-            <Ionicons name="close-circle" size={40} color={COLORS.text.muted} />
-          </TouchableOpacity>
-
-          <View style={styles.startContent}>
-            <View style={styles.cameraIconWrapper}>
-              <Ionicons name="camera" size={80} color={COLORS.primary} />
-            </View>
-
-            <Text style={styles.startTitle}>QR-Code scannen</Text>
-            <Text style={styles.startSubtitle}>
-              Tippe auf den Button um die Kamera zu starten und den QR-Code zu scannen.
-            </Text>
-
-            {isIOS() && (
-              <View style={styles.iosHint}>
-                <Ionicons name="logo-apple" size={16} color={COLORS.text.muted} />
-                <Text style={styles.iosHintText}>
-                  Erlaube den Kamerazugriff wenn du gefragt wirst
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity style={styles.startButton} onPress={startCamera}>
-              <LinearGradient
-                colors={COLORS.gradients.gold}
-                style={styles.startButtonGradient}
-              >
-                <Ionicons name="camera" size={24} color={COLORS.text.primary} />
-                <Text style={styles.startButtonText}>Kamera starten</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.manualEntryBtn} 
-              onPress={() => setShowManualInput(true)}
-            >
-              <Ionicons name="create-outline" size={18} color={COLORS.text.secondary} />
-              <Text style={styles.manualEntryText}>Code manuell eingeben</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  // Requesting permission state
-  if (cameraState === 'requesting') {
-    return (
-      <View style={styles.container}>
-        <View style={styles.startContainer}>
-          <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
-            <Ionicons name="close-circle" size={40} color={COLORS.text.muted} />
-          </TouchableOpacity>
-
-          <View style={styles.startContent}>
-            <View style={styles.loadingIconWrapper}>
-              <Ionicons name="camera" size={60} color={COLORS.primary} />
-            </View>
-            <Text style={styles.startTitle}>Kamerazugriff wird angefragt...</Text>
-            <Text style={styles.startSubtitle}>
-              Bitte erlaube den Kamerazugriff im Browser-Dialog.
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  // Active camera view
+  // MAIN RENDER - Always include video/canvas elements so refs are available
+  // We show/hide content based on state using overlay views
   return (
     <View style={styles.container}>
-      {/* Video element with iOS-specific attributes */}
+      {/* Video element - ALWAYS rendered so ref is available */}
       <video 
         ref={videoRef} 
-        style={styles.video} 
+        style={{
+          ...styles.video,
+          display: cameraState === 'active' ? 'block' : 'none',
+        }} 
         playsInline={true}
         muted={true}
         autoPlay={true}
       />
       <canvas ref={canvasRef} style={styles.canvas} />
 
-      <View style={styles.overlay}>
-        <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-          <Ionicons name="close-circle" size={48} color="white" />
-        </TouchableOpacity>
+      {/* Idle state overlay */}
+      {cameraState === 'idle' && (
+        <View style={styles.fullOverlay}>
+          <View style={styles.startContainer}>
+            <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
+              <Ionicons name="close-circle" size={40} color={COLORS.text.muted} />
+            </TouchableOpacity>
 
-        <View style={styles.scanFrame}>
-          <View style={[styles.corner, styles.cornerTopLeft]} />
-          <View style={[styles.corner, styles.cornerTopRight]} />
-          <View style={[styles.corner, styles.cornerBottomLeft]} />
-          <View style={[styles.corner, styles.cornerBottomRight]} />
+            <View style={styles.startContent}>
+              <View style={styles.cameraIconWrapper}>
+                <Ionicons name="camera" size={80} color={COLORS.primary} />
+              </View>
 
-          <View style={styles.scanLine} />
+              <Text style={styles.startTitle}>Scan QR Code</Text>
+              <Text style={styles.startSubtitle}>
+                Tap the button to start the camera and scan the QR code.
+              </Text>
+
+              {isIOS() && (
+                <View style={styles.iosHint}>
+                  <Ionicons name="logo-apple" size={16} color={COLORS.text.muted} />
+                  <Text style={styles.iosHintText}>
+                    Allow camera access when prompted
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity style={styles.startButton} onPress={startCamera}>
+                <LinearGradient
+                  colors={COLORS.gradients.gold}
+                  style={styles.startButtonGradient}
+                >
+                  <Ionicons name="camera" size={24} color={COLORS.text.primary} />
+                  <Text style={styles.startButtonText}>Start Camera</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.manualEntryBtn} 
+                onPress={() => setShowManualInput(true)}
+              >
+                <Ionicons name="create-outline" size={18} color={COLORS.text.secondary} />
+                <Text style={styles.manualEntryText}>Enter code manually</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
+      )}
 
-        <Text style={styles.scanText}>QR-Code im Rahmen halten</Text>
+      {/* Requesting permission state overlay */}
+      {cameraState === 'requesting' && (
+        <View style={styles.fullOverlay}>
+          <View style={styles.startContainer}>
+            <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
+              <Ionicons name="close-circle" size={40} color={COLORS.text.muted} />
+            </TouchableOpacity>
 
-        {/* Debug info */}
-        <Text style={styles.scannerInfo}>
-          {('BarcodeDetector' in window) ? 'Native Scanner' : 'jsQR Scanner'}
-          {isIOS() ? ' (iOS)' : ''}
-        </Text>
+            <View style={styles.startContent}>
+              <View style={styles.loadingIconWrapper}>
+                <Ionicons name="camera" size={60} color={COLORS.primary} />
+              </View>
+              <Text style={styles.startTitle}>Requesting Camera Access...</Text>
+              <Text style={styles.startSubtitle}>
+                Please allow camera access in the browser dialog.
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
 
-        <TouchableOpacity
-          style={styles.manualBtn}
-          onPress={() => setShowManualInput(true)}
-        >
-          <Ionicons name="create-outline" size={20} color="white" />
-          <Text style={styles.manualBtnText}>Manuell eingeben</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Active camera overlay - scanning UI */}
+      {cameraState === 'active' && (
+        <View style={styles.overlay}>
+          <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+            <Ionicons name="close-circle" size={48} color="white" />
+          </TouchableOpacity>
+
+          <View style={styles.scanFrame}>
+            <View style={[styles.corner, styles.cornerTopLeft]} />
+            <View style={[styles.corner, styles.cornerTopRight]} />
+            <View style={[styles.corner, styles.cornerBottomLeft]} />
+            <View style={[styles.corner, styles.cornerBottomRight]} />
+
+            <View style={styles.scanLine} />
+          </View>
+
+          <Text style={styles.scanText}>Hold QR code in frame</Text>
+
+          {/* Debug info */}
+          <Text style={styles.scannerInfo}>
+            {('BarcodeDetector' in window) ? 'Native Scanner' : 'jsQR Scanner'}
+            {isIOS() ? ' (iOS)' : ''}
+          </Text>
+
+          <TouchableOpacity
+            style={styles.manualBtn}
+            onPress={() => setShowManualInput(true)}
+          >
+            <Ionicons name="create-outline" size={20} color="white" />
+            <Text style={styles.manualBtnText}>Enter manually</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -615,6 +622,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  fullOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.background,
   },
   closeButton: {
     position: 'absolute',

@@ -132,7 +132,7 @@ const questIcon=q.status==='completed'?'✓':'⚔';
 const pointColor=q.status==='completed'?'#2ECC71':q.status==='active'?'#E8B84A':'#5DADE2';
 const rewardClass=q.status==='completed'?' completed':'';
 const h='<div class="quest-container '+(sc==='locked'?' disabled':'')+'"><div class="quest-pill '+sc+'"><div class="quest-icon" style="background:'+iconBg+';color:'+iconColor+'">'+questIcon+'</div><div><div class="quest-title">'+q.title+'</div><div class="quest-distance">'+dt+'</div></div><div class="quest-reward'+rewardClass+'">'+(q.status==='completed'?'Done':q.reward)+'</div></div><div class="quest-point" style="border-color:'+pointColor+'"></div></div>';
-const m=L.marker([q.lat,q.lng],{icon:L.divIcon({className:'',html:h,iconSize:[150,50],iconAnchor:[75,50]})}).addTo(map);
+const m=L.marker([q.lat,q.lng],{icon:L.divIcon({className:'',html:h,iconSize:[150,80],iconAnchor:[75,50]})}).addTo(map);
 m.on('click',()=>sendMsg({type:'QUEST_TAP',quest:q}));questMarkers.push(m);
 })}
 };
