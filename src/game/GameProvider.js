@@ -987,25 +987,35 @@ export function GameProvider({ children }) {
   
   // Check if a quest belongs to a questline and handle completion
   const handleQuestCompletionForQuestline = useCallback(async (questId) => {
-    if (!isSupabaseConfigured() || !state.user) return null;
+    console.log('[handleQuestCompletionForQuestline] Checking quest:', questId);
+    if (!isSupabaseConfigured() || !state.user) {
+      console.log('[handleQuestCompletionForQuestline] Not configured or no user');
+      return null;
+    }
     
     try {
       const info = await getQuestChallengeInfo(questId);
+      console.log('[handleQuestCompletionForQuestline] Quest challenge info:', info);
       
       if (info.success && info.isInQuestline) {
         // Find questline challenges this quest belongs to
         const questlineChallenges = info.challenges.filter(
           c => c.event_challenges?.challenge_mode === 'questline'
         );
+        console.log('[handleQuestCompletionForQuestline] Found questline challenges:', questlineChallenges.length);
         
         // Complete the quest in each questline it belongs to
         const results = [];
         for (const challenge of questlineChallenges) {
+          console.log('[handleQuestCompletionForQuestline] Completing quest in challenge:', challenge.challenge_id);
           const result = await completeQuestlineQuestAction(challenge.challenge_id, questId);
+          console.log('[handleQuestCompletionForQuestline] Result:', result);
           results.push({ challengeId: challenge.challenge_id, ...result });
         }
         
         return results;
+      } else {
+        console.log('[handleQuestCompletionForQuestline] Quest not in questline');
       }
       
       return null;
@@ -1265,6 +1275,296 @@ export function GameProvider({ children }) {
   }, [state.player, state.user, state.eventChallenges, fetchQuestlineProgress]);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // ADMIN: COMPLETE QUEST FOR ANY USER
+  // ─────────────────────────────────────────────────────────────────────────
+  const adminCompleteQuest = useCallback(async (targetUserId, userQuestId) => {
+    console.log('[adminCompleteQuest] Called with:', { targetUserId, userQuestId });
+    console.log('[adminCompleteQuest] Admin status:', state.player?.admin);
+    console.log('[adminCompleteQuest] Active quests:', state.activeQuests.map(q => ({ id: q.id, title: q.title })));
+    
+    if (!isSupabaseConfigured() || !state.player?.admin) {
+      console.log('[adminCompleteQuest] Not authorized');
+      return { error: 'Not authorized' };
+    }
+    
+    try {
+      // Find the quest in active quests
+      const userQuest = state.activeQuests.find(q => q.id === userQuestId);
+      console.log('[adminCompleteQuest] Found quest:', userQuest ? userQuest.title : 'NOT FOUND');
+      
+      if (!userQuest) {
+        console.log('[adminCompleteQuest] Quest IDs in state:', state.activeQuests.map(q => q.id));
+        console.log('[adminCompleteQuest] Looking for ID:', userQuestId, 'type:', typeof userQuestId);
+        return { error: 'Quest not found in active quests' };
+      }
+      
+      const xpReward = userQuest.xpReward || userQuest.xp_reward || 0;
+      const now = new Date().toISOString();
+      
+      // Get the actual quest_id (the reference to quests table)
+      const actualQuestId = userQuest.questId || userQuest.quest_id || userQuestId;
+      
+      console.log('[adminCompleteQuest] Updating database with:', {
+        user_id: targetUserId,
+        quest_id: actualQuestId,
+        status: 'completed',
+        progress: userQuest.target || 1
+      });
+      
+      // Update user_quests to completed status
+      // Use user_id + quest_id for reliable matching (handles ID mismatch bug)
+      const { data: updateData, error: updateError } = await supabase
+        .from('user_quests')
+        .update({
+          status: 'completed',
+          progress: userQuest.target || 1,
+          completed_at: now,
+        })
+        .eq('user_id', targetUserId)
+        .eq('quest_id', actualQuestId)
+        .select();
+      
+      console.log('[adminCompleteQuest] Update result:', { updateData, updateError });
+      
+      if (updateError) {
+        console.error('[adminCompleteQuest] Error updating quest:', updateError);
+        return { error: updateError };
+      }
+      
+      // Award XP to the user
+      if (xpReward > 0) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('score')
+          .eq('id', targetUserId)
+          .single();
+        
+        const newScore = (profile?.score || 0) + xpReward;
+        console.log('[adminCompleteQuest] Updating score from', profile?.score, 'to', newScore);
+        
+        await supabase
+          .from('profiles')
+          .update({ score: newScore })
+          .eq('id', targetUserId);
+      }
+      
+      // If this is for the current user, update local state
+      if (targetUserId === state.user?.id) {
+        console.log('[adminCompleteQuest] Updating local state');
+        // Move quest from active to completed
+        dispatch({
+          type: ACTIONS.COMPLETE_QUEST,
+          payload: userQuestId
+        });
+        
+        // Update local score
+        if (xpReward > 0) {
+          dispatch({
+            type: ACTIONS.SET_PLAYER,
+            payload: { ...state.player, score: (state.player.score || 0) + xpReward }
+          });
+        }
+      }
+      
+      console.log('[adminCompleteQuest] Success!');
+      return { success: true, xpAwarded: xpReward };
+    } catch (error) {
+      console.error('[adminCompleteQuest] Failed:', error);
+      return { error };
+    }
+  }, [state.player, state.user, state.activeQuests]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ADMIN: UNCOMPLETE QUEST FOR ANY USER (revert to active)
+  // ─────────────────────────────────────────────────────────────────────────
+  const adminUncompleteQuest = useCallback(async (targetUserId, userQuestId) => {
+    console.log('[adminUncompleteQuest] Called with:', { targetUserId, userQuestId });
+    
+    if (!isSupabaseConfigured() || !state.player?.admin) {
+      return { error: 'Not authorized' };
+    }
+    
+    try {
+      // Find the quest in completed quests
+      const completedQuest = state.completedQuests.find(q => q.id === userQuestId);
+      console.log('[adminUncompleteQuest] Found quest:', completedQuest ? completedQuest.title : 'NOT FOUND');
+      
+      if (!completedQuest) {
+        return { error: 'Quest not found in completed quests' };
+      }
+      
+      const xpReward = completedQuest.xpReward || completedQuest.xp_reward || 0;
+      const actualQuestId = completedQuest.questId || completedQuest.quest_id || userQuestId;
+      
+      console.log('[adminUncompleteQuest] Updating with user_id:', targetUserId, 'quest_id:', actualQuestId);
+      
+      // Update user_quests back to active status
+      // Use user_id + quest_id for reliable matching
+      const { data: updateData, error: updateError } = await supabase
+        .from('user_quests')
+        .update({
+          status: 'active',
+          progress: 0,
+          completed_at: null,
+        })
+        .eq('user_id', targetUserId)
+        .eq('quest_id', actualQuestId)
+        .select();
+      
+      console.log('[adminUncompleteQuest] Update result:', { updateData, updateError });
+      
+      if (updateError) {
+        console.error('Error admin uncompleting quest:', updateError);
+        return { error: updateError };
+      }
+      
+      // Deduct XP from the user
+      if (xpReward > 0) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('score')
+          .eq('id', targetUserId)
+          .single();
+        
+        const newScore = Math.max(0, (profile?.score || 0) - xpReward);
+        
+        await supabase
+          .from('profiles')
+          .update({ score: newScore })
+          .eq('id', targetUserId);
+      }
+      
+      // If this is for the current user, update local state
+      if (targetUserId === state.user?.id) {
+        // Move quest from completed back to active
+        const reactivatedQuest = {
+          ...completedQuest,
+          status: 'active',
+          progress: 0,
+          completedAt: null,
+        };
+        
+        dispatch({
+          type: ACTIONS.SET_QUESTS,
+          payload: {
+            active: [...state.activeQuests, reactivatedQuest],
+            completed: state.completedQuests.filter(q => q.id !== userQuestId)
+          }
+        });
+        
+        // Update local score
+        if (xpReward > 0) {
+          dispatch({
+            type: ACTIONS.SET_PLAYER,
+            payload: { ...state.player, score: Math.max(0, (state.player.score || 0) - xpReward) }
+          });
+        }
+      }
+      
+      return { success: true, xpDeducted: xpReward };
+    } catch (error) {
+      console.error('Failed to admin uncomplete quest:', error);
+      return { error };
+    }
+  }, [state.player, state.user, state.activeQuests, state.completedQuests]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ADMIN: RESET QUEST (delete from user_quests, making it available again)
+  // ─────────────────────────────────────────────────────────────────────────
+  const adminResetQuest = useCallback(async (targetUserId, userQuestId, questStatus = 'active') => {
+    console.log('[adminResetQuest] Called with:', { targetUserId, userQuestId, questStatus });
+    
+    if (!isSupabaseConfigured() || !state.player?.admin) {
+      return { error: 'Not authorized' };
+    }
+    
+    try {
+      // Find the quest in either active or completed quests
+      const quest = questStatus === 'completed' 
+        ? state.completedQuests.find(q => q.id === userQuestId)
+        : state.activeQuests.find(q => q.id === userQuestId);
+      
+      console.log('[adminResetQuest] Found quest:', quest ? quest.title : 'NOT FOUND');
+      console.log('[adminResetQuest] Quest object:', quest);
+      console.log('[adminResetQuest] Quest IDs - id:', quest?.id, 'questId:', quest?.questId);
+      
+      if (!quest) {
+        return { error: 'Quest not found' };
+      }
+      
+      const xpReward = quest.xpReward || quest.xp_reward || 0;
+      const wasCompleted = questStatus === 'completed' || quest.status === 'completed';
+      
+      // quest.id from state should be the user_quests row id (primary key)
+      console.log('[adminResetQuest] Attempting to delete user_quest row with id:', userQuestId);
+      console.log('[adminResetQuest] Query: DELETE FROM user_quests WHERE id =', userQuestId);
+      
+      // Delete the user_quest entry by primary key (user_quests.id)
+      const { data: deleteData, error: deleteError } = await supabase
+        .from('user_quests')
+        .delete()
+        .eq('id', userQuestId)
+        .select();
+      
+      console.log('[adminResetQuest] Delete result:', { deleteData, deleteError });
+      
+      if (deleteError) {
+        console.error('Error admin resetting quest:', deleteError);
+        return { error: deleteError };
+      }
+      
+      // Check if any rows were actually deleted (RLS might silently block)
+      if (!deleteData || deleteData.length === 0) {
+        console.error('[adminResetQuest] DELETE returned 0 rows - RLS policy likely blocking. Apply admin delete policy to user_quests table!');
+        return { error: 'Delete failed - no rows affected. Check RLS policies in Supabase.' };
+      }
+      
+      // If quest was completed, deduct XP
+      if (wasCompleted && xpReward > 0) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('score')
+          .eq('id', targetUserId)
+          .single();
+        
+        const newScore = Math.max(0, (profile?.score || 0) - xpReward);
+        console.log('[adminResetQuest] Deducting XP, new score:', newScore);
+        
+        await supabase
+          .from('profiles')
+          .update({ score: newScore })
+          .eq('id', targetUserId);
+      }
+      
+      // If this is for the current user, update local state
+      if (targetUserId === state.user?.id) {
+        // Remove from both active and completed lists
+        dispatch({
+          type: ACTIONS.SET_QUESTS,
+          payload: {
+            active: state.activeQuests.filter(q => q.id !== userQuestId),
+            completed: state.completedQuests.filter(q => q.id !== userQuestId)
+          }
+        });
+        
+        // Update local score if was completed
+        if (wasCompleted && xpReward > 0) {
+          dispatch({
+            type: ACTIONS.SET_PLAYER,
+            payload: { ...state.player, score: Math.max(0, (state.player.score || 0) - xpReward) }
+          });
+        }
+      }
+      
+      console.log('[adminResetQuest] Success!');
+      return { success: true, xpDeducted: wasCompleted ? xpReward : 0 };
+    } catch (error) {
+      console.error('Failed to admin reset quest:', error);
+      return { error };
+    }
+  }, [state.player, state.user, state.activeQuests, state.completedQuests]);
+
+  // ─────────────────────────────────────────────────────────────────────────
   // FETCH USER QUESTS FROM SUPABASE
   // ─────────────────────────────────────────────────────────────────────────
   const fetchUserQuests = useCallback(async (userId) => {
@@ -1319,10 +1619,12 @@ export function GameProvider({ children }) {
         // Extract coordinates from quest metadata if available
         const metadata = quest?.metadata || {};
         
+        // IMPORTANT: Spread quest FIRST, then override with user_quest specific fields
         const questData = {
-          id: uq.id,
-          questId: uq.quest_id,
           ...quest,
+          // Override with user_quests specific data (MUST come after spread!)
+          id: uq.id,                    // user_quests.id (row id), NOT quests.id!
+          questId: uq.quest_id,         // quests.id (template id)
           xpReward: quest?.xp_reward,
           gemReward: quest?.gem_reward || Math.floor((quest?.xp_reward || 0) / 2),
           timeLimit: quest?.time_limit,
@@ -1779,11 +2081,15 @@ export function GameProvider({ children }) {
         // Check if this quest belongs to a questline challenge
         // Use the actual quest UUID if provided, otherwise try to get it from the quest object
         const actualQuestId = questUuid || quest?.questId || questId;
+        console.log('[completeQuest] Checking questline for quest:', { 
+          questUuid, 
+          questQuestId: quest?.questId, 
+          questId, 
+          actualQuestId 
+        });
         if (actualQuestId) {
           const questlineResults = await handleQuestCompletionForQuestline(actualQuestId);
-          // if (questlineResults && questlineResults.length > 0) {
-          //   console.log('Quest completion updated questline challenges:', questlineResults);
-          // }
+          console.log('[completeQuest] Questline update results:', questlineResults);
         }
       } catch (error) {
         console.error('Failed to update quest completion in DB:', error);
@@ -2069,8 +2375,8 @@ export function GameProvider({ children }) {
       .from('challenges')
       .select(`
         *,
-        challenger:challenger_id (username, display_name, avatar_url),
-        opponent:opponent_id (username, display_name, avatar_url)
+        challenger:profiles!challenger_id (username, display_name, avatar_url),
+        opponent:profiles!opponent_id (username, display_name, avatar_url)
       `)
       .or(`challenger_id.eq.${state.user.id},opponent_id.eq.${state.user.id}`)
       .in('status', ['pending', 'active']);
@@ -2159,6 +2465,11 @@ export function GameProvider({ children }) {
     adminCompleteChallenge,
     adminUncompleteChallenge,
     
+    // Admin Quest Actions
+    adminCompleteQuest,
+    adminUncompleteQuest,
+    adminResetQuest,
+    
     // Utilities
     dispatch,
   }), [
@@ -2192,6 +2503,9 @@ export function GameProvider({ children }) {
     handleQuestCompletionForQuestline,
     adminCompleteChallenge,
     adminUncompleteChallenge,
+    adminCompleteQuest,
+    adminUncompleteQuest,
+    adminResetQuest,
   ]);
 
   return (

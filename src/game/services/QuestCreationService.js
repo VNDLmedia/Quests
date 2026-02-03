@@ -167,10 +167,27 @@ export const createQuest = async (questData) => {
       };
     }
 
+    // Validate location has both lat and lng
+    const lat = location.latitude ?? location.lat;
+    const lng = location.longitude ?? location.lng;
+    
+    console.log('[QuestCreationService] Location data:', { 
+      original: location, 
+      extracted: { lat, lng } 
+    });
+    
+    if (lat === undefined || lat === null || lng === undefined || lng === null) {
+      console.error('[QuestCreationService] Invalid location - missing lat or lng:', location);
+      return {
+        success: false,
+        error: 'Invalid location data - missing latitude or longitude',
+      };
+    }
+
     // Store all quest data in a JSON-safe format
     const questMetadata = {
-      lat: location.latitude,
-      lng: location.longitude,
+      lat: lat,
+      lng: lng,
       qr_code_id: qrCodeId,
       created_by_admin: true,
       admin_id: adminId,

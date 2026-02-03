@@ -80,37 +80,50 @@ export function useQuests() {
     try {
       // Insert into Supabase FIRST
       // console.log('Inserting user_quest:', { user_id: user.id, quest_id: dbQuestId });
-      const { data, error } = await supabase.from('user_quests').insert({
+      // Insert the user_quest first
+      const { data: insertedData, error: insertError } = await supabase.from('user_quests').insert({
         user_id: user.id,
         quest_id: dbQuestId,
         status: 'active',
         progress: 0,
         started_at: new Date().toISOString(),
         expires_at: expiresAt
-      }).select(`
-        *,
-        quest:quest_id (*)
-      `).single();
+      }).select('*').single();
       
-      if (error) {
-        console.error('Failed to start quest:', error);
-        Alert.alert('Error', 'Failed to start quest. ' + (error.message || ''));
+      if (insertError) {
+        console.error('Failed to insert user_quest:', insertError);
+        Alert.alert('Error', 'Failed to start quest. ' + (insertError.message || ''));
         return null;
       }
 
-      // console.log('Quest saved to DB:', data);
+      // Fetch the quest details separately
+      const { data: questDetails, error: questError } = await supabase
+        .from('quests')
+        .select('*')
+        .eq('id', dbQuestId)
+        .single();
+      
+      const data = insertedData;
+      const error = questError;
+      
+      if (error) {
+        console.error('Failed to fetch quest details:', error);
+        // Still continue - we have the basic data
+      }
 
       // Build local quest object from DB response
+      // IMPORTANT: Spread questDetails first, then override with user_quest specific fields
       const newQuest = {
-        id: data.id, // Use the user_quest ID from DB!
-        questId: data.quest_id,
-        ...data.quest,
+        ...questDetails,
+        // Override with user_quest specific data (MUST come after spread!)
+        id: data.id, // Use the user_quest ID from DB, NOT quests.id!
+        questId: data.quest_id, // This is the actual quests.id
         // Normalize snake_case
-        xpReward: data.quest?.xp_reward,
-        timeLimit: data.quest?.time_limit,
-        requiresScan: data.quest?.requires_scan,
-        target: data.quest?.target_value || 1,
-        location: data.quest?.location_id,
+        xpReward: questDetails?.xp_reward,
+        timeLimit: questDetails?.time_limit,
+        requiresScan: questDetails?.requires_scan,
+        target: questDetails?.target_value || 1,
+        location: questDetails?.location_id,
         // User-specific data
         progress: data.progress || 0,
         status: data.status,

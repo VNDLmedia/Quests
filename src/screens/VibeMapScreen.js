@@ -713,10 +713,16 @@ const MapScreen = () => {
         const rewards = result.rewards || { xp: scanningQuest.xpReward, gems: scanningQuest.gemReward };
         const infoContent = result.quest?.metadata?.info_content || scanningQuest.metadata?.info_content;
         
+        // Get the actual quest template ID (from quests table) for questline tracking
+        // result.quest is from the quests table, scanningQuest might be from user_quests
+        const questTemplateId = result.quest?.id || scanningQuest.questId || scanningQuest.id;
+        console.log('[VibeMapScreen] Quest completed - template ID:', questTemplateId, 'scanningQuest ID:', scanningQuest.id);
+        
         // Mark quest as completed - this awards score and card automatically
+        // Pass questTemplateId as second arg to ensure questline tracking uses correct ID
         let questResult = null;
         if (completeQuest) {
-          questResult = await completeQuest(scanningQuest.id || scanningQuest.questId);
+          questResult = await completeQuest(scanningQuest.id || scanningQuest.questId, questTemplateId);
         }
         
         // Show completion modal with score and card rewards

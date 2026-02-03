@@ -138,13 +138,19 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
   }, []);
 
   const handleCaptureLocation = async () => {
-    // console.log('Capturing location...');
+    console.log('[QuestCreationModal] Capturing location...');
     setLoading(true);
     setLocationError(null);
 
     try {
       const loc = await getCurrentLocation();
-      // console.log('Location captured:', loc);
+      console.log('[QuestCreationModal] Location captured:', loc);
+      console.log('[QuestCreationModal] latitude:', loc?.latitude, 'longitude:', loc?.longitude);
+      
+      if (!loc?.latitude || !loc?.longitude) {
+        throw new Error('Location missing latitude or longitude');
+      }
+      
       setLocation(loc);
       setStep(2);
     } catch (error) {
@@ -311,6 +317,12 @@ const QuestCreationModalContent = ({ visible, onClose, userId }) => {
           imageUrl: infoImageUrl.trim() || null,
         };
       }
+      
+      console.log('[QuestCreationModal] Creating quest with location:', {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        fullLocation: location
+      });
       
       const result = await createQuest({
         title,

@@ -528,6 +528,7 @@ export const getQuestlineQuestStatus = async (userId, challengeId, questId) => {
 
 // Check if a quest belongs to a questline challenge
 export const getQuestChallengeInfo = async (questId) => {
+  console.log('[getQuestChallengeInfo] Looking up quest:', questId);
   try {
     const { data, error } = await supabase
       .from('challenge_quests')
@@ -545,6 +546,8 @@ export const getQuestChallengeInfo = async (questId) => {
       .eq('quest_id', questId);
     
     if (error) throw error;
+    
+    console.log('[getQuestChallengeInfo] Found challenges:', data?.length || 0, data);
     
     return {
       success: true,

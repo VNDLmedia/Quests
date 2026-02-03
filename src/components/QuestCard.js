@@ -9,7 +9,12 @@ const QuestCard = ({
   onPress, 
   onAction,
   actionLabel = "Check In",
-  isActionLoading = false
+  isActionLoading = false,
+  // Admin props
+  isAdmin = false,
+  onAdminComplete,
+  onAdminUncomplete,
+  onAdminReset,
 }) => {
   const { 
     title, 
@@ -40,9 +45,9 @@ const QuestCard = ({
   };
 
   return (
-    <GlassCard style={styles.card}>
+    <GlassCard style={[styles.card, isCompleted && styles.cardCompleted]}>
       <TouchableOpacity 
-        style={styles.contentContainer} 
+        style={[styles.contentContainer, isCompleted && styles.contentCompleted]} 
         activeOpacity={0.9} 
         onPress={onPress}
       >
@@ -118,6 +123,39 @@ const QuestCard = ({
             <Text style={styles.completedText}>Completed!</Text>
           </View>
         )}
+
+        {/* Admin Controls */}
+        {isAdmin && (
+          <View style={styles.adminControls}>
+            {!isCompleted && onAdminComplete && (
+              <TouchableOpacity 
+                style={styles.adminCompleteButton}
+                onPress={onAdminComplete}
+              >
+                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                <Text style={styles.adminCompleteText}>Mark Complete</Text>
+              </TouchableOpacity>
+            )}
+            {isCompleted && onAdminUncomplete && (
+              <TouchableOpacity 
+                style={styles.adminUncompleteButton}
+                onPress={onAdminUncomplete}
+              >
+                <Ionicons name="arrow-undo" size={16} color="#F59E0B" />
+                <Text style={styles.adminUncompleteText}>Undo</Text>
+              </TouchableOpacity>
+            )}
+            {onAdminReset && (
+              <TouchableOpacity 
+                style={styles.adminResetButton}
+                onPress={onAdminReset}
+              >
+                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                <Text style={styles.adminResetText}>Reset</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </TouchableOpacity>
     </GlassCard>
   );
@@ -128,8 +166,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     padding: 16,
   },
+  cardCompleted: {
+    opacity: 0.6,
+    borderColor: '#10B981',
+  },
   contentContainer: {
     gap: 12,
+  },
+  contentCompleted: {
+    opacity: 0.8,
   },
   header: {
     flexDirection: 'row',
@@ -226,6 +271,63 @@ const styles = StyleSheet.create({
     color: '#10B981',
     fontSize: 14,
     fontWeight: '700',
+  },
+  // Admin Styles
+  adminControls: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  adminCompleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  adminCompleteText: {
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  adminUncompleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  adminUncompleteText: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  adminResetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  adminResetText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

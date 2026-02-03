@@ -39,7 +39,8 @@ const QuestLogScreen = ({ navigation }) => {
     updateProgress, 
     completeQuest,
     stats,
-    completedQuests
+    completedQuests,
+    startQuest,
   } = useQuests();
   
   const { score, playerStats } = usePlayer();
@@ -52,9 +53,15 @@ const QuestLogScreen = ({ navigation }) => {
     fetchEventChallenges,
     fetchUserEventChallenges,
     fetchQuestlineProgress,
+    questlineProgress, // Global questline progress state
     startQuestlineChallenge,
     adminCompleteChallenge,
     adminUncompleteChallenge,
+    adminCompleteQuest,
+    adminUncompleteQuest,
+    adminResetQuest,
+    quests: availableQuests, // All available quests from database
+    fetchUserQuests,
   } = useGame();
 
   const {
@@ -125,6 +132,21 @@ const QuestLogScreen = ({ navigation }) => {
     return { completed, inProgress, total: eventChallenges.length };
   }, [eventChallenges]);
 
+  // Filter available quests to exclude ones already started or completed
+  const filteredAvailableQuests = useMemo(() => {
+    if (!availableQuests || availableQuests.length === 0) return [];
+    
+    // Get IDs of quests already in progress or completed
+    const activeQuestIds = new Set(activeQuests.map(q => q.questId || q.quest_id || q.id));
+    const completedQuestIds = new Set(completedQuests.map(q => q.questId || q.quest_id || q.id));
+    
+    // Filter out quests that are already started or completed
+    return availableQuests.filter(quest => {
+      const questId = quest.id;
+      return !activeQuestIds.has(questId) && !completedQuestIds.has(questId);
+    });
+  }, [availableQuests, activeQuests, completedQuests]);
+
   // Load questline details when a questline challenge is expanded
   const loadQuestlineDetails = useCallback(async (challenge) => {
     if (challenge.challenge_mode !== 'questline') return;
@@ -139,6 +161,15 @@ const QuestLogScreen = ({ navigation }) => {
       setLoadingQuestline(false);
     }
   }, [getQuestlineDetails]);
+
+  // Auto-refresh questline details when questlineProgress changes (e.g., when a quest is completed)
+  useEffect(() => {
+    if (expandedChallenge?.challenge_mode === 'questline' && expandedChallenge?.id) {
+      // Reload details when progress changes
+      console.log('[QuestLogScreen] questlineProgress changed, refreshing modal...');
+      loadQuestlineDetails(expandedChallenge);
+    }
+  }, [questlineProgress]); // Note: intentionally NOT including expandedChallenge or loadQuestlineDetails to avoid infinite loops
 
   // Handle expanding a challenge (load questline details if needed)
   const handleExpandChallenge = useCallback(async (challenge) => {
@@ -299,10 +330,162 @@ const QuestLogScreen = ({ navigation }) => {
   }, [refreshChallenges]);
 
   const handleRefresh = async () => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsLoading(false);
+    // Navigate to Vibe Map where quests can be started
+    navigation.navigate('VibeMap');
   };
+
+  // Handle starting a quest from available quests
+  const handleStartAvailableQuest = useCallback(async (quest) => {
+    if (!quest) return;
+    const result = await startQuest(quest);
+    if (result) {
+      if (Platform.OS === 'web') {
+        window.alert(`Quest Started! You've started "${quest.title}"`);
+      } else {
+        Alert.alert('Quest Started!', `You've started "${quest.title}"`);
+      }
+    }
+  }, [startQuest]);
+
+  // Admin: Complete quest for current user
+  const handleAdminCompleteQuest = useCallback(async (quest) => {
+    console.log('[handleAdminCompleteQuest] Called with quest:', quest.id, quest.title);
+    console.log('[handleAdminCompleteQuest] Admin:', player?.admin, 'User:', user?.id);
+    
+    if (!player?.admin || !user?.id) {
+      console.log('[handleAdminCompleteQuest] Not authorized - returning');
+      return;
+    }
+    
+    const result = await adminCompleteQuest(user.id, quest.id);
+    console.log('[handleAdminCompleteQuest] Result:', result);
+    
+    if (result.error) {
+      if (Platform.OS === 'web') {
+        window.alert('Could not complete quest. Please try again.');
+      } else {
+        Alert.alert('Error', 'Could not complete quest. Please try again.');
+      }
+      return;
+    }
+    
+    const successMessage = `Quest "${quest.title}" marked as completed.\nXP awarded: ${result.xpAwarded || 0}`;
+    if (Platform.OS === 'web') {
+      window.alert(successMessage);
+    } else {
+      Alert.alert('Admin Action', successMessage, [{ text: 'OK' }]);
+    }
+    
+    // Refresh quests
+    await fetchUserQuests(user.id);
+  }, [player, user, adminCompleteQuest, fetchUserQuests]);
+
+  // Admin: Uncomplete quest for current user
+  const handleAdminUncompleteQuest = useCallback(async (quest) => {
+    if (!player?.admin || !user?.id) return;
+    
+    const confirmMessage = `Are you sure you want to uncomplete "${quest.title}"?\n\nThis will:\n- Revert the quest to active status\n- Deduct ${quest.xpReward || quest.xp_reward || 0} XP`;
+    
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(confirmMessage);
+      if (!confirmed) return;
+      
+      const result = await adminUncompleteQuest(user.id, quest.id);
+      
+      if (result.error) {
+        window.alert(`Could not uncomplete quest: ${JSON.stringify(result.error)}`);
+        return;
+      }
+      
+      window.alert(`Quest "${quest.title}" has been reset to active.`);
+      
+      // Refresh quests
+      await fetchUserQuests(user.id);
+    } else {
+      Alert.alert(
+        'Confirm',
+        confirmMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Uncomplete', 
+            style: 'destructive',
+            onPress: async () => {
+              const result = await adminUncompleteQuest(user.id, quest.id);
+              
+              if (result.error) {
+                Alert.alert('Error', 'Could not uncomplete quest. Please try again.');
+                return;
+              }
+              
+              Alert.alert('Admin Action', `Quest "${quest.title}" has been reset to active.`);
+              
+              // Refresh quests
+              await fetchUserQuests(user.id);
+            }
+          }
+        ]
+      );
+    }
+  }, [player, user, adminUncompleteQuest, fetchUserQuests]);
+
+  // Admin: Reset quest (remove from user's list, make it available again)
+  const handleAdminResetQuest = useCallback(async (quest, questStatus = 'active') => {
+    console.log('[handleAdminResetQuest] Called with quest:', quest.id, quest.title, 'status:', questStatus);
+    
+    if (!player?.admin || !user?.id) {
+      console.log('[handleAdminResetQuest] Not authorized - returning');
+      return;
+    }
+    
+    const isCompleted = questStatus === 'completed' || quest.status === 'completed';
+    const xpAmount = quest.xpReward || quest.xp_reward || 0;
+    
+    const confirmMessage = `Are you sure you want to reset "${quest.title}"?\n\nThis will:\n- Remove the quest from your list\n- Make it available to start again${isCompleted ? `\n- Deduct ${xpAmount} XP` : ''}`;
+    
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(confirmMessage);
+      if (!confirmed) return;
+      
+      const result = await adminResetQuest(user.id, quest.id, questStatus);
+      console.log('[handleAdminResetQuest] Result:', result);
+      
+      if (result.error) {
+        window.alert(`Could not reset quest: ${JSON.stringify(result.error)}`);
+        return;
+      }
+      
+      window.alert(`Quest "${quest.title}" has been reset and is now available again.`);
+      
+      // Refresh quests
+      await fetchUserQuests(user.id);
+    } else {
+      Alert.alert(
+        'Confirm Reset',
+        confirmMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Reset', 
+            style: 'destructive',
+            onPress: async () => {
+              const result = await adminResetQuest(user.id, quest.id, questStatus);
+              
+              if (result.error) {
+                Alert.alert('Error', 'Could not reset quest. Please try again.');
+                return;
+              }
+              
+              Alert.alert('Admin Action', `Quest "${quest.title}" has been reset and is now available again.`);
+              
+              // Refresh quests
+              await fetchUserQuests(user.id);
+            }
+          }
+        ]
+      );
+    }
+  }, [player, user, adminResetQuest, fetchUserQuests]);
 
   const handleLocationCheck = async (quest) => {
     if (!quest.location) return;
@@ -498,30 +681,113 @@ const QuestLogScreen = ({ navigation }) => {
         ) : activeTab === 'quests' ? (
           // === QUESTS TAB ===
           activeQuests.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconContainer}>
-                <Ionicons name="map" size={48} color={COLORS.primary} />
+            <View>
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconContainer}>
+                  <Ionicons name="map" size={48} color={COLORS.primary} />
+                </View>
+                <Text style={styles.emptyText}>No active quests</Text>
+                <Text style={styles.emptySub}>Start a quest below or explore the map to find adventures!</Text>
               </View>
-              <Text style={styles.emptyText}>No active quests</Text>
-              <Text style={styles.emptySub}>Explore the map to find new adventures or wait for the daily reset!</Text>
-              <TouchableOpacity 
-                style={[styles.refreshBtn, isLoading && styles.refreshBtnDisabled]} 
-                onPress={handleRefresh}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator size="small" color={COLORS.text.primary} />
-                ) : (
-                  <Text style={styles.refreshBtnText}>Search for quests</Text>
-                )}
-              </TouchableOpacity>
+
+              {/* Available Quests to Start (excludes already started/completed) */}
+              {filteredAvailableQuests.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={[styles.sectionTitle, { color: COLORS.text.secondary }]}>Available Quests</Text>
+                    <View style={[styles.countBadge, { backgroundColor: COLORS.primaryLight }]}>
+                      <Text style={[styles.countText, { color: COLORS.primary }]}>{filteredAvailableQuests.length}</Text>
+                    </View>
+                  </View>
+                  {filteredAvailableQuests.slice(0, 5).map(quest => (
+                    <QuestCard
+                      key={quest.id}
+                      quest={quest}
+                      onAction={() => handleStartAvailableQuest(quest)}
+                      actionLabel="Start Quest"
+                      isActionLoading={false}
+                    />
+                  ))}
+                  {filteredAvailableQuests.length > 5 && (
+                    <TouchableOpacity 
+                      style={styles.viewMoreButton} 
+                      onPress={handleRefresh}
+                    >
+                      <Text style={styles.viewMoreText}>View all on map</Text>
+                      <Ionicons name="arrow-forward" size={16} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* Completed Quests Section (show even when no active quests) */}
+              {completedQuests.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={[styles.sectionTitle, { color: COLORS.text.muted }]}>Completed</Text>
+                    <View style={[styles.countBadge, { backgroundColor: '#10B981' + '20' }]}>
+                      <Text style={[styles.countText, { color: '#10B981' }]}>{completedQuests.length}</Text>
+                    </View>
+                  </View>
+                  {completedQuests.map(quest => (
+                    <QuestCard
+                      key={quest.id}
+                      quest={quest}
+                      isAdmin={player?.admin}
+                      onAdminUncomplete={() => handleAdminUncompleteQuest(quest)}
+                      onAdminReset={() => handleAdminResetQuest(quest, 'completed')}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
           ) : (
             <>
-              {renderSection('Daily Missions', daily, COLORS.primary)}
-              {renderSection('Story', story, '#9B59B6')}
-              {renderSection('Challenges', challenges, '#EC4899')}
-              {renderSection('Social', social, COLORS.secondary)}
+              {/* Show all active quests */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={[styles.sectionTitle, { color: COLORS.primary }]}>Active Quests</Text>
+                  <View style={[styles.countBadge, { backgroundColor: COLORS.primary + '20' }]}>
+                    <Text style={[styles.countText, { color: COLORS.primary }]}>{activeQuests.length}</Text>
+                  </View>
+                </View>
+                {activeQuests.map(quest => (
+                  <QuestCard
+                    key={quest.id}
+                    quest={quest}
+                    onAction={() => {
+                      if (quest.type === 'location') handleLocationCheck(quest);
+                      if (quest.type === 'social' || quest.requiresScan) handleScanAction(quest);
+                    }}
+                    actionLabel={quest.type === 'location' ? 'Check Location' : quest.requiresScan ? 'Scan' : null}
+                    isActionLoading={checkingLocation === quest.id}
+                    isAdmin={player?.admin}
+                    onAdminComplete={() => handleAdminCompleteQuest(quest)}
+                    onAdminReset={() => handleAdminResetQuest(quest, 'active')}
+                  />
+                ))}
+              </View>
+
+              {/* Completed Quests Section */}
+              {completedQuests.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={[styles.sectionTitle, { color: COLORS.text.muted }]}>Completed</Text>
+                    <View style={[styles.countBadge, { backgroundColor: '#10B981' + '20' }]}>
+                      <Text style={[styles.countText, { color: '#10B981' }]}>{completedQuests.length}</Text>
+                    </View>
+                  </View>
+                  {completedQuests.map(quest => (
+                    <QuestCard
+                      key={quest.id}
+                      quest={quest}
+                      isAdmin={player?.admin}
+                      onAdminUncomplete={() => handleAdminUncompleteQuest(quest)}
+                      onAdminReset={() => handleAdminResetQuest(quest, 'completed')}
+                    />
+                  ))}
+                </View>
+              )}
             </>
           )
         ) : (
@@ -1101,6 +1367,24 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
     fontWeight: '700',
     fontSize: 16,
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '40',
+  },
+  viewMoreText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   cameraContainer: {
     flex: 1,
