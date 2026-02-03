@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ETERNAL PATH - POI Modal (Video + Info Content)
+// ETERNAL PATH - POI Modal (Video + Combined Image/Info Content)
 // ═══════════════════════════════════════════════════════════════════════════
-// Shows video first, then info modal with title, text, and image
+// Shows video first (if available), then image with overlaid title/text
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -66,23 +66,23 @@ const getImageUrl = (pathOrFilename) => {
 const POIModal = ({
   visible,
   poi, // { name, videoUrl, infoTitle, infoText, infoImageUrl, hook }
-  onComplete, // Called when user closes the info modal
+  onComplete, // Called when user closes the modal
   onClose, // Called if user skips/closes early
 }) => {
   const insets = useSafeAreaInsets();
-  const [phase, setPhase] = useState('video'); // 'video' | 'image' | 'info'
+  const [phase, setPhase] = useState('content'); // 'video' | 'content'
   const [videoLoading, setVideoLoading] = useState(true);
   const [videoError, setVideoError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const videoRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const contentSlideAnim = useRef(new Animated.Value(100)).current;
 
   // Determine the starting phase based on what content is available
   const getInitialPhase = () => {
     if (poi?.videoUrl) return 'video';
-    if (poi?.infoImageUrl) return 'image';
-    return 'info';
+    return 'content';
   };
 
   useEffect(() => {
@@ -94,6 +94,7 @@ const POIModal = ({
       setImageLoading(true);
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.8);
+      contentSlideAnim.setValue(100);
 
       // Animate in
       Animated.parallel([
@@ -109,11 +110,21 @@ const POIModal = ({
           useNativeDriver: true,
         }),
       ]).start();
+
+      // Animate content slide up after a delay
+      setTimeout(() => {
+        Animated.spring(contentSlideAnim, {
+          toValue: 0,
+          friction: 8,
+          tension: 80,
+          useNativeDriver: true,
+        }).start();
+      }, 200);
     }
   }, [visible, poi]);
 
   const handleVideoEnd = () => {
-    // Video finished, transition to image phase (if image exists) or info phase
+    // Video finished, transition to content phase
     Animated.sequence([
       Animated.timing(fadeAnim, {
         toValue: 0,
@@ -121,13 +132,21 @@ const POIModal = ({
         useNativeDriver: true,
       }),
     ]).start(() => {
-      const nextPhase = poi?.infoImageUrl ? 'image' : 'info';
-      setPhase(nextPhase);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      setPhase('content');
+      contentSlideAnim.setValue(100);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(contentSlideAnim, {
+          toValue: 0,
+          friction: 8,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+      ]).start();
     });
   };
 
@@ -136,29 +155,6 @@ const POIModal = ({
       videoRef.current.stopAsync();
     }
     handleVideoEnd();
-  };
-
-  const handleImageClose = () => {
-    // Image closed, transition to info phase (or complete if no info text)
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      // If there's info text, show it; otherwise complete
-      if (poi?.infoText || poi?.infoTitle) {
-        setPhase('info');
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      } else {
-        if (onComplete) onComplete();
-      }
-    });
   };
 
   const handleComplete = () => {
@@ -180,6 +176,8 @@ const POIModal = ({
 
   if (!visible || !poi) return null;
 
+  const hasImage = !!poi.infoImageUrl;
+
   return (
     <Modal
       visible={visible}
@@ -188,30 +186,24 @@ const POIModal = ({
       onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
-        <LinearGradient
-          colors={['rgba(13,27,42,0.98)', 'rgba(27,40,56,0.98)']}
-          style={StyleSheet.absoluteFill}
-        />
-
         <Animated.View
           style={[
             styles.container,
             {
-              paddingTop: insets.top + 20,
-              paddingBottom: insets.bottom + 20,
               opacity: fadeAnim,
               transform: [{ scale: scaleAnim }],
             },
           ]}
         >
-          {/* Close Button */}
-          <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-            <Ionicons name="close" size={28} color={COLORS.text.muted} />
-          </TouchableOpacity>
-
           {phase === 'video' && poi.videoUrl ? (
             // VIDEO PHASE
-            <View style={styles.videoContainer}>
+            <View style={[styles.videoContainer, { paddingTop: insets.top + 20 }]}>
+              <TouchableOpacity style={[styles.closeButton, { top: insets.top + 16 }]} onPress={handleClose}>
+                <View style={styles.closeButtonInner}>
+                  <Ionicons name="close" size={24} color="#FFF" />
+                </View>
+              </TouchableOpacity>
+
               <Text style={styles.poiName}>{poi.name}</Text>
 
               <View style={styles.videoWrapper}>
@@ -259,91 +251,106 @@ const POIModal = ({
                 <Ionicons name="arrow-forward" size={18} color={COLORS.text.secondary} />
               </TouchableOpacity>
             </View>
-          ) : phase === 'image' && poi.infoImageUrl ? (
-            // FULLSCREEN IMAGE PHASE
-            <View style={styles.fullscreenImageContainer}>
-              {/* Close Button for Image */}
+          ) : (
+            // COMBINED IMAGE + TEXT CONTENT PHASE
+            <View style={styles.contentContainer}>
+              {/* Close Button */}
               <TouchableOpacity 
-                style={styles.imageCloseButton} 
-                onPress={handleImageClose}
+                style={[styles.closeButton, { top: insets.top + 16 }]} 
+                onPress={handleClose}
               >
-                <View style={styles.imageCloseButtonInner}>
-                  <Ionicons name="close" size={28} color="#FFF" />
+                <View style={styles.closeButtonInner}>
+                  <Ionicons name="close" size={24} color="#FFF" />
                 </View>
               </TouchableOpacity>
 
-              {/* Fullscreen Image */}
-              {imageLoading && (
-                <View style={styles.imageLoadingContainer}>
-                  <ActivityIndicator size="large" color={COLORS.primary} />
+              {/* Background Image (if available) */}
+              {hasImage && (
+                <View style={styles.imageContainer}>
+                  {imageLoading && (
+                    <View style={styles.imageLoadingContainer}>
+                      <ActivityIndicator size="large" color={COLORS.primary} />
+                    </View>
+                  )}
+                  <Image
+                    source={{ uri: getImageUrl(poi.infoImageUrl) }}
+                    style={styles.backgroundImage}
+                    resizeMode="cover"
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => setImageLoading(false)}
+                  />
                 </View>
               )}
-              <Image
-                source={{ uri: getImageUrl(poi.infoImageUrl) }}
-                style={styles.fullscreenImage}
-                resizeMode="contain"
-                onLoad={() => setImageLoading(false)}
-                onError={() => {
-                  setImageLoading(false);
-                  // If image fails to load, skip to info phase
-                  handleImageClose();
-                }}
+
+              {/* Gradient Overlay for Text Readability */}
+              <LinearGradient
+                colors={[
+                  'transparent',
+                  'rgba(13,27,42,0.4)',
+                  'rgba(13,27,42,0.85)',
+                  'rgba(13,27,42,0.98)',
+                ]}
+                locations={[0, 0.3, 0.55, 0.75]}
+                style={styles.gradientOverlay}
               />
 
-              {/* Tap hint */}
-              <View style={styles.imageTapHint}>
-                <Ionicons name="close-circle-outline" size={20} color="rgba(255,255,255,0.7)" />
-                <Text style={styles.imageTapHintText}>Tippe zum Schließen</Text>
-              </View>
-            </View>
-          ) : (
-            // INFO PHASE
-            <View style={styles.infoContainer}>
-              {/* POI Icon */}
-              <View style={styles.iconContainer}>
-                <LinearGradient
-                  colors={COLORS.gradients.gold}
-                  style={styles.iconGradient}
-                >
-                  <Ionicons name="checkmark" size={40} color={COLORS.text.primary} />
-                </LinearGradient>
-              </View>
-
-              {/* Title */}
-              <Text style={styles.infoTitle}>
-                {poi.infoTitle || poi.name}
-              </Text>
-
-              {/* Hook (subtitle) - if available */}
-              {poi.hook && (
-                <Text style={styles.infoHook}>
-                  {poi.hook}
-                </Text>
-              )}
-
-              {/* Scrollable Content */}
-              <ScrollView 
-                style={styles.infoScroll} 
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.infoScrollContent}
+              {/* Content Overlay at Bottom */}
+              <Animated.View 
+                style={[
+                  styles.contentOverlay,
+                  { 
+                    paddingBottom: insets.bottom + 24,
+                    transform: [{ translateY: contentSlideAnim }],
+                  }
+                ]}
               >
-                <Text style={styles.infoText}>
-                  {poi.infoText || 'Station erfolgreich besucht!'}
-                </Text>
-              </ScrollView>
+                {/* Success Badge */}
+                <View style={styles.successBadge}>
+                  <LinearGradient
+                    colors={COLORS.gradients.gold}
+                    style={styles.successBadgeGradient}
+                  >
+                    <Ionicons name="checkmark" size={20} color={COLORS.text.primary} />
+                  </LinearGradient>
+                  <Text style={styles.successBadgeText}>Station entdeckt!</Text>
+                </View>
 
-              {/* Continue Button */}
-              <TouchableOpacity style={styles.continueButton} onPress={handleComplete}>
-                <LinearGradient
-                  colors={COLORS.gradients.gold}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.continueGradient}
+                {/* Title */}
+                <Text style={styles.contentTitle}>
+                  {poi.infoTitle || poi.name}
+                </Text>
+
+                {/* Hook (subtitle) */}
+                {poi.hook && (
+                  <Text style={styles.contentHook}>
+                    {poi.hook}
+                  </Text>
+                )}
+
+                {/* Story Text - Scrollable if needed */}
+                <ScrollView 
+                  style={styles.textScroll}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.textScrollContent}
                 >
-                  <Text style={styles.continueText}>Weiter</Text>
-                  <Ionicons name="arrow-forward" size={20} color={COLORS.text.primary} />
-                </LinearGradient>
-              </TouchableOpacity>
+                  <Text style={styles.contentText}>
+                    {poi.infoText || 'Station erfolgreich besucht!'}
+                  </Text>
+                </ScrollView>
+
+                {/* Continue Button */}
+                <TouchableOpacity style={styles.continueButton} onPress={handleComplete}>
+                  <LinearGradient
+                    colors={COLORS.gradients.gold}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.continueGradient}
+                  >
+                    <Text style={styles.continueText}>Weiter</Text>
+                    <Ionicons name="arrow-forward" size={20} color={COLORS.text.primary} />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           )}
         </Animated.View>
@@ -359,14 +366,23 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
   },
+
+  // Close Button (shared)
   closeButton: {
     position: 'absolute',
-    top: 16,
-    right: 16,
+    right: 20,
     zIndex: 100,
-    padding: 8,
+  },
+  closeButtonInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
 
   // Video Phase
@@ -374,6 +390,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 24,
   },
   poiName: {
     fontSize: 24,
@@ -438,67 +455,102 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Info Phase
-  infoContainer: {
+  // Combined Content Phase
+  contentContainer: {
     flex: 1,
+    backgroundColor: '#0D1B2A',
+  },
+  imageContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: height * 0.55,
+  },
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageLoadingContainer: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#0D1B2A',
   },
-  iconContainer: {
-    marginBottom: 24,
-    ...SHADOWS.xl,
+  gradientOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  iconGradient: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  contentOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+  },
+
+  // Success Badge
+  successBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 10,
+    marginBottom: 16,
+  },
+  successBadgeGradient: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    ...SHADOWS.md,
   },
-  infoTitle: {
-    fontSize: 28,
+  successBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+  },
+
+  // Content Text
+  contentTitle: {
+    fontSize: 26,
     fontWeight: '800',
     color: COLORS.text.primary,
-    textAlign: 'center',
     marginBottom: 8,
-    paddingHorizontal: 16,
+    lineHeight: 32,
   },
-  infoHook: {
+  contentHook: {
     fontSize: 16,
     fontWeight: '600',
     fontStyle: 'italic',
     color: COLORS.primary,
-    textAlign: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 24,
+    marginBottom: 16,
+    lineHeight: 22,
   },
-  infoScroll: {
-    maxHeight: height * 0.4,
-    width: '100%',
-  },
-  infoScrollContent: {
-    alignItems: 'center',
-    paddingBottom: 24,
-  },
-  infoImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: RADII.lg,
+  textScroll: {
+    maxHeight: height * 0.22,
     marginBottom: 20,
   },
-  infoText: {
-    fontSize: 16,
-    lineHeight: 26,
+  textScrollContent: {
+    paddingBottom: 8,
+  },
+  contentText: {
+    fontSize: 15,
+    lineHeight: 24,
     color: COLORS.text.secondary,
-    textAlign: 'center',
-    paddingHorizontal: 16,
   },
+
+  // Continue Button
   continueButton: {
     width: '100%',
     borderRadius: RADII.lg,
     overflow: 'hidden',
     ...SHADOWS.md,
-    marginTop: 24,
   },
   continueGradient: {
     flexDirection: 'row',
@@ -511,57 +563,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text.primary,
-  },
-
-  // Fullscreen Image Phase
-  fullscreenImageContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#000',
-    marginHorizontal: -24, // Expand to full width
-    marginTop: -20,
-    marginBottom: -20,
-  },
-  imageCloseButton: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    zIndex: 100,
-  },
-  imageCloseButtonInner: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  fullscreenImage: {
-    width: width,
-    height: height,
-  },
-  imageLoadingContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageTapHint: {
-    position: 'absolute',
-    bottom: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-  },
-  imageTapHintText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
   },
 });
 
