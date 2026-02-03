@@ -277,7 +277,7 @@ const POICreationModal = ({
                 autoCapitalize="none"
               />
               <Text style={styles.helperText}>
-                Dateiname aus /public/img/screens (z.B. "welcome.jpg")
+                z.B. "@public/img/Ramy.jpeg" oder "filename.jpg" (aus /public/img/)
               </Text>
 
               <View style={{ height: 20 }} />

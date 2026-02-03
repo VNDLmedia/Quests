@@ -25,15 +25,42 @@ import { COLORS, RADII, SHADOWS } from '../theme';
 
 const { width, height } = Dimensions.get('window');
 
-// Helper to construct image URL from filename
-const getImageUrl = (filename) => {
-  if (!filename) return null;
+// Helper to construct image URL from filename or path
+const getImageUrl = (pathOrFilename) => {
+  if (!pathOrFilename) return null;
+  
   // If it's already a full URL, use it as-is
-  if (filename.startsWith('http://') || filename.startsWith('https://')) {
-    return filename;
+  if (pathOrFilename.startsWith('http://') || pathOrFilename.startsWith('https://')) {
+    return pathOrFilename;
   }
-  // Otherwise, construct path to /public/img/screens/
-  return `/img/screens/${filename}`;
+  
+  let path = pathOrFilename.trim();
+  
+  // Handle @public/ prefix (e.g., "@public/img/Ramy.jpeg" -> "/img/Ramy.jpeg")
+  if (path.startsWith('@public/')) {
+    path = '/' + path.slice(8); // Remove "@public/" prefix
+  }
+  // Handle public/ prefix without @ (e.g., "public/img/Ramy.jpeg" -> "/img/Ramy.jpeg")
+  else if (path.startsWith('public/')) {
+    path = '/' + path.slice(7); // Remove "public/" prefix
+  }
+  // Handle paths that already start with / (keep as-is)
+  else if (path.startsWith('/')) {
+    // Already a proper path
+  }
+  // Handle just a filename (default to /img/ folder)
+  else {
+    path = `/img/${path}`;
+  }
+  
+  // URL encode spaces and special characters in the path
+  // Split path, encode each segment, rejoin
+  const segments = path.split('/');
+  const encodedSegments = segments.map(segment => 
+    segment ? encodeURIComponent(segment) : segment
+  );
+  
+  return encodedSegments.join('/');
 };
 
 const POIModal = ({

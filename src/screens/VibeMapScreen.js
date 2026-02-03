@@ -9,7 +9,8 @@ import {
   Animated,
   Dimensions,
   Alert,
-  PanResponder
+  PanResponder,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview'; 
@@ -224,6 +225,9 @@ const MapScreen = () => {
   const [activeQuestIds, setActiveQuestIds] = useState([]);
   const [isAddingQuest, setIsAddingQuest] = useState(false);
   const [showQuestCreationModal, setShowQuestCreationModal] = useState(false);
+  
+  // Custom Alert Modal State
+  const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', type: 'info' });
 
   // Generate nearby quests - defined first to avoid circular dependency
   const generateNearbyQuests = useCallback((coords) => {
@@ -763,19 +767,21 @@ const MapScreen = () => {
           // POI scanned successfully - show video/info modal
           handlePOIScanComplete(result.poi, result.progress, result.completionData);
         } else if (result.alreadyScanned) {
-          // Already scanned this POI
-          if (Platform.OS === 'web') {
-            window.alert(result.error || 'Diese Station wurde bereits besucht');
-          } else {
-            Alert.alert('Bereits besucht', result.error || 'Diese Station wurde bereits besucht');
-          }
+          // Already scanned this POI - show custom modal
+          setAlertModal({
+            visible: true,
+            title: 'Bereits besucht',
+            message: result.error || 'Diese Station wurde bereits besucht',
+            type: 'info'
+          });
         } else {
-          const errorMsg = result.error || 'Fehler beim Scannen';
-          if (Platform.OS === 'web') {
-            window.alert(errorMsg);
-          } else {
-            Alert.alert('Fehler', errorMsg);
-          }
+          // Error - show custom modal
+          setAlertModal({
+            visible: true,
+            title: 'Fehler',
+            message: result.error || 'Fehler beim Scannen',
+            type: 'error'
+          });
         }
         setScanningQuest(null);
         return;
@@ -822,13 +828,13 @@ const MapScreen = () => {
             }
           }
         } else {
-          // Already scanned or error
-          const errorMsg = result.error || 'Fehler beim Scannen';
-          if (Platform.OS === 'web') {
-            alert(errorMsg);
-          } else {
-            Alert.alert('Hinweis', errorMsg);
-          }
+          // Already scanned or error - show custom modal
+          setAlertModal({
+            visible: true,
+            title: 'Hinweis',
+            message: result.error || 'Fehler beim Scannen',
+            type: 'info'
+          });
         }
         setScanningQuest(null);
         return;
@@ -866,29 +872,29 @@ const MapScreen = () => {
         closeQuestDetail();
       } else if (result.success && result.type === 'quest' && !scanningQuest) {
         // Quest scanned directly without selecting it first
-        const successMsg = result.message || `Quest "${result.quest?.title}" abgeschlossen!`;
-        if (Platform.OS === 'web') {
-          window.alert(successMsg);
-        } else {
-          Alert.alert('Quest abgeschlossen!', successMsg);
-        }
+        setAlertModal({
+          visible: true,
+          title: 'Quest abgeschlossen!',
+          message: result.message || `Quest "${result.quest?.title}" abgeschlossen!`,
+          type: 'success'
+        });
       } else if (!result.success) {
         // Wrong code or error
-        const errorMsg = result.error || 'Wrong QR code. Please try again.';
-        if (Platform.OS === 'web') {
-          window.alert(errorMsg);
-        } else {
-          Alert.alert('Error', errorMsg);
-        }
+        setAlertModal({
+          visible: true,
+          title: 'Fehler',
+          message: result.error || 'Falscher QR-Code. Bitte erneut versuchen.',
+          type: 'error'
+        });
       }
     } catch (error) {
       console.error('[VibeMapScreen] QR scan error:', error);
-      const errorMsg = error.message || 'Error processing QR code';
-      if (Platform.OS === 'web') {
-        window.alert(errorMsg);
-      } else {
-        Alert.alert('Fehler', errorMsg);
-      }
+      setAlertModal({
+        visible: true,
+        title: 'Fehler',
+        message: error.message || 'Fehler beim Verarbeiten des QR-Codes',
+        type: 'error'
+      });
     }
     
     setScanningQuest(null);
@@ -1030,6 +1036,51 @@ const MapScreen = () => {
           infoContent={completionModalData?.infoContent}
           onClose={() => setCompletionModalData(null)}
         />
+
+        {/* Custom Alert Modal */}
+        <Modal
+          visible={alertModal.visible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setAlertModal({ ...alertModal, visible: false })}
+        >
+          <View style={styles.alertOverlay}>
+            <View style={styles.alertContainer}>
+              <View style={[styles.alertIconContainer, 
+                alertModal.type === 'error' ? styles.alertIconError :
+                alertModal.type === 'success' ? styles.alertIconSuccess :
+                styles.alertIconInfo
+              ]}>
+                <Ionicons 
+                  name={
+                    alertModal.type === 'error' ? 'close-circle' :
+                    alertModal.type === 'success' ? 'checkmark-circle' :
+                    'information-circle'
+                  } 
+                  size={48} 
+                  color={
+                    alertModal.type === 'error' ? COLORS.error :
+                    alertModal.type === 'success' ? COLORS.success :
+                    COLORS.primary
+                  }
+                />
+              </View>
+              <Text style={styles.alertTitle}>{alertModal.title}</Text>
+              <Text style={styles.alertMessage}>{alertModal.message}</Text>
+              <TouchableOpacity 
+                style={styles.alertButton}
+                onPress={() => setAlertModal({ ...alertModal, visible: false })}
+              >
+                <LinearGradient
+                  colors={COLORS.gradients.gold}
+                  style={styles.alertButtonGradient}
+                >
+                  <Text style={styles.alertButtonText}>OK</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -1246,6 +1297,51 @@ const MapScreen = () => {
         infoContent={completionModalData?.infoContent}
         onClose={closeCompletionModal}
       />
+
+      {/* Custom Alert Modal */}
+      <Modal
+        visible={alertModal.visible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setAlertModal({ ...alertModal, visible: false })}
+      >
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertContainer}>
+            <View style={[styles.alertIconContainer, 
+              alertModal.type === 'error' ? styles.alertIconError :
+              alertModal.type === 'success' ? styles.alertIconSuccess :
+              styles.alertIconInfo
+            ]}>
+              <Ionicons 
+                name={
+                  alertModal.type === 'error' ? 'close-circle' :
+                  alertModal.type === 'success' ? 'checkmark-circle' :
+                  'information-circle'
+                } 
+                size={48} 
+                color={
+                  alertModal.type === 'error' ? COLORS.error :
+                  alertModal.type === 'success' ? COLORS.success :
+                  COLORS.primary
+                }
+              />
+            </View>
+            <Text style={styles.alertTitle}>{alertModal.title}</Text>
+            <Text style={styles.alertMessage}>{alertModal.message}</Text>
+            <TouchableOpacity 
+              style={styles.alertButton}
+              onPress={() => setAlertModal({ ...alertModal, visible: false })}
+            >
+              <LinearGradient
+                colors={COLORS.gradients.gold}
+                style={styles.alertButtonGradient}
+              >
+                <Text style={styles.alertButtonText}>OK</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1349,6 +1445,70 @@ const styles = StyleSheet.create({
   completedQuestBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(46,204,113,0.1)', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(46,204,113,0.2)' },
   completedQuestBadgeText: { fontSize: 14, fontWeight: '600', color: COLORS.success },
   scannerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 },
+  
+  // Custom Alert Modal
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  alertContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    ...SHADOWS.xl,
+  },
+  alertIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  alertIconInfo: {
+    backgroundColor: 'rgba(232,184,74,0.15)',
+  },
+  alertIconSuccess: {
+    backgroundColor: 'rgba(46,204,113,0.15)',
+  },
+  alertIconError: {
+    backgroundColor: 'rgba(231,76,60,0.15)',
+  },
+  alertTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: COLORS.text.primary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 15,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  alertButton: {
+    width: '100%',
+    borderRadius: 14,
+    overflow: 'hidden',
+    ...SHADOWS.md,
+  },
+  alertButtonGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  alertButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text.primary,
+  },
 });
 
 export default MapScreen;

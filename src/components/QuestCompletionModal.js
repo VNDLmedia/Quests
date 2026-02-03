@@ -23,6 +23,21 @@ import { COLORS, TYPOGRAPHY, RADII, SHADOWS } from '../theme';
 
 const { width, height } = Dimensions.get('window');
 
+// Helper to encode image URL properly (handles spaces and special characters)
+const encodeImageUrl = (url) => {
+  if (!url) return null;
+  // If it's already a full URL with protocol, use as-is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // Split path and encode each segment to handle spaces and special chars
+  const segments = url.split('/');
+  const encodedSegments = segments.map(segment => 
+    segment ? encodeURIComponent(segment) : segment
+  );
+  return encodedSegments.join('/');
+};
+
 // Confetti particle component
 const ConfettiParticle = ({ delay, startX }) => {
   const translateY = useRef(new Animated.Value(-50)).current;
@@ -174,8 +189,9 @@ const QuestCompletionModal = ({
 
   const scoreReward = rewards?.score || 10;
   const cardReward = rewards?.card || null;
-  const hasImage = infoContent?.image_url || infoContent?.imageUrl;
-  const imageUrl = infoContent?.image_url || infoContent?.imageUrl;
+  const rawImageUrl = infoContent?.image_url || infoContent?.imageUrl;
+  const hasImage = !!rawImageUrl;
+  const imageUrl = encodeImageUrl(rawImageUrl);
 
   // Fullscreen image mode for POIs
   if (hasImage) {
