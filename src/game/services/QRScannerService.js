@@ -445,7 +445,7 @@ const processFoundQuest = async (quest, userId) => {
     },
     infoContent,
     message: isPresentationQuest 
-      ? `Point of Interest "${quest.title}" entdeckt! +${quest.xp_reward || 0} Punkte`
+      ? `Point of Interest "${quest.title}" discovered! +${quest.xp_reward || 0} Punkte`
       : `Quest completed! +${quest.xp_reward || 0} Points`
   };
 };

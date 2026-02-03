@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -168,14 +168,42 @@ const QuestLogScreen = ({ navigation }) => {
     }
   }, [getQuestlineDetails]);
 
-  // Auto-refresh questline details when questlineProgress changes (e.g., when a quest is completed)
+  // Track previous questline progress to avoid unnecessary refreshes
+  const prevQuestlineProgressRef = useRef(null);
+  
+  // Auto-refresh questline details when questlineProgress actually changes (e.g., when a quest is completed)
   useEffect(() => {
-    if (expandedChallenge?.challenge_mode === 'questline' && expandedChallenge?.id) {
-      // Reload details when progress changes
-      console.log('[QuestLogScreen] questlineProgress changed, refreshing modal...');
-      loadQuestlineDetails(expandedChallenge);
+    if (!expandedChallenge?.challenge_mode === 'questline' || !expandedChallenge?.id) {
+      return;
     }
-  }, [questlineProgress]); // Note: intentionally NOT including expandedChallenge or loadQuestlineDetails to avoid infinite loops
+    
+    // Get the current challenge's progress
+    const challengeId = expandedChallenge.id;
+    const currentProgress = questlineProgress?.[challengeId];
+    const prevProgress = prevQuestlineProgressRef.current;
+    
+    // Compare by stringifying to detect actual data changes (not just reference changes)
+    const currentProgressStr = JSON.stringify(currentProgress);
+    const prevProgressStr = JSON.stringify(prevProgress);
+    
+    if (currentProgressStr !== prevProgressStr) {
+      // Progress actually changed - update ref and reload
+      prevQuestlineProgressRef.current = currentProgress;
+      
+      // Only log and reload if we had previous progress (skip initial load)
+      if (prevProgress !== null) {
+        console.log('[QuestLogScreen] questlineProgress actually changed, refreshing modal...');
+        loadQuestlineDetails(expandedChallenge);
+      }
+    }
+  }, [questlineProgress, expandedChallenge?.id, expandedChallenge?.challenge_mode, loadQuestlineDetails]);
+  
+  // Reset the progress ref when modal is closed
+  useEffect(() => {
+    if (!expandedChallenge) {
+      prevQuestlineProgressRef.current = null;
+    }
+  }, [expandedChallenge]);
 
   // Load POIs once on mount
   useEffect(() => {
@@ -766,12 +794,12 @@ const QuestLogScreen = ({ navigation }) => {
                               {isCompleted ? (
                                 <>
                                   <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                                  <Text style={[styles.poiMetaText, { color: '#10B981' }]}>Entdeckt</Text>
+                                  <Text style={[styles.poiMetaText, { color: '#10B981' }]}>Discovered</Text>
                                 </>
                               ) : (
                                 <>
                                   <Ionicons name="qr-code" size={12} color={COLORS.text.muted} />
-                                  <Text style={styles.poiMetaText}>QR scannen</Text>
+                                  <Text style={styles.poiMetaText}>Scan QR code</Text>
                                 </>
                               )}
                             </View>
